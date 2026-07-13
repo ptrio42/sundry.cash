@@ -10,7 +10,8 @@ import Dashboard from './Dashboard';
 import ExcelImport from './ExcelImport';
 import Analytics from './Analytics';
 import EditExpenseModal from './EditExpenseModal';
-import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses } from '../services/api';
+import Login from './Login';
+import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getToken, logout } from '../services/api';
 import { Expense } from '../types/expense.types';
 import '../App.css';
 
@@ -22,13 +23,41 @@ export default function App() {
   const [error, setError] = useState<string>('');
   const [currentView, setCurrentView] = useState<View>('form');
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [authChecked, setAuthChecked] = useState<boolean>(false);
+  const [authRequired, setAuthRequired] = useState<boolean>(false);
+  const [authed, setAuthed] = useState<boolean>(false);
 
   /**
-   * Fetch all expenses on component mount
+   * Check whether the backend requires a password, and listen for session expiry
    */
   useEffect(() => {
-    loadExpenses();
+    (async () => {
+      try {
+        const status = await getAuthStatus();
+        setAuthRequired(status.authRequired);
+        setAuthed(!status.authRequired || !!getToken());
+      } catch {
+        // If the status check fails, fail open so local usage isn't blocked
+        setAuthRequired(false);
+        setAuthed(true);
+      } finally {
+        setAuthChecked(true);
+      }
+    })();
+
+    const onExpired = () => setAuthed(false);
+    window.addEventListener('auth-expired', onExpired);
+    return () => window.removeEventListener('auth-expired', onExpired);
   }, []);
+
+  /**
+   * Load expenses once authenticated
+   */
+  useEffect(() => {
+    if (authChecked && authed) {
+      loadExpenses();
+    }
+  }, [authChecked, authed]);
 
   /**
    * Load expenses from API
@@ -119,6 +148,20 @@ export default function App() {
     }
   };
 
+  const handleLogout = () => {
+    logout();
+    setExpenses([]);
+    setAuthed(false);
+  };
+
+  if (!authChecked) {
+    return <div className="loading fullscreen-loading">Loading…</div>;
+  }
+
+  if (authRequired && !authed) {
+    return <Login onSuccess={() => setAuthed(true)} />;
+  }
+
   return (
     <div className="app">
       {/* Header */}
@@ -166,6 +209,15 @@ export default function App() {
         >
           🗑️ Wipe Database
         </button>
+        {authRequired && (
+          <button
+            className="logout-button"
+            onClick={handleLogout}
+            title="Sign out"
+          >
+            🔓 Logout
+          </button>
+        )}
       </nav>
 
       {/* Main Content */}
@@ -211,7 +263,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="app-footer">
-        <p>Expense Tracker MVP v1.0.0 | Built with React + TypeScript + Express</p>
+        <p>Expense Tracker · Built with React + TypeScript + Express</p>
       </footer>
 
       {/* Edit Expense Modal */}

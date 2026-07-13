@@ -19,6 +19,41 @@ import {
 // Override with VITE_API_BASE_URL only for non-proxied setups.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
+// --- Auth token (single-user gate) ---------------------------------------
+
+const TOKEN_KEY = 'expense-tracker-token';
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+/**
+ * fetch wrapper that prefixes the API base URL, attaches the bearer token when
+ * present, and signals session expiry on a 401 so the app can show the login screen.
+ */
+async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+
+  if (response.status === 401) {
+    clearToken();
+    window.dispatchEvent(new Event('auth-expired'));
+  }
+
+  return response;
+}
+
 /**
  * Handle API errors and throw with meaningful messages
  */
@@ -36,6 +71,32 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json();
 }
 
+// --- Auth ----------------------------------------------------------------
+
+/** Whether the backend requires a password. */
+export async function getAuthStatus(): Promise<{ authRequired: boolean }> {
+  const response = await apiFetch('/auth/status');
+  return handleResponse(response);
+}
+
+/** Exchange the password for a token and store it. */
+export async function login(password: string): Promise<void> {
+  const response = await apiFetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password })
+  });
+  const data = await handleResponse<{ token: string }>(response);
+  setToken(data.token);
+}
+
+/** Clear the stored token. */
+export function logout(): void {
+  clearToken();
+}
+
+// --- Expenses ------------------------------------------------------------
+
 /**
  * Get all expenses with optional filtering
  */
@@ -51,9 +112,11 @@ export async function getExpenses(filters?: ExpenseFilters): Promise<Expense[]> 
   if (filters?.endDate) {
     params.append('endDate', filters.endDate);
   }
+  if (filters?.currency) {
+    params.append('currency', filters.currency);
+  }
 
-  const url = `${API_BASE_URL}/expenses${params.toString() ? '?' + params.toString() : ''}`;
-  const response = await fetch(url);
+  const response = await apiFetch(`/expenses${params.toString() ? '?' + params.toString() : ''}`);
   return handleResponse<Expense[]>(response);
 }
 
@@ -61,7 +124,7 @@ export async function getExpenses(filters?: ExpenseFilters): Promise<Expense[]> 
  * Get a single expense by ID
  */
 export async function getExpense(id: number): Promise<Expense> {
-  const response = await fetch(`${API_BASE_URL}/expenses/${id}`);
+  const response = await apiFetch(`/expenses/${id}`);
   return handleResponse<Expense>(response);
 }
 
@@ -69,7 +132,7 @@ export async function getExpense(id: number): Promise<Expense> {
  * Create a new expense
  */
 export async function createExpense(expense: CreateExpenseDTO): Promise<Expense> {
-  const response = await fetch(`${API_BASE_URL}/expenses`, {
+  const response = await apiFetch('/expenses', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -83,7 +146,7 @@ export async function createExpense(expense: CreateExpenseDTO): Promise<Expense>
  * Update an existing expense
  */
 export async function updateExpense(id: number, expense: UpdateExpenseDTO): Promise<Expense> {
-  const response = await fetch(`${API_BASE_URL}/expenses/${id}`, {
+  const response = await apiFetch(`/expenses/${id}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json'
@@ -97,7 +160,7 @@ export async function updateExpense(id: number, expense: UpdateExpenseDTO): Prom
  * Delete an expense
  */
 export async function deleteExpense(id: number): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/expenses/${id}`, {
+  const response = await apiFetch(`/expenses/${id}`, {
     method: 'DELETE'
   });
   return handleResponse<void>(response);
@@ -107,7 +170,7 @@ export async function deleteExpense(id: number): Promise<void> {
  * Get statistics grouped by category
  */
 export async function getStatsByCategory(): Promise<CategoryStats[]> {
-  const response = await fetch(`${API_BASE_URL}/expenses/stats/by-category`);
+  const response = await apiFetch('/expenses/stats/by-category');
   return handleResponse<CategoryStats[]>(response);
 }
 
@@ -115,9 +178,11 @@ export async function getStatsByCategory(): Promise<CategoryStats[]> {
  * Get statistics grouped by date
  */
 export async function getStatsByDate(): Promise<DateStats[]> {
-  const response = await fetch(`${API_BASE_URL}/expenses/stats/by-date`);
+  const response = await apiFetch('/expenses/stats/by-date');
   return handleResponse<DateStats[]>(response);
 }
+
+// --- Import --------------------------------------------------------------
 
 /**
  * Preview Excel import - get first rows and column names
@@ -130,9 +195,9 @@ export async function previewImport(file: File): Promise<{
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE_URL}/import/preview`, {
+  const response = await apiFetch('/import/preview', {
     method: 'POST',
-    body: formData,
+    body: formData
   });
 
   return handleResponse(response);
@@ -170,9 +235,9 @@ export async function confirmImport(
   }
   formData.append('currency', mapping.currency);
 
-  const response = await fetch(`${API_BASE_URL}/import/confirm`, {
+  const response = await apiFetch('/import/confirm', {
     method: 'POST',
-    body: formData,
+    body: formData
   });
 
   return handleResponse(response);
@@ -185,8 +250,8 @@ export async function deleteAllExpenses(): Promise<{
   message: string;
   deletedCount: number;
 }> {
-  const response = await fetch(`${API_BASE_URL}/expenses/all`, {
-    method: 'DELETE',
+  const response = await apiFetch('/expenses/all', {
+    method: 'DELETE'
   });
 
   return handleResponse(response);
@@ -222,7 +287,8 @@ export async function getAnalytics(params: {
     queryParams.append('currency', params.currency);
   }
 
-  const url = `${API_BASE_URL}/expenses/stats/analytics${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-  const response = await fetch(url);
+  const response = await apiFetch(
+    `/expenses/stats/analytics${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+  );
   return handleResponse(response);
 }

@@ -7,6 +7,8 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import expenseRoutes from './routes/expenses';
 import importRoutes from './routes/import';
+import authRoutes from './routes/auth';
+import { requireAuth } from './middleware/auth';
 import { closeDatabase } from './config/database';
 
 // Initialize Express app
@@ -24,9 +26,10 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
-// API Routes
-app.use('/api/expenses', expenseRoutes);
-app.use('/api/import', importRoutes);
+// API Routes (auth routes are public; expenses/import require a token when enabled)
+app.use('/api/auth', authRoutes);
+app.use('/api/expenses', requireAuth, expenseRoutes);
+app.use('/api/import', requireAuth, importRoutes);
 
 // Health check endpoint
 app.get('/api/health', (_req: Request, res: Response) => {

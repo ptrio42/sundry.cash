@@ -1261,3 +1261,61 @@ tfoot {
   font-weight: 600;
   color: #999;
 }
+
+/* --- Auth: login screen --- */
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.login-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  padding: 40px 36px;
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+}
+
+.login-brand {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.login-card h1 {
+  margin: 12px 0 4px;
+  font-size: 24px;
+  color: #333;
+}
+
+.login-sub {
+  color: #666;
+  margin: 0 0 24px;
+  font-size: 14px;
+}
+
+.login-card .form-group {
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.login-submit {
+  width: 100%;
+}
+
+.fullscreen-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+}
+
+.logout-button {
+  margin-left: auto;
+}
