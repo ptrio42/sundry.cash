@@ -26,8 +26,9 @@ const CATEGORY_KEYWORDS: Record<ExpenseCategory, string[]> = {
     'restaurant', 'cafe', 'pizza', 'burger', 'lunch', 'dinner', 'breakfast'
   ],
   transport: [
-    // English
-    'transport', 'gas', 'fuel', 'petrol', 'diesel', 'parking', 'toll', 'car',
+    // English ('gas' intentionally lives under utilities so gas *bills* aren't
+    // miscategorized as transport; use fuel/petrol/diesel for vehicles)
+    'transport', 'fuel', 'petrol', 'diesel', 'parking', 'toll', 'car',
     'uber', 'taxi', 'bus', 'train', 'metro', 'subway', 'flight', 'ticket',
     // Polish
     'paliwo', 'benzyna', 'olej', 'parkowanie', 'bp', 'orlen', 'shell', 'lotos',
@@ -81,15 +82,24 @@ const CATEGORY_KEYWORDS: Record<ExpenseCategory, string[]> = {
 };
 
 /**
- * Auto-categorize based on description keywords
+ * Auto-categorize based on description keywords.
+ *
+ * Uses whole-word / whole-phrase matching (not raw substring `includes`) so that
+ * 'car' no longer matches "scarf", 'bar' no longer matches "barber", and the
+ * Polish 'gra' (game) no longer matches "photography". The description is
+ * tokenized on any non-letter/digit boundary (Unicode-aware, so Polish
+ * diacritics survive), then keywords are matched against the space-padded token
+ * stream.
  */
-function autoCategorizeByKeywords(description: string): ExpenseCategory {
-  const descLower = description.toLowerCase();
+export function autoCategorizeByKeywords(description: string): ExpenseCategory {
+  const tokens = description.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const haystack = ` ${tokens.join(' ')} `;
 
-  // Check each category's keywords
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
     for (const keyword of keywords) {
-      if (descLower.includes(keyword)) {
+      // Space-pad the keyword so single words and multi-word phrases
+      // ("amazon prime", "leroy merlin") both match on word boundaries.
+      if (haystack.includes(` ${keyword.toLowerCase()} `)) {
         return category as ExpenseCategory;
       }
     }
