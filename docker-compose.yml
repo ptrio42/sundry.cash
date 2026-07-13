@@ -1,0 +1,68 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: expense-tracker-backend
+    restart: unless-stopped
+    volumes:
+      # Persist SQLite database
+      - expense-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+    networks:
+      - expense-network
+    # NOTE: the previous `dns: 0.0.0.0` "no internet" hack was removed — it also
+    # blocked Docker's embedded DNS, so nginx could no longer resolve the `backend`
+    # service name and the app failed to start. For a real no-egress posture, put
+    # the backend on a dedicated `internal: true` network instead (see docs/DEPLOYMENT.md).
+    # Only expose to internal network, not to host
+    expose:
+      - "5000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: expense-tracker-frontend
+    restart: unless-stopped
+    ports:
+      # Expose only to LAN (bind to all interfaces for LAN access)
+      - "8847:80"
+    depends_on:
+      - backend
+    networks:
+      - expense-network
+    # NOTE: the previous `dns: 0.0.0.0` "no internet" hack was removed — it also
+    # blocked Docker's embedded DNS, so nginx could no longer resolve the `backend`
+    # service name and the app failed to start. For a real no-egress posture, put
+    # the backend on a dedicated `internal: true` network instead (see docs/DEPLOYMENT.md).
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  expense-network:
+    driver: bridge
+    internal: false  # allow LAN access to the published frontend port
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  expense-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
