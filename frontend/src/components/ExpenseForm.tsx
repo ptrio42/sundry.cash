@@ -1,0 +1,232 @@
+/**
+ * ExpenseForm Component
+ * Form for adding new expenses with validation
+ */
+
+import { useState, FormEvent } from 'react';
+import { createExpense } from '../services/api';
+import { ExpenseFormProps, ExpenseCategory, Currency } from '../types/expense.types';
+
+// Available categories for the dropdown
+const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
+
+// Available currencies for the dropdown
+const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
+
+export default function ExpenseForm({ onExpenseAdded }: ExpenseFormProps) {
+  const [amount, setAmount] = useState<string>('');
+  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [description, setDescription] = useState<string>('');
+  const [category, setCategory] = useState<ExpenseCategory>('groceries');
+  const [currency, setCurrency] = useState<Currency>('USD');
+  const [btcUnit, setBtcUnit] = useState<'BTC' | 'sats'>('BTC');
+  const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+
+  /**
+   * Handle unit switching - convert displayed amount when unit changes
+   */
+  const handleUnitChange = (newUnit: 'BTC' | 'sats') => {
+    if (currency === 'BTC' && amount) {
+      const currentAmount = parseFloat(amount);
+      if (!isNaN(currentAmount) && currentAmount > 0) {
+        if (newUnit === 'sats' && btcUnit === 'BTC') {
+          // Converting from BTC to sats
+          setAmount((currentAmount * 100000000).toFixed(0));
+        } else if (newUnit === 'BTC' && btcUnit === 'sats') {
+          // Converting from sats to BTC
+          setAmount((currentAmount / 100000000).toFixed(8));
+        }
+      }
+    }
+    setBtcUnit(newUnit);
+  };
+
+  /**
+   * Validate form data before submission
+   */
+  const validateForm = (): boolean => {
+    // Validate amount
+    const amountNum = parseFloat(amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      setError('Amount must be a positive number');
+      return false;
+    }
+
+    // Validate date
+    if (!date) {
+      setError('Date is required');
+      return false;
+    }
+
+    // Validate description
+    if (description.trim().length === 0) {
+      setError('Description cannot be empty');
+      return false;
+    }
+
+    return true;
+  };
+
+  /**
+   * Handle form submission
+   */
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    // Validate form
+    if (!validateForm()) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Convert amount to BTC if in satoshis
+      let finalAmount = parseFloat(amount);
+      if (currency === 'BTC' && btcUnit === 'sats') {
+        finalAmount = finalAmount / 100000000; // Convert sats to BTC
+      }
+
+      // Create expense via API
+      const newExpense = await createExpense({
+        amount: finalAmount,
+        date,
+        description: description.trim(),
+        category,
+        currency
+      });
+
+      // Notify parent component
+      onExpenseAdded(newExpense);
+
+      // Reset form
+      setAmount('');
+      setDate(new Date().toISOString().split('T')[0]);
+      setDescription('');
+      setCategory('groceries');
+      setCurrency('USD');
+      setBtcUnit('BTC');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create expense');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="expense-form">
+      <h2>Add New Expense</h2>
+
+      {error && <div className="error-message">{error}</div>}
+
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label htmlFor="amount">Amount</label>
+          {currency === 'BTC' && (
+            <div className="btc-unit-toggle">
+              <label>
+                <input
+                  type="radio"
+                  name="btc-unit"
+                  value="BTC"
+                  checked={btcUnit === 'BTC'}
+                  onChange={() => handleUnitChange('BTC')}
+                />
+                <span className="btc-unit-label">₿ BTC</span>
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="btc-unit"
+                  value="sats"
+                  checked={btcUnit === 'sats'}
+                  onChange={() => handleUnitChange('sats')}
+                />
+                <span className="btc-unit-label">Satoshis</span>
+              </label>
+            </div>
+          )}
+          <input
+            type="number"
+            id="amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder={currency === 'BTC' && btcUnit === 'sats' ? '0' : '0.00'}
+            step={currency === 'BTC' ? (btcUnit === 'sats' ? '1' : '0.00000001') : '0.01'}
+            min={currency === 'BTC' && btcUnit === 'sats' ? '1' : '0.01'}
+            required
+          />
+          {currency === 'BTC' && amount && !isNaN(parseFloat(amount)) && (
+            <div className="btc-conversion-hint">
+              {btcUnit === 'sats'
+                ? `${(parseFloat(amount) / 100000000).toFixed(8)} BTC`
+                : `${(parseFloat(amount) * 100000000).toFixed(0)} sats`
+              }
+            </div>
+          )}
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="currency">Currency</label>
+          <select
+            id="currency"
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value as Currency)}
+            required
+          >
+            {CURRENCIES.map((curr) => (
+              <option key={curr} value={curr}>
+                {curr}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="date">Date</label>
+          <input
+            type="date"
+            id="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="description">Description</label>
+          <input
+            type="text"
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Enter expense description"
+            required
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="category">Category</label>
+          <select
+            id="category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
+            required
+          >
+            {CATEGORIES.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat.charAt(0).toUpperCase() + cat.slice(1)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button type="submit" disabled={loading}>
+          {loading ? 'Adding...' : 'Add Expense'}
+        </button>
+      </form>
+    </div>
+  );
+}
