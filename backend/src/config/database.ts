@@ -1,0 +1,189 @@
+/**
+ * Database configuration and initialization
+ * Uses better-sqlite3 for synchronous SQLite operations
+ */
+
+import Database from 'better-sqlite3';
+import path from 'path';
+import fs from 'fs';
+
+// Database file path - shared between local development and Docker
+// Uses process.cwd() to reference from project root
+const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), 'data', 'expenses.db');
+
+// Ensure data directory exists
+const dataDir = path.dirname(DB_PATH);
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+// Initialize database connection
+export const db: Database.Database = new Database(DB_PATH);
+
+// Enable foreign keys
+db.pragma('foreign_keys = ON');
+
+/**
+ * Initialize database schema
+ * Creates the expenses table if it doesn't exist
+ */
+export function initializeDatabase(): void {
+  const createTableSQL = `
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      amount REAL NOT NULL CHECK(amount > 0),
+      date TEXT NOT NULL,
+      description TEXT NOT NULL CHECK(length(description) > 0),
+      category TEXT NOT NULL CHECK(category IN ('groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other')),
+      currency TEXT DEFAULT 'USD' CHECK(currency IN ('USD', 'PLN', 'BTC')),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+
+  db.exec(createTableSQL);
+
+  // Migration: Add currency column to existing tables if it doesn't exist
+  try {
+    // First, try to add the column (without NOT NULL to avoid SQLite limitations)
+    db.exec(`ALTER TABLE expenses ADD COLUMN currency TEXT DEFAULT 'USD' CHECK(currency IN ('USD', 'PLN', 'BTC'))`);
+    console.log('Added currency column to existing expenses table');
+
+    // Update any existing rows to have USD as default
+    db.exec(`UPDATE expenses SET currency = 'USD' WHERE currency IS NULL`);
+    console.log('Updated existing expenses with default USD currency');
+  } catch (error: any) {
+    // Column already exists
+    if (error.message.includes('duplicate column name')) {
+      // Column exists, make sure all rows have a currency value
+      try {
+        db.exec(`UPDATE expenses SET currency = 'USD' WHERE currency IS NULL`);
+      } catch (updateError) {
+        // Ignore update errors
+      }
+    }
+  }
+
+  // Migration: Add new categories to CHECK constraint
+  // SQLite doesn't support ALTER CONSTRAINT, so we need to recreate the table
+  try {
+    // Check if the table needs migration
+    const checkStmt = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='expenses'`);
+    const tableInfo = checkStmt.get() as any;
+
+    // If the CHECK constraint doesn't include 'maintenance', recreate the table
+    if (tableInfo && tableInfo.sql && !tableInfo.sql.includes("'maintenance'")) {
+      console.log('Migrating database to add new categories...');
+
+      // Begin transaction
+      db.exec('BEGIN TRANSACTION');
+
+      try {
+        // Create new table with updated constraint
+        db.exec(`
+          CREATE TABLE expenses_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            amount REAL NOT NULL CHECK(amount > 0),
+            date TEXT NOT NULL,
+            description TEXT NOT NULL CHECK(length(description) > 0),
+            category TEXT NOT NULL CHECK(category IN ('groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other')),
+            currency TEXT DEFAULT 'USD' CHECK(currency IN ('USD', 'PLN', 'BTC')),
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Copy data from old table to new table
+        db.exec(`
+          INSERT INTO expenses_new (id, amount, date, description, category, currency, created_at)
+          SELECT id, amount, date, description, category, currency, created_at FROM expenses
+        `);
+
+        // Drop old table
+        db.exec('DROP TABLE expenses');
+
+        // Rename new table to expenses
+        db.exec('ALTER TABLE expenses_new RENAME TO expenses');
+
+        // Commit transaction
+        db.exec('COMMIT');
+
+        console.log('Successfully migrated database to include new categories');
+      } catch (migrationError) {
+        // Rollback on error
+        db.exec('ROLLBACK');
+        throw migrationError;
+      }
+    }
+  } catch (error: any) {
+    console.error('Migration check/execution failed:', error.message);
+    // Continue even if migration fails - the table might already be correct
+  }
+
+  // Migration: Add BTC to currency CHECK constraint
+  // SQLite doesn't support ALTER CONSTRAINT, so we need to recreate the table
+  try {
+    // Check if the table needs migration for BTC currency
+    const checkStmt = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='expenses'`);
+    const tableInfo = checkStmt.get() as any;
+
+    // If the CHECK constraint doesn't include 'BTC', recreate the table
+    if (tableInfo && tableInfo.sql && !tableInfo.sql.includes("'BTC'")) {
+      console.log('Migrating database to add BTC currency...');
+
+      // Begin transaction
+      db.exec('BEGIN TRANSACTION');
+
+      try {
+        // Create new table with updated constraint
+        db.exec(`
+          CREATE TABLE expenses_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            amount REAL NOT NULL CHECK(amount > 0),
+            date TEXT NOT NULL,
+            description TEXT NOT NULL CHECK(length(description) > 0),
+            category TEXT NOT NULL CHECK(category IN ('groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other')),
+            currency TEXT DEFAULT 'USD' CHECK(currency IN ('USD', 'PLN', 'BTC')),
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Copy data from old table to new table
+        db.exec(`
+          INSERT INTO expenses_new (id, amount, date, description, category, currency, created_at)
+          SELECT id, amount, date, description, category, currency, created_at FROM expenses
+        `);
+
+        // Drop old table
+        db.exec('DROP TABLE expenses');
+
+        // Rename new table to expenses
+        db.exec('ALTER TABLE expenses_new RENAME TO expenses');
+
+        // Commit transaction
+        db.exec('COMMIT');
+
+        console.log('Successfully migrated database to include BTC currency');
+      } catch (migrationError) {
+        // Rollback on error
+        db.exec('ROLLBACK');
+        throw migrationError;
+      }
+    }
+  } catch (error: any) {
+    console.error('BTC currency migration check/execution failed:', error.message);
+    // Continue even if migration fails - the table might already be correct
+  }
+
+  console.log('Database initialized successfully');
+}
+
+/**
+ * Close database connection
+ * Should be called when the application shuts down
+ */
+export function closeDatabase(): void {
+  db.close();
+  console.log('Database connection closed');
+}
+
+// Initialize database on module load
+initializeDatabase();
