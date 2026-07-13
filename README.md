@@ -18,7 +18,16 @@ docker compose up --build
 
 Then open **http://localhost:8847**. The frontend reaches the backend through an nginx reverse proxy, and your data persists in `./data`. To try the Excel import, use the included [`sample-data/sample-expenses.xlsx`](sample-data/sample-expenses.xlsx). For configuration and self-hosting notes, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-Prefer to run it without Docker? See **Getting Started** below.
+### Or run locally without Docker
+
+Requires **Node 18+**. From the project root:
+
+```bash
+npm run install:all   # install backend + frontend dependencies
+npm run dev           # start both servers together
+```
+
+Then open **http://localhost:5173**. The Vite dev server proxies `/api` to the backend (on `:5000`), so there's nothing else to configure. See **Getting Started** below for the step-by-step version.
 
 ## ✨ Features
 
