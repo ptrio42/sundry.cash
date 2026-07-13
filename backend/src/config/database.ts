@@ -31,7 +31,7 @@ export function initializeDatabase(): void {
   const createTableSQL = `
     CREATE TABLE IF NOT EXISTS expenses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      amount REAL NOT NULL CHECK(amount > 0),
+      amount INTEGER NOT NULL CHECK(amount > 0),
       date TEXT NOT NULL,
       description TEXT NOT NULL CHECK(length(description) > 0),
       category TEXT NOT NULL CHECK(category IN ('groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other')),
@@ -82,7 +82,7 @@ export function initializeDatabase(): void {
         db.exec(`
           CREATE TABLE expenses_new (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            amount REAL NOT NULL CHECK(amount > 0),
+            amount INTEGER NOT NULL CHECK(amount > 0),
             date TEXT NOT NULL,
             description TEXT NOT NULL CHECK(length(description) > 0),
             category TEXT NOT NULL CHECK(category IN ('groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other')),
@@ -137,7 +137,7 @@ export function initializeDatabase(): void {
         db.exec(`
           CREATE TABLE expenses_new (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            amount REAL NOT NULL CHECK(amount > 0),
+            amount INTEGER NOT NULL CHECK(amount > 0),
             date TEXT NOT NULL,
             description TEXT NOT NULL CHECK(length(description) > 0),
             category TEXT NOT NULL CHECK(category IN ('groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other')),

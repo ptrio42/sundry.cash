@@ -3,8 +3,10 @@
  */
 
 import { db } from '../config/database';
+import { toMinorUnits, toMajorUnits } from '../config/money';
 import {
   Expense,
+  Currency,
   CreateExpenseDTO,
   UpdateExpenseDTO,
   ExpenseFilters,
@@ -46,7 +48,7 @@ export function getAll(filters?: ExpenseFilters): Expense[] {
 
   return rows.map(row => ({
     id: row.id,
-    amount: row.amount,
+    amount: toMajorUnits(row.amount, row.currency),
     date: row.date,
     description: row.description,
     category: row.category,
@@ -66,7 +68,7 @@ export function getById(id: number): Expense | undefined {
 
   return {
     id: row.id,
-    amount: row.amount,
+    amount: toMajorUnits(row.amount, row.currency),
     date: row.date,
     description: row.description,
     category: row.category,
@@ -85,7 +87,7 @@ export function create(expense: CreateExpenseDTO): Expense {
   `);
 
   const result = stmt.run(
-    expense.amount,
+    toMinorUnits(expense.amount, expense.currency),
     expense.date,
     expense.description,
     expense.category,
@@ -113,9 +115,13 @@ export function update(id: number, expense: UpdateExpenseDTO): Expense | undefin
   const updates: string[] = [];
   const params: any[] = [];
 
-  if (expense.amount !== undefined) {
+  // Re-encode the stored minor-unit amount whenever the amount OR the currency
+  // changes, since the currency determines the minor-unit scale.
+  const nextCurrency = expense.currency ?? existing.currency;
+  if (expense.amount !== undefined || expense.currency !== undefined) {
+    const nextAmountMajor = expense.amount ?? existing.amount;
     updates.push('amount = ?');
-    params.push(expense.amount);
+    params.push(toMinorUnits(nextAmountMajor, nextCurrency));
   }
 
   if (expense.date !== undefined) {
@@ -177,13 +183,17 @@ export function getByCategory(category: string): Expense[] {
  * Get statistics grouped by category
  */
 export function getStatsByCategory(): CategoryStats[] {
+  // Group by currency as well: summing minor units across currencies would be
+  // meaningless (cents + satoshis). Each row is a single currency, converted back
+  // to major units for the response.
   const stmt = db.prepare(`
     SELECT
       category,
+      currency,
       SUM(amount) as total,
       COUNT(*) as count
     FROM expenses
-    GROUP BY category
+    GROUP BY category, currency
     ORDER BY total DESC
   `);
 
@@ -191,7 +201,8 @@ export function getStatsByCategory(): CategoryStats[] {
 
   return rows.map(row => ({
     category: row.category,
-    total: row.total,
+    currency: row.currency,
+    total: toMajorUnits(row.total, row.currency),
     count: row.count
   }));
 }
@@ -203,10 +214,11 @@ export function getStatsByDate(): DateStats[] {
   const stmt = db.prepare(`
     SELECT
       date,
+      currency,
       SUM(amount) as total,
       COUNT(*) as count
     FROM expenses
-    GROUP BY date
+    GROUP BY date, currency
     ORDER BY date DESC
   `);
 
@@ -214,7 +226,8 @@ export function getStatsByDate(): DateStats[] {
 
   return rows.map(row => ({
     date: row.date,
-    total: row.total,
+    currency: row.currency,
+    total: toMajorUnits(row.total, row.currency),
     count: row.count
   }));
 }
@@ -278,28 +291,32 @@ export function getAnalytics(params: {
   const stmt = db.prepare(query);
   const rows = stmt.all(...queryParams) as any[];
 
-  // Calculate totals by category (aggregating across currencies for category breakdown)
-  const categoryMap = new Map<string, { total: number; count: number }>();
-  const currencyMap = new Map<string, { total: number; count: number }>();
-  let grandTotal = 0;
+  // Each row is a single (category, currency) group; row.total is exact minor units.
+  // byCurrency stays exact (minor units summed per currency, converted once).
+  // byCategory and the grand total are expressed in major units; note they can mix
+  // currencies when the query spans more than one — the UI surfaces byCurrency for
+  // an accurate per-currency view.
+  const categoryMap = new Map<string, { total: number; count: number }>();       // major units
+  const currencyMap = new Map<string, { totalMinor: number; count: number }>();   // exact minor units
+  let grandTotalMajor = 0;
   let grandCount = 0;
 
   rows.forEach(row => {
-    // Update category totals
-    const existing = categoryMap.get(row.category) || { total: 0, count: 0 };
+    const rowMajor = toMajorUnits(row.total, row.currency);
+
+    const cat = categoryMap.get(row.category) || { total: 0, count: 0 };
     categoryMap.set(row.category, {
-      total: existing.total + row.total,
-      count: existing.count + row.count
+      total: cat.total + rowMajor,
+      count: cat.count + row.count
     });
 
-    // Update currency totals
-    const currencyExisting = currencyMap.get(row.currency) || { total: 0, count: 0 };
+    const cur = currencyMap.get(row.currency) || { totalMinor: 0, count: 0 };
     currencyMap.set(row.currency, {
-      total: currencyExisting.total + row.total,
-      count: currencyExisting.count + row.count
+      totalMinor: cur.totalMinor + row.total,
+      count: cur.count + row.count
     });
 
-    grandTotal += row.total;
+    grandTotalMajor += rowMajor;
     grandCount += row.count;
   });
 
@@ -307,20 +324,23 @@ export function getAnalytics(params: {
     category,
     total: data.total,
     count: data.count,
-    average: data.total / data.count
+    average: data.count > 0 ? data.total / data.count : 0
   }));
 
-  const byCurrency = Array.from(currencyMap.entries()).map(([currency, data]) => ({
-    currency,
-    total: data.total,
-    count: data.count,
-    average: data.total / data.count
-  }));
+  const byCurrency = Array.from(currencyMap.entries()).map(([currency, data]) => {
+    const total = toMajorUnits(data.totalMinor, currency as Currency);
+    return {
+      currency,
+      total,
+      count: data.count,
+      average: data.count > 0 ? total / data.count : 0
+    };
+  });
 
   return {
-    total: grandTotal,
+    total: grandTotalMajor,
     count: grandCount,
-    average: grandCount > 0 ? grandTotal / grandCount : 0,
+    average: grandCount > 0 ? grandTotalMajor / grandCount : 0,
     byCategory,
     byCurrency
   };

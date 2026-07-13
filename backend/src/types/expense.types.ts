@@ -33,16 +33,18 @@ export interface ExpenseFilters {
   currency?: Currency;
 }
 
-// Statistics by category
+// Statistics by category (per currency)
 export interface CategoryStats {
   category: ExpenseCategory;
+  currency: Currency;
   total: number;
   count: number;
 }
 
-// Statistics by date
+// Statistics by date (per currency)
 export interface DateStats {
   date: string; // ISO 8601 format
+  currency: Currency;
   total: number;
   count: number;
 }
