@@ -6,6 +6,7 @@
 import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { DashboardProps, Currency } from '../types/expense.types';
+import { formatCurrency } from '../utils/format';
 
 // Colors for different categories
 const COLORS: Record<string, string> = {
@@ -18,14 +19,17 @@ const COLORS: Record<string, string> = {
   other: '#6b7280'
 };
 
-// Currency symbols mapping
-const CURRENCY_SYMBOLS: Record<Currency, string> = {
-  'USD': '$',
-  'PLN': 'zł',
-  'BTC': '₿'
-};
-
 type TimeGrouping = 'day' | 'week' | 'month';
+
+/** Shorten a trend bucket key ('YYYY-MM-DD' or 'YYYY-MM') for the chart axis. */
+function formatPeriodTick(key: string): string {
+  const iso = key.length === 7 ? `${key}-01` : key;
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (isNaN(d.getTime())) return key;
+  return key.length === 7
+    ? new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(d)
+    : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(d);
+}
 
 export default function Dashboard({ expenses }: DashboardProps) {
   const [timeGrouping, setTimeGrouping] = useState<TimeGrouping>('day');
@@ -99,10 +103,7 @@ export default function Dashboard({ expenses }: DashboardProps) {
 
     const formatCurrencyValues = (values: Record<Currency, number>) => {
       return Object.entries(values)
-        .map(([currency, value]) => {
-          const decimals = currency === 'BTC' ? 8 : 2;
-          return `${CURRENCY_SYMBOLS[currency as Currency]}${value.toFixed(decimals)}`;
-        })
+        .map(([currency, value]) => formatCurrency(value, currency as Currency))
         .join(' + ');
     };
 
@@ -169,7 +170,7 @@ export default function Dashboard({ expenses }: DashboardProps) {
                     cx="50%"
                     cy="50%"
                     labelLine={true}
-                    label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     outerRadius={90}
                     fill="#8884d8"
                     dataKey="value"
@@ -217,6 +218,9 @@ export default function Dashboard({ expenses }: DashboardProps) {
                     angle={-45}
                     textAnchor="end"
                     height={80}
+                    tickFormatter={formatPeriodTick}
+                    interval="preserveStartEnd"
+                    minTickGap={16}
                   />
                   <YAxis />
                   <Tooltip formatter={(value: number) => value.toFixed(2)} />

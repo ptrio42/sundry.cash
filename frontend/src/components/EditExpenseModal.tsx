@@ -3,8 +3,9 @@
  * Modal for editing existing expenses
  */
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, useRef, FormEvent } from 'react';
 import { Expense, ExpenseCategory, Currency } from '../types/expense.types';
+import { SATS_PER_BTC } from '../utils/format';
 
 interface EditExpenseModalProps {
   expense: Expense | null;
@@ -34,6 +35,8 @@ export default function EditExpenseModal({ expense, onSave, onClose }: EditExpen
   const [btcUnit, setBtcUnit] = useState<'BTC' | 'sats'>('BTC');
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
 
   // Populate form when expense changes
   useEffect(() => {
@@ -47,6 +50,49 @@ export default function EditExpenseModal({ expense, onSave, onClose }: EditExpen
     }
   }, [expense]);
 
+  // Accessible dialog behavior: move focus in, trap Tab, close on Escape,
+  // and restore focus to the triggering element on close.
+  useEffect(() => {
+    if (!expense) return;
+
+    previouslyFocused.current = document.activeElement as HTMLElement;
+    const node = dialogRef.current;
+    const firstField =
+      node?.querySelector<HTMLElement>('input, select, textarea') ??
+      node?.querySelector<HTMLElement>('button');
+    firstField?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key === 'Tab' && node) {
+        const focusable = Array.from(
+          node.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((el) => el.offsetParent !== null);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocused.current?.focus();
+    };
+  }, [expense, onClose]);
+
   // Handle unit switching - convert displayed amount when unit changes
   const handleUnitChange = (newUnit: 'BTC' | 'sats') => {
     if (currency === 'BTC' && amount) {
@@ -54,10 +100,10 @@ export default function EditExpenseModal({ expense, onSave, onClose }: EditExpen
       if (!isNaN(currentAmount) && currentAmount > 0) {
         if (newUnit === 'sats' && btcUnit === 'BTC') {
           // Converting from BTC to sats
-          setAmount((currentAmount * 100000000).toFixed(0));
+          setAmount((currentAmount * SATS_PER_BTC).toFixed(0));
         } else if (newUnit === 'BTC' && btcUnit === 'sats') {
           // Converting from sats to BTC
-          setAmount((currentAmount / 100000000).toFixed(8));
+          setAmount((currentAmount / SATS_PER_BTC).toFixed(8));
         }
       }
     }
@@ -78,7 +124,7 @@ export default function EditExpenseModal({ expense, onSave, onClose }: EditExpen
       // Convert amount to BTC if in satoshis
       let finalAmount = parseFloat(amount);
       if (currency === 'BTC' && btcUnit === 'sats') {
-        finalAmount = finalAmount / 100000000; // Convert sats to BTC
+        finalAmount = finalAmount / SATS_PER_BTC; // Convert sats to BTC
       }
 
       // Only include changed fields
@@ -117,11 +163,17 @@ export default function EditExpenseModal({ expense, onSave, onClose }: EditExpen
 
   return (
     <div className="modal-backdrop" onClick={handleBackdropClick}>
-      <div className="modal-content">
+      <div
+        className="modal-content"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-expense-title"
+      >
         <div className="modal-header">
-          <h2>Edit Expense</h2>
-          <button className="modal-close" onClick={onClose} type="button">
-            ✕
+          <h2 id="edit-expense-title">Edit Expense</h2>
+          <button className="modal-close" onClick={onClose} type="button" aria-label="Close dialog">
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
 
@@ -166,8 +218,8 @@ export default function EditExpenseModal({ expense, onSave, onClose }: EditExpen
             {currency === 'BTC' && amount && !isNaN(parseFloat(amount)) && (
               <div className="btc-conversion-hint">
                 {btcUnit === 'sats'
-                  ? `${(parseFloat(amount) / 100000000).toFixed(8)} BTC`
-                  : `${(parseFloat(amount) * 100000000).toFixed(0)} sats`
+                  ? `${(parseFloat(amount) / SATS_PER_BTC).toFixed(8)} BTC`
+                  : `${(parseFloat(amount) * SATS_PER_BTC).toFixed(0)} sats`
                 }
               </div>
             )}

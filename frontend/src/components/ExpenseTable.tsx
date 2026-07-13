@@ -5,19 +5,13 @@
 
 import { useState, useMemo } from 'react';
 import { ExpenseTableProps, ExpenseCategory, SortField, SortOrder, Currency } from '../types/expense.types';
+import { formatCurrency, formatDate, CURRENCY_SYMBOLS } from '../utils/format';
 
 // Available categories for filtering
 const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 
 // Available currencies for filtering
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
-
-// Currency symbols mapping
-const CURRENCY_SYMBOLS: Record<Currency, string> = {
-  'USD': '$',
-  'PLN': 'zł',
-  'BTC': '₿'
-};
 
 export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: ExpenseTableProps) {
   const [sortField, setSortField] = useState<SortField>('date');
@@ -114,6 +108,22 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
   };
 
   /**
+   * aria-sort value for a column header
+   */
+  const ariaSort = (field: SortField): 'ascending' | 'descending' | 'none' =>
+    sortField === field ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none';
+
+  /**
+   * Make a header cell keyboard-operable (Enter / Space triggers the sort)
+   */
+  const handleSortKey = (e: React.KeyboardEvent, field: SortField) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleSort(field);
+    }
+  };
+
+  /**
    * Toggle selection of a single expense
    */
   const toggleSelection = (id: number) => {
@@ -177,15 +187,6 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
     } catch (error) {
       alert('Failed to update some expenses. Please try again.');
     }
-  };
-
-  /**
-   * Format amount with currency symbol
-   */
-  const formatAmount = (amount: number, currency: Currency) => {
-    const symbol = CURRENCY_SYMBOLS[currency];
-    const decimals = currency === 'BTC' ? 8 : 2;
-    return `${symbol}${amount.toFixed(decimals)}`;
   };
 
   return (
@@ -326,18 +327,39 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
                     type="checkbox"
                     checked={selectedIds.size > 0 && selectedIds.size === filteredAndSortedExpenses.length}
                     onChange={toggleSelectAll}
-                    title="Select all"
+                    aria-label="Select all expenses"
                   />
                 </th>
-                <th onClick={() => handleSort('date')} className="sortable">
-                  Date {getSortIcon('date')}
+                <th
+                  className="sortable"
+                  role="button"
+                  tabIndex={0}
+                  aria-sort={ariaSort('date')}
+                  onClick={() => handleSort('date')}
+                  onKeyDown={(e) => handleSortKey(e, 'date')}
+                >
+                  Date <span aria-hidden="true">{getSortIcon('date')}</span>
                 </th>
                 <th>Description</th>
-                <th onClick={() => handleSort('category')} className="sortable">
-                  Category {getSortIcon('category')}
+                <th
+                  className="sortable"
+                  role="button"
+                  tabIndex={0}
+                  aria-sort={ariaSort('category')}
+                  onClick={() => handleSort('category')}
+                  onKeyDown={(e) => handleSortKey(e, 'category')}
+                >
+                  Category <span aria-hidden="true">{getSortIcon('category')}</span>
                 </th>
-                <th onClick={() => handleSort('amount')} className="sortable">
-                  Amount {getSortIcon('amount')}
+                <th
+                  className="sortable"
+                  role="button"
+                  tabIndex={0}
+                  aria-sort={ariaSort('amount')}
+                  onClick={() => handleSort('amount')}
+                  onKeyDown={(e) => handleSortKey(e, 'amount')}
+                >
+                  Amount <span aria-hidden="true">{getSortIcon('amount')}</span>
                 </th>
                 <th>Actions</th>
               </tr>
@@ -350,14 +372,15 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
                       type="checkbox"
                       checked={selectedIds.has(expense.id)}
                       onChange={() => toggleSelection(expense.id)}
+                      aria-label={`Select ${expense.description}`}
                     />
                   </td>
-                  <td>{expense.date}</td>
+                  <td>{formatDate(expense.date)}</td>
                   <td>{expense.description}</td>
                   <td className={`category-${expense.category}`}>
                     {expense.category.charAt(0).toUpperCase() + expense.category.slice(1)}
                   </td>
-                  <td className="amount">{formatAmount(expense.amount, expense.currency)}</td>
+                  <td className="amount">{formatCurrency(expense.amount, expense.currency)}</td>
                   <td className="actions">
                     <button
                       onClick={() => onEdit(expense)}
@@ -391,7 +414,7 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
 
                     // Format and display all currency totals
                     return Object.entries(totals)
-                      .map(([currency, total]) => formatAmount(total, currency as Currency))
+                      .map(([currency, total]) => formatCurrency(total, currency as Currency))
                       .join(' + ');
                   })()}
                 </td>

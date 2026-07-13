@@ -174,8 +174,19 @@ body {
 
 .form-group input:focus,
 .form-group select:focus {
-  outline: none;
   border-color: #667eea;
+}
+
+/* Visible keyboard focus for every interactive element (WCAG 2.4.7 Focus Visible) */
+:focus-visible {
+  outline: 2px solid #4b5bd0;
+  outline-offset: 2px;
+}
+
+/* Sortable headers sit on the coloured header row — use a light inset ring */
+th.sortable:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: -3px;
 }
 
 button[type="submit"] {
@@ -412,17 +423,18 @@ td {
 
 td.amount {
   font-weight: 600;
-  color: #10b981;
+  color: #047857;
 }
 
-/* Category colors */
-.category-groceries { color: #10b981; font-weight: 600; }
-.category-transport { color: #3b82f6; font-weight: 600; }
-.category-media { color: #8b5cf6; font-weight: 600; }
-.category-entertainment { color: #f59e0b; font-weight: 600; }
-.category-utilities { color: #ef4444; font-weight: 600; }
-.category-maintenance { color: #f97316; font-weight: 600; }
-.category-other { color: #6b7280; font-weight: 600; }
+/* Category text colours — darkened to meet WCAG AA (4.5:1) on white.
+   The brighter hues are kept for chart fills (see COLORS maps in the components). */
+.category-groceries { color: #047857; font-weight: 600; }
+.category-transport { color: #1d4ed8; font-weight: 600; }
+.category-media { color: #6d28d9; font-weight: 600; }
+.category-entertainment { color: #b45309; font-weight: 600; }
+.category-utilities { color: #b91c1c; font-weight: 600; }
+.category-maintenance { color: #c2410c; font-weight: 600; }
+.category-other { color: #4b5563; font-weight: 600; }
 
 .actions {
   display: flex;

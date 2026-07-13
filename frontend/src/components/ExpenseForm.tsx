@@ -6,6 +6,7 @@
 import { useState, FormEvent } from 'react';
 import { createExpense } from '../services/api';
 import { ExpenseFormProps, ExpenseCategory, Currency } from '../types/expense.types';
+import { SATS_PER_BTC } from '../utils/format';
 
 // Available categories for the dropdown
 const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
@@ -32,10 +33,10 @@ export default function ExpenseForm({ onExpenseAdded }: ExpenseFormProps) {
       if (!isNaN(currentAmount) && currentAmount > 0) {
         if (newUnit === 'sats' && btcUnit === 'BTC') {
           // Converting from BTC to sats
-          setAmount((currentAmount * 100000000).toFixed(0));
+          setAmount((currentAmount * SATS_PER_BTC).toFixed(0));
         } else if (newUnit === 'BTC' && btcUnit === 'sats') {
           // Converting from sats to BTC
-          setAmount((currentAmount / 100000000).toFixed(8));
+          setAmount((currentAmount / SATS_PER_BTC).toFixed(8));
         }
       }
     }
@@ -86,7 +87,7 @@ export default function ExpenseForm({ onExpenseAdded }: ExpenseFormProps) {
       // Convert amount to BTC if in satoshis
       let finalAmount = parseFloat(amount);
       if (currency === 'BTC' && btcUnit === 'sats') {
-        finalAmount = finalAmount / 100000000; // Convert sats to BTC
+        finalAmount = finalAmount / SATS_PER_BTC; // Convert sats to BTC
       }
 
       // Create expense via API
@@ -161,8 +162,8 @@ export default function ExpenseForm({ onExpenseAdded }: ExpenseFormProps) {
           {currency === 'BTC' && amount && !isNaN(parseFloat(amount)) && (
             <div className="btc-conversion-hint">
               {btcUnit === 'sats'
-                ? `${(parseFloat(amount) / 100000000).toFixed(8)} BTC`
-                : `${(parseFloat(amount) * 100000000).toFixed(0)} sats`
+                ? `${(parseFloat(amount) / SATS_PER_BTC).toFixed(8)} BTC`
+                : `${(parseFloat(amount) * SATS_PER_BTC).toFixed(0)} sats`
               }
             </div>
           )}

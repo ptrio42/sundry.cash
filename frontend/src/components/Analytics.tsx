@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { getAnalytics } from '../services/api';
 import { ExpenseCategory, Currency } from '../types/expense.types';
+import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
 
 const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
@@ -28,12 +29,6 @@ const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
   utilities: '#ef4444',
   maintenance: '#f97316',
   other: '#6b7280'
-};
-
-const CURRENCY_SYMBOLS: Record<Currency, string> = {
-  'USD': '$',
-  'PLN': 'zł',
-  'BTC': '₿'
 };
 
 type TimePeriod = 'week' | 'month' | 'year' | 'custom';
@@ -175,15 +170,13 @@ export default function Analytics() {
    * Format amount with currency symbol
    */
   const formatAmount = (amount: number, currency?: string): string => {
-    if (selectedCurrency !== 'all' && selectedCurrency) {
-      const decimals = selectedCurrency === 'BTC' ? 8 : 2;
-      return `${CURRENCY_SYMBOLS[selectedCurrency]}${amount.toFixed(decimals)}`;
-    }
-    if (currency && (currency === 'USD' || currency === 'PLN' || currency === 'BTC')) {
-      const decimals = currency === 'BTC' ? 8 : 2;
-      return `${CURRENCY_SYMBOLS[currency as Currency]}${amount.toFixed(decimals)}`;
-    }
-    return `$${amount.toFixed(2)}`;
+    const resolved: Currency =
+      selectedCurrency !== 'all'
+        ? selectedCurrency
+        : currency === 'USD' || currency === 'PLN' || currency === 'BTC'
+        ? currency
+        : 'USD';
+    return formatCurrency(amount, resolved);
   };
 
   const daysInPeriod = getDaysInPeriod();
