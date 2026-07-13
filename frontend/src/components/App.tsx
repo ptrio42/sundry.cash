@@ -162,111 +162,92 @@ export default function App() {
     return <Login onSuccess={() => setAuthed(true)} />;
   }
 
+  const NAV: { key: View; label: string; icon: string }[] = [
+    { key: 'form', label: 'Add Expense', icon: '➕' },
+    { key: 'import', label: 'Import Excel', icon: '📥' },
+    { key: 'table', label: 'All Expenses', icon: '📋' },
+    { key: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { key: 'analytics', label: 'Analytics', icon: '📈' }
+  ];
+  const VIEW_TITLES: Record<View, string> = {
+    form: 'Add Expense',
+    import: 'Import from Excel',
+    table: 'All Expenses',
+    dashboard: 'Dashboard',
+    analytics: 'Analytics'
+  };
+
   return (
-    <div className="app">
-      {/* Header */}
-      <header className="app-header">
-        <h1>💰 Expense Tracker</h1>
-        <p className="tagline">Track your spending, stay on budget</p>
-      </header>
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <span className="logo" aria-hidden="true">💰</span>
+          <span>Expense Tracker</span>
+        </div>
 
-      {/* Navigation */}
-      <nav className="app-nav">
-        <button
-          className={currentView === 'form' ? 'active' : ''}
-          onClick={() => setCurrentView('form')}
-        >
-          ➕ Add Expense
-        </button>
-        <button
-          className={currentView === 'import' ? 'active' : ''}
-          onClick={() => setCurrentView('import')}
-        >
-          📥 Import Excel
-        </button>
-        <button
-          className={currentView === 'table' ? 'active' : ''}
-          onClick={() => setCurrentView('table')}
-        >
-          📋 All Expenses
-        </button>
-        <button
-          className={currentView === 'dashboard' ? 'active' : ''}
-          onClick={() => setCurrentView('dashboard')}
-        >
-          📊 Dashboard
-        </button>
-        <button
-          className={currentView === 'analytics' ? 'active' : ''}
-          onClick={() => setCurrentView('analytics')}
-        >
-          📈 Analytics
-        </button>
-        <button
-          className="danger-button"
-          onClick={handleDeleteAll}
-          title="Delete all expenses from database"
-        >
-          🗑️ Wipe Database
-        </button>
-        {authRequired && (
-          <button
-            className="logout-button"
-            onClick={handleLogout}
-            title="Sign out"
-          >
-            🔓 Logout
+        <nav className="sidebar-nav" aria-label="Main">
+          {NAV.map(item => (
+            <button
+              key={item.key}
+              className={currentView === item.key ? 'active' : ''}
+              onClick={() => setCurrentView(item.key)}
+              aria-current={currentView === item.key ? 'page' : undefined}
+            >
+              <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <button className="danger-button" onClick={handleDeleteAll} title="Delete all expenses from database">
+            <span className="nav-icon" aria-hidden="true">🗑️</span>
+            Wipe Database
           </button>
-        )}
-      </nav>
+          {authRequired && (
+            <button onClick={handleLogout} title="Sign out">
+              <span className="nav-icon" aria-hidden="true">🔓</span>
+              Logout
+            </button>
+          )}
+        </div>
+      </aside>
 
-      {/* Main Content */}
-      <main className="app-main">
-        {error && (
-          <div className="error-banner">
-            {error}
-            <button onClick={loadExpenses}>Retry</button>
-          </div>
-        )}
+      <div className="content">
+        <header className="topbar">
+          <h1>{VIEW_TITLES[currentView]}</h1>
+          <p className="tagline">Track your spending, stay on budget</p>
+        </header>
 
-        {loading ? (
-          <div className="loading">Loading expenses...</div>
-        ) : (
-          <>
-            {currentView === 'form' && (
-              <ExpenseForm onExpenseAdded={handleExpenseAdded} />
-            )}
+        <main className="content-main">
+          {error && (
+            <div className="error-banner">
+              {error}
+              <button onClick={loadExpenses}>Retry</button>
+            </div>
+          )}
 
-            {currentView === 'import' && (
-              <ExcelImport />
-            )}
+          {loading ? (
+            <div className="loading">Loading expenses…</div>
+          ) : (
+            <>
+              {currentView === 'form' && <ExpenseForm onExpenseAdded={handleExpenseAdded} />}
+              {currentView === 'import' && <ExcelImport />}
+              {currentView === 'table' && (
+                <ExpenseTable
+                  expenses={expenses}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onUpdate={handleUpdateExpense}
+                />
+              )}
+              {currentView === 'dashboard' && <Dashboard expenses={expenses} />}
+              {currentView === 'analytics' && <Analytics />}
+            </>
+          )}
+        </main>
+      </div>
 
-            {currentView === 'table' && (
-              <ExpenseTable
-                expenses={expenses}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onUpdate={handleUpdateExpense}
-              />
-            )}
-
-            {currentView === 'dashboard' && (
-              <Dashboard expenses={expenses} />
-            )}
-
-            {currentView === 'analytics' && (
-              <Analytics />
-            )}
-          </>
-        )}
-      </main>
-
-      {/* Footer */}
-      <footer className="app-footer">
-        <p>Expense Tracker · Built with React + TypeScript + Express</p>
-      </footer>
-
-      {/* Edit Expense Modal */}
       <EditExpenseModal
         expense={editingExpense}
         onSave={handleUpdateExpense}

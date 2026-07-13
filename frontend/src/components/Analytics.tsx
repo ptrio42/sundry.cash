@@ -22,13 +22,13 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
 };
 
 const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
-  groceries: '#10b981',
-  transport: '#3b82f6',
-  media: '#8b5cf6',
-  entertainment: '#f59e0b',
-  utilities: '#ef4444',
-  maintenance: '#f97316',
-  other: '#6b7280'
+  groceries: '#34d399',
+  transport: '#60a5fa',
+  media: '#a78bfa',
+  entertainment: '#fbbf24',
+  utilities: '#f87171',
+  maintenance: '#fb923c',
+  other: '#94a3b8'
 };
 
 type TimePeriod = 'week' | 'month' | 'year' | 'custom';
