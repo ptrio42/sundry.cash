@@ -12,16 +12,24 @@ import ExcelImport from './ExcelImport';
 import Analytics from './Analytics';
 import Budgets from './Budgets';
 import Fx from './Fx';
+import Settings from './Settings';
 import EditExpenseModal from './EditExpenseModal';
 import Login from './Login';
-import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getToken, logout } from '../services/api';
-import { Expense } from '../types/expense.types';
+import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getToken, logout, getSettings } from '../services/api';
+import { Expense, AppSettings } from '../types/expense.types';
 import '../App.css';
 
-type View = 'form' | 'receipt' | 'table' | 'dashboard' | 'import' | 'analytics' | 'budgets' | 'fx';
+type View = 'form' | 'receipt' | 'table' | 'dashboard' | 'import' | 'analytics' | 'budgets' | 'fx' | 'settings';
+
+const DEFAULT_SETTINGS: AppSettings = {
+  defaultCurrency: 'USD',
+  defaultCategory: 'groceries',
+  defaultBtcUnit: 'BTC',
+};
 
 export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [currentView, setCurrentView] = useState<View>('form');
@@ -98,8 +106,13 @@ export default function App() {
     setError('');
 
     try {
-      const data = await getExpenses();
+      // Expenses are required; settings are non-fatal (fall back to current).
+      const [data, loadedSettings] = await Promise.all([
+        getExpenses(),
+        getSettings().catch(() => settings),
+      ]);
       setExpenses(data);
+      setSettings(loadedSettings);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load expenses');
     } finally {
@@ -185,6 +198,10 @@ export default function App() {
     setAuthed(false);
   };
 
+  const handleSettingsSaved = (updated: AppSettings) => {
+    setSettings(updated);
+  };
+
   if (!authChecked) {
     return <div className="loading fullscreen-loading">Loading…</div>;
   }
@@ -201,7 +218,8 @@ export default function App() {
     { key: 'dashboard', label: 'Dashboard', icon: '📊' },
     { key: 'analytics', label: 'Analytics', icon: '📈' },
     { key: 'budgets', label: 'Budgets', icon: '🎯' },
-    { key: 'fx', label: 'Currencies', icon: '💱' }
+    { key: 'fx', label: 'Currencies', icon: '💱' },
+    { key: 'settings', label: 'Settings', icon: '⚙️' }
   ];
   const VIEW_TITLES: Record<View, string> = {
     form: 'Add Expense',
@@ -211,7 +229,8 @@ export default function App() {
     dashboard: 'Dashboard',
     analytics: 'Analytics',
     budgets: 'Monthly Budgets',
-    fx: 'Currency Conversion'
+    fx: 'Currency Conversion',
+    settings: 'Preferences'
   };
 
   // Mobile bottom bar: a handful of primary tabs; the rest live behind "More".
@@ -283,9 +302,9 @@ export default function App() {
             <div className="loading">Loading expenses…</div>
           ) : (
             <>
-              {currentView === 'form' && <ExpenseForm onExpenseAdded={handleExpenseAdded} />}
-              {currentView === 'receipt' && <ReceiptScan onExpenseAdded={handleExpenseAdded} />}
-              {currentView === 'import' && <ExcelImport />}
+              {currentView === 'form' && <ExpenseForm onExpenseAdded={handleExpenseAdded} settings={settings} />}
+              {currentView === 'receipt' && <ReceiptScan onExpenseAdded={handleExpenseAdded} settings={settings} />}
+              {currentView === 'import' && <ExcelImport settings={settings} />}
               {currentView === 'table' && (
                 <ExpenseTable
                   expenses={expenses}
@@ -298,6 +317,7 @@ export default function App() {
               {currentView === 'analytics' && <Analytics />}
               {currentView === 'budgets' && <Budgets expenses={expenses} />}
               {currentView === 'fx' && <Fx expenses={expenses} />}
+              {currentView === 'settings' && <Settings settings={settings} onSaved={handleSettingsSaved} />}
             </>
           )}
         </main>

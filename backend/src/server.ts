@@ -11,6 +11,7 @@ import receiptRoutes from './routes/receipts';
 import authRoutes from './routes/auth';
 import budgetRoutes from './routes/budgets';
 import fxRoutes from './routes/fx';
+import settingsRoutes from './routes/settings';
 import { requireAuth } from './middleware/auth';
 import { closeDatabase } from './config/database';
 
@@ -36,6 +37,7 @@ app.use('/api/import', requireAuth, importRoutes);
 app.use('/api/receipts', requireAuth, receiptRoutes);
 app.use('/api/budgets', requireAuth, budgetRoutes);
 app.use('/api/fx', requireAuth, fxRoutes);
+app.use('/api/settings', requireAuth, settingsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (_req: Request, res: Response) => {

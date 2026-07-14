@@ -7,6 +7,9 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ReceiptScan from '../components/ReceiptScan';
 import { scanReceipt } from '../services/api';
+import { AppSettings } from '../types/expense.types';
+
+const TEST_SETTINGS: AppSettings = { defaultCurrency: 'PLN', defaultCategory: 'groceries', defaultBtcUnit: 'BTC' };
 
 vi.mock('../services/api', () => ({
   scanReceipt: vi.fn(),
@@ -31,14 +34,14 @@ const selectFile = () => {
 
 describe('ReceiptScan', () => {
   it('renders the capture UI with a disabled scan button', () => {
-    render(<ReceiptScan onExpenseAdded={vi.fn()} />);
+    render(<ReceiptScan onExpenseAdded={vi.fn()} settings={TEST_SETTINGS} />);
     expect(screen.getByText('Scan a Receipt')).toBeInTheDocument();
     expect(screen.getByLabelText(/receipt photo/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /scan receipt/i })).toBeDisabled();
   });
 
   it('enables scanning once a photo is chosen', () => {
-    render(<ReceiptScan onExpenseAdded={vi.fn()} />);
+    render(<ReceiptScan onExpenseAdded={vi.fn()} settings={TEST_SETTINGS} />);
     selectFile();
     expect(screen.getByRole('button', { name: /scan receipt/i })).not.toBeDisabled();
   });
@@ -55,7 +58,7 @@ describe('ReceiptScan', () => {
       warnings: [],
     });
 
-    render(<ReceiptScan onExpenseAdded={vi.fn()} />);
+    render(<ReceiptScan onExpenseAdded={vi.fn()} settings={TEST_SETTINGS} />);
     selectFile();
     fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
 
@@ -81,7 +84,7 @@ describe('ReceiptScan', () => {
       warnings: ['Could not detect the total amount — please enter it manually.'],
     });
 
-    render(<ReceiptScan onExpenseAdded={vi.fn()} />);
+    render(<ReceiptScan onExpenseAdded={vi.fn()} settings={TEST_SETTINGS} />);
     selectFile();
     fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
 

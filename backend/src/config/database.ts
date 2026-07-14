@@ -64,6 +64,16 @@ export function initializeDatabase(): void {
   `);
   db.exec(`INSERT OR IGNORE INTO fx_rates (currency, rate) VALUES ('USD', 1), ('PLN', 0.25), ('BTC', 65000)`);
 
+  // App settings: simple key/value store for single-user preferences
+  // (default currency/category/BTC unit). Values are read with code-side
+  // defaults, so no seeding is required.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
   // Migration: Add currency column to existing tables if it doesn't exist
   try {
     // First, try to add the column (without NOT NULL to avoid SQLite limitations)

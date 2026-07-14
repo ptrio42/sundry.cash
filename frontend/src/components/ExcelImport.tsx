@@ -4,7 +4,7 @@
  */
 
 import { useState, FormEvent, ChangeEvent } from 'react';
-import { Currency } from '../types/expense.types';
+import { Currency, AppSettings } from '../types/expense.types';
 import { previewImport, confirmImport } from '../services/api';
 
 interface PreviewData {
@@ -23,14 +23,14 @@ interface ImportResults {
 
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
-export default function ExcelImport() {
+export default function ExcelImport({ settings }: { settings: AppSettings }) {
   const [file, setFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [dateColumn, setDateColumn] = useState<string>('');
   const [amountColumn, setAmountColumn] = useState<string>('');
   const [descriptionColumn, setDescriptionColumn] = useState<string>('');
   const [categoryColumn, setCategoryColumn] = useState<string>('');
-  const [currency, setCurrency] = useState<Currency>('USD');
+  const [currency, setCurrency] = useState<Currency>(settings.defaultCurrency);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [importResults, setImportResults] = useState<ImportResults | null>(null);
@@ -132,7 +132,7 @@ export default function ExcelImport() {
     setAmountColumn('');
     setDescriptionColumn('');
     setCategoryColumn('');
-    setCurrency('USD');
+    setCurrency(settings.defaultCurrency);
     setError('');
   };
 

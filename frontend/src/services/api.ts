@@ -13,7 +13,8 @@ import {
   Budget,
   ReceiptExtraction,
   ExpenseCategory,
-  Currency
+  Currency,
+  AppSettings
 } from '../types/expense.types';
 import { downloadBlob } from '../utils/export';
 
@@ -302,6 +303,24 @@ export async function confirmImport(
   });
 
   return handleResponse(response);
+}
+
+// --- Settings ------------------------------------------------------------
+
+/** Fetch user preferences (defaults applied server-side). */
+export async function getSettings(): Promise<AppSettings> {
+  const response = await apiFetch('/settings');
+  return handleResponse<AppSettings>(response);
+}
+
+/** Update one or more preferences; returns the full, current settings. */
+export async function updateSettings(partial: Partial<AppSettings>): Promise<AppSettings> {
+  const response = await apiFetch('/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(partial)
+  });
+  return handleResponse<AppSettings>(response);
 }
 
 // --- Receipt scanning ----------------------------------------------------
