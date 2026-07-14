@@ -27,7 +27,7 @@ router.get('/', (_req: Request, res: Response) => {
 
 router.put('/', (req: Request, res: Response) => {
   try {
-    const { defaultCurrency, defaultCategory, defaultBtcUnit } = req.body ?? {};
+    const { defaultCurrency, defaultCategory, defaultBtcUnit, primaryCurrency } = req.body ?? {};
     const errors: string[] = [];
     const partial: Partial<AppSettings> = {};
 
@@ -42,6 +42,10 @@ router.put('/', (req: Request, res: Response) => {
     if (defaultBtcUnit !== undefined) {
       if (!VALID_BTC_UNITS.includes(defaultBtcUnit)) errors.push(`defaultBtcUnit must be one of: ${VALID_BTC_UNITS.join(', ')}`);
       else partial.defaultBtcUnit = defaultBtcUnit as BtcUnit;
+    }
+    if (primaryCurrency !== undefined) {
+      if (!VALID_CURRENCIES.includes(primaryCurrency)) errors.push(`primaryCurrency must be one of: ${VALID_CURRENCIES.join(', ')}`);
+      else partial.primaryCurrency = primaryCurrency as Currency;
     }
 
     if (errors.length > 0) {

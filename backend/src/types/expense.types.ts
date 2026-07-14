@@ -13,9 +13,10 @@ export type BtcUnit = 'BTC' | 'sats';
 
 // User preferences (single-user, shared across devices via the backend)
 export interface AppSettings {
-  defaultCurrency: Currency;
+  defaultCurrency: Currency;   // pre-selected when entering a new expense
   defaultCategory: ExpenseCategory;
   defaultBtcUnit: BtcUnit;
+  primaryCurrency: Currency;   // currency that combined totals are converted to
 }
 
 // Main Expense interface representing a complete expense record

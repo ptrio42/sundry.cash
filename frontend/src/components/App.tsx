@@ -15,8 +15,8 @@ import Fx from './Fx';
 import Settings from './Settings';
 import EditExpenseModal from './EditExpenseModal';
 import Login from './Login';
-import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getToken, logout, getSettings } from '../services/api';
-import { Expense, AppSettings } from '../types/expense.types';
+import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getToken, logout, getSettings, getFxRates } from '../services/api';
+import { Expense, AppSettings, FxRates } from '../types/expense.types';
 import '../App.css';
 
 type View = 'form' | 'receipt' | 'table' | 'dashboard' | 'import' | 'analytics' | 'budgets' | 'fx' | 'settings';
@@ -25,11 +25,16 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultCurrency: 'USD',
   defaultCategory: 'groceries',
   defaultBtcUnit: 'BTC',
+  primaryCurrency: 'USD',
 };
+
+// Sensible fallback rates (match the backend seed) until the real ones load.
+const DEFAULT_FX_RATES: FxRates = { USD: 1, PLN: 0.25, BTC: 65000 };
 
 export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [fxRates, setFxRates] = useState<FxRates>(DEFAULT_FX_RATES);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [currentView, setCurrentView] = useState<View>('form');
@@ -106,13 +111,15 @@ export default function App() {
     setError('');
 
     try {
-      // Expenses are required; settings are non-fatal (fall back to current).
-      const [data, loadedSettings] = await Promise.all([
+      // Expenses are required; settings and FX rates are non-fatal (fall back).
+      const [data, loadedSettings, fx] = await Promise.all([
         getExpenses(),
         getSettings().catch(() => settings),
+        getFxRates().then(f => f.rates as FxRates).catch(() => fxRates),
       ]);
       setExpenses(data);
       setSettings(loadedSettings);
+      setFxRates(fx);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load expenses');
     } finally {
@@ -313,10 +320,10 @@ export default function App() {
                   onUpdate={handleUpdateExpense}
                 />
               )}
-              {currentView === 'dashboard' && <Dashboard expenses={expenses} />}
+              {currentView === 'dashboard' && <Dashboard expenses={expenses} settings={settings} rates={fxRates} />}
               {currentView === 'analytics' && <Analytics />}
               {currentView === 'budgets' && <Budgets expenses={expenses} />}
-              {currentView === 'fx' && <Fx expenses={expenses} />}
+              {currentView === 'fx' && <Fx expenses={expenses} rates={fxRates} onRatesChanged={setFxRates} />}
               {currentView === 'settings' && <Settings settings={settings} onSaved={handleSettingsSaved} />}
             </>
           )}
