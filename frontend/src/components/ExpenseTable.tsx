@@ -6,6 +6,8 @@
 import { useState, useMemo } from 'react';
 import { ExpenseTableProps, ExpenseCategory, SortField, SortOrder, Currency } from '../types/expense.types';
 import { formatCurrency, formatDate, CURRENCY_SYMBOLS } from '../utils/format';
+import { exportExpensesCsv } from '../utils/export';
+import { exportExpensesXlsx } from '../services/api';
 
 // Available categories for filtering
 const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
@@ -96,6 +98,14 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
   const handleDelete = (id: number, description: string) => {
     if (window.confirm(`Are you sure you want to delete "${description}"?`)) {
       onDelete(id);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      await exportExpensesXlsx();
+    } catch {
+      alert('Export failed. Please try again.');
     }
   };
 
@@ -191,7 +201,17 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
 
   return (
     <div className="expense-table">
-      <h2>All Expenses</h2>
+      <div className="table-toolbar">
+        <h2>All Expenses</h2>
+        <div className="export-buttons">
+          <button type="button" className="btn-secondary" onClick={() => exportExpensesCsv(filteredAndSortedExpenses)}>
+            ⬇ CSV
+          </button>
+          <button type="button" className="btn-secondary" onClick={handleExportExcel}>
+            ⬇ Excel
+          </button>
+        </div>
+      </div>
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (

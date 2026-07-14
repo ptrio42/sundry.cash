@@ -4,6 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import xlsx from 'xlsx';
 import * as expenseModel from '../models/expense';
 import { validateExpense, validateFilters } from '../middleware/validation';
 import { ExpenseFilters } from '../types/expense.types';
@@ -36,6 +37,35 @@ router.get('/', validateFilters, (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching expenses:', error);
     res.status(500).json({ error: 'Failed to fetch expenses' });
+  }
+});
+
+/**
+ * GET /api/expenses/export
+ * Download all expenses as an .xlsx file.
+ * Registered before /:id so "export" is not matched as an id.
+ */
+router.get('/export', (_req: Request, res: Response) => {
+  try {
+    const expenses = expenseModel.getAll();
+    const rows = expenses.map(e => ({
+      Date: e.date,
+      Description: e.description,
+      Category: e.category,
+      Amount: e.amount,
+      Currency: e.currency
+    }));
+    const worksheet = xlsx.utils.json_to_sheet(rows);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Expenses');
+    const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="expenses.xlsx"');
+    res.send(buffer);
+  } catch (error) {
+    console.error('Error exporting expenses:', error);
+    res.status(500).json({ error: 'Failed to export expenses' });
   }
 });
 

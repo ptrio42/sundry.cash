@@ -193,4 +193,12 @@ describe('Expense API', () => {
       }
     });
   });
+
+  describe('GET /api/expenses/export', () => {
+    it('returns an xlsx download (route is not shadowed by /:id)', async () => {
+      const response = await request(app).get('/api/expenses/export').expect(200);
+      expect(response.headers['content-type']).toContain('spreadsheetml');
+      expect(response.headers['content-disposition']).toContain('expenses.xlsx');
+    });
+  });
 });
