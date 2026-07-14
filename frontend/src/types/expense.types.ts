@@ -76,6 +76,10 @@ export interface BudgetsProps {
   expenses: Expense[];
 }
 
+export interface FxProps {
+  expenses: Expense[];
+}
+
 // Sort options for table
 export type SortField = 'date' | 'amount' | 'category';
 export type SortOrder = 'asc' | 'desc';

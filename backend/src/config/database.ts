@@ -54,6 +54,15 @@ export function initializeDatabase(): void {
     )
   `);
 
+  // FX rates: value of 1 unit of each currency in the USD base (user-editable)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS fx_rates (
+      currency TEXT PRIMARY KEY CHECK(currency IN ('USD', 'PLN', 'BTC')),
+      rate REAL NOT NULL CHECK(rate > 0)
+    )
+  `);
+  db.exec(`INSERT OR IGNORE INTO fx_rates (currency, rate) VALUES ('USD', 1), ('PLN', 0.25), ('BTC', 65000)`);
+
   // Migration: Add currency column to existing tables if it doesn't exist
   try {
     // First, try to add the column (without NOT NULL to avoid SQLite limitations)

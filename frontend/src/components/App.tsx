@@ -10,13 +10,14 @@ import Dashboard from './Dashboard';
 import ExcelImport from './ExcelImport';
 import Analytics from './Analytics';
 import Budgets from './Budgets';
+import Fx from './Fx';
 import EditExpenseModal from './EditExpenseModal';
 import Login from './Login';
 import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getToken, logout } from '../services/api';
 import { Expense } from '../types/expense.types';
 import '../App.css';
 
-type View = 'form' | 'table' | 'dashboard' | 'import' | 'analytics' | 'budgets';
+type View = 'form' | 'table' | 'dashboard' | 'import' | 'analytics' | 'budgets' | 'fx';
 
 export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -169,7 +170,8 @@ export default function App() {
     { key: 'table', label: 'All Expenses', icon: '📋' },
     { key: 'dashboard', label: 'Dashboard', icon: '📊' },
     { key: 'analytics', label: 'Analytics', icon: '📈' },
-    { key: 'budgets', label: 'Budgets', icon: '🎯' }
+    { key: 'budgets', label: 'Budgets', icon: '🎯' },
+    { key: 'fx', label: 'Currencies', icon: '💱' }
   ];
   const VIEW_TITLES: Record<View, string> = {
     form: 'Add Expense',
@@ -177,7 +179,8 @@ export default function App() {
     table: 'All Expenses',
     dashboard: 'Dashboard',
     analytics: 'Analytics',
-    budgets: 'Monthly Budgets'
+    budgets: 'Monthly Budgets',
+    fx: 'Currency Conversion'
   };
 
   return (
@@ -247,6 +250,7 @@ export default function App() {
               {currentView === 'dashboard' && <Dashboard expenses={expenses} />}
               {currentView === 'analytics' && <Analytics />}
               {currentView === 'budgets' && <Budgets expenses={expenses} />}
+              {currentView === 'fx' && <Fx expenses={expenses} />}
             </>
           )}
         </main>
