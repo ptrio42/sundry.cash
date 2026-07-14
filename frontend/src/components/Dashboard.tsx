@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { DashboardProps, Currency, ExpenseCategory } from '../types/expense.types';
 import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
+import { convertAmount } from '../utils/fx';
 
 const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
@@ -44,18 +45,34 @@ function formatPeriodTick(key: string): string {
     : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(d);
 }
 
-function mostCommonCurrency(expenses: DashboardProps['expenses']): Currency {
-  const counts: Record<string, number> = {};
-  for (const e of expenses) counts[e.currency] = (counts[e.currency] || 0) + 1;
-  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-  return (top?.[0] as Currency) || 'USD';
-}
+export default function Dashboard({ expenses, settings, rates }: DashboardProps) {
+  const primary = settings.primaryCurrency;
 
-export default function Dashboard({ expenses }: DashboardProps) {
-  const [currency, setCurrency] = useState<Currency>(() => mostCommonCurrency(expenses));
+  // Distinct currencies actually present in the data.
+  const presentCurrencies = useMemo(
+    () => Array.from(new Set(expenses.map(e => e.currency))),
+    [expenses]
+  );
+
+  // View can be a single native currency, or 'primary' = all currencies
+  // converted to the primary currency and combined. Default to the combined
+  // view when the data spans more than one currency.
+  const [view, setView] = useState<Currency | 'primary'>(() =>
+    presentCurrencies.length === 1 ? presentCurrencies[0] : 'primary'
+  );
   const [timeGrouping, setTimeGrouping] = useState<TimeGrouping>('day');
 
-  const filtered = useMemo(() => expenses.filter(e => e.currency === currency), [expenses, currency]);
+  const converted = view === 'primary';
+  const displayCurrency: Currency = converted ? primary : view;
+
+  // Rows the whole dashboard is computed from: either native single-currency
+  // rows, or every expense converted into the primary currency.
+  const filtered = useMemo(() => {
+    if (converted) {
+      return expenses.map(e => ({ ...e, amount: convertAmount(e.amount, e.currency, primary, rates), currency: primary }));
+    }
+    return expenses.filter(e => e.currency === view);
+  }, [expenses, view, converted, primary, rates]);
 
   const summary = useMemo(() => {
     const count = filtered.length;
@@ -119,22 +136,40 @@ export default function Dashboard({ expenses }: DashboardProps) {
     return { weeks, max };
   }, [filtered]);
 
-  const fmt = (v: number) => formatCurrency(v, currency);
+  const fmt = (v: number) => formatCurrency(v, displayCurrency);
 
   return (
     <div className="dashboard">
       <div className="dashboard-head">
-        <div className="currency-buttons">
-          {CURRENCIES.map(c => (
-            <button key={c} className={currency === c ? 'active' : ''} onClick={() => setCurrency(c)}>
-              {c} ({CURRENCY_SYMBOLS[c]})
+        <div className="dashboard-head-controls">
+          <div className="currency-buttons">
+            <button
+              className={view === 'primary' ? 'active' : ''}
+              onClick={() => setView('primary')}
+              title="All currencies converted to your primary currency"
+            >
+              All → {primary}
             </button>
-          ))}
+            {CURRENCIES.map(c => (
+              <button key={c} className={view === c ? 'active' : ''} onClick={() => setView(c)}>
+                {c} ({CURRENCY_SYMBOLS[c]})
+              </button>
+            ))}
+          </div>
+          {converted && (
+            <p className="dashboard-note muted-text">
+              Converted from all currencies using your FX rates (editable under Currencies).
+            </p>
+          )}
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <p className="no-data">No {currency} expenses yet. Add some to see your dashboard.</p>
+        <p className="no-data">
+          {converted
+            ? 'No expenses yet. Add some to see your dashboard.'
+            : `No ${view} expenses yet. Add some to see your dashboard.`}
+        </p>
       ) : (
         <>
           {/* Summary */}

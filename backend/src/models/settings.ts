@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultCurrency: 'USD',
   defaultCategory: 'groceries',
   defaultBtcUnit: 'BTC',
+  primaryCurrency: 'USD',
 };
 
 export const VALID_CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
@@ -26,11 +27,13 @@ export function getSettings(): AppSettings {
   const currency = map.get('defaultCurrency');
   const category = map.get('defaultCategory');
   const btcUnit = map.get('defaultBtcUnit');
+  const primaryCurrency = map.get('primaryCurrency');
 
   return {
     defaultCurrency: VALID_CURRENCIES.includes(currency as Currency) ? (currency as Currency) : DEFAULT_SETTINGS.defaultCurrency,
     defaultCategory: VALID_CATEGORIES.includes(category as ExpenseCategory) ? (category as ExpenseCategory) : DEFAULT_SETTINGS.defaultCategory,
     defaultBtcUnit: VALID_BTC_UNITS.includes(btcUnit as BtcUnit) ? (btcUnit as BtcUnit) : DEFAULT_SETTINGS.defaultBtcUnit,
+    primaryCurrency: VALID_CURRENCIES.includes(primaryCurrency as Currency) ? (primaryCurrency as Currency) : DEFAULT_SETTINGS.primaryCurrency,
   };
 }
 
@@ -47,6 +50,7 @@ export function updateSettings(partial: Partial<AppSettings>): AppSettings {
   if (partial.defaultCurrency !== undefined) entries.push(['defaultCurrency', partial.defaultCurrency]);
   if (partial.defaultCategory !== undefined) entries.push(['defaultCategory', partial.defaultCategory]);
   if (partial.defaultBtcUnit !== undefined) entries.push(['defaultBtcUnit', partial.defaultBtcUnit]);
+  if (partial.primaryCurrency !== undefined) entries.push(['primaryCurrency', partial.primaryCurrency]);
 
   if (entries.length > 0) applyAll(entries);
   return getSettings();

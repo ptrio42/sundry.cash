@@ -14,10 +14,14 @@ export type BtcUnit = 'BTC' | 'sats';
 
 // User preferences (single-user, shared across devices via the backend)
 export interface AppSettings {
-  defaultCurrency: Currency;
+  defaultCurrency: Currency;   // pre-selected when entering a new expense
   defaultCategory: ExpenseCategory;
   defaultBtcUnit: BtcUnit;
+  primaryCurrency: Currency;   // currency that combined totals are converted to
 }
+
+// Manual FX rates: value of 1 unit of each currency in the USD base (USD = 1)
+export type FxRates = Record<Currency, number>;
 
 // Main Expense interface representing a complete expense record
 export interface Expense {
@@ -94,6 +98,8 @@ export interface ExpenseTableProps {
 
 export interface DashboardProps {
   expenses: Expense[];
+  settings: AppSettings;
+  rates: FxRates;
 }
 
 export interface BudgetsProps {
@@ -102,6 +108,8 @@ export interface BudgetsProps {
 
 export interface FxProps {
   expenses: Expense[];
+  rates: FxRates;
+  onRatesChanged: (rates: FxRates) => void;
 }
 
 // Sort options for table

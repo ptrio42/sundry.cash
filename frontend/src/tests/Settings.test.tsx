@@ -10,7 +10,7 @@ import { AppSettings } from '../types/expense.types';
 
 vi.mock('../services/api', () => ({ updateSettings: vi.fn() }));
 
-const settings: AppSettings = { defaultCurrency: 'USD', defaultCategory: 'groceries', defaultBtcUnit: 'BTC' };
+const settings: AppSettings = { defaultCurrency: 'USD', defaultCategory: 'groceries', defaultBtcUnit: 'BTC', primaryCurrency: 'USD' };
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -23,9 +23,8 @@ describe('Settings', () => {
   });
 
   it('keeps Save disabled until a value changes, then saves and reports back', async () => {
-    (updateSettings as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      defaultCurrency: 'PLN', defaultCategory: 'groceries', defaultBtcUnit: 'BTC',
-    });
+    const updatedSettings: AppSettings = { defaultCurrency: 'PLN', defaultCategory: 'groceries', defaultBtcUnit: 'BTC', primaryCurrency: 'USD' };
+    (updateSettings as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(updatedSettings);
     const onSaved = vi.fn();
     render(<Settings settings={settings} onSaved={onSaved} />);
 
@@ -37,8 +36,8 @@ describe('Settings', () => {
 
     fireEvent.click(saveBtn);
     await waitFor(() =>
-      expect(updateSettings).toHaveBeenCalledWith({ defaultCurrency: 'PLN', defaultCategory: 'groceries', defaultBtcUnit: 'BTC' })
+      expect(updateSettings).toHaveBeenCalledWith({ defaultCurrency: 'PLN', defaultCategory: 'groceries', defaultBtcUnit: 'BTC', primaryCurrency: 'USD' })
     );
-    expect(onSaved).toHaveBeenCalledWith({ defaultCurrency: 'PLN', defaultCategory: 'groceries', defaultBtcUnit: 'BTC' });
+    expect(onSaved).toHaveBeenCalledWith(updatedSettings);
   });
 });

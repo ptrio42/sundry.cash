@@ -9,7 +9,7 @@ import ReceiptScan from '../components/ReceiptScan';
 import { scanReceipt } from '../services/api';
 import { AppSettings } from '../types/expense.types';
 
-const TEST_SETTINGS: AppSettings = { defaultCurrency: 'PLN', defaultCategory: 'groceries', defaultBtcUnit: 'BTC' };
+const TEST_SETTINGS: AppSettings = { defaultCurrency: 'PLN', defaultCategory: 'groceries', defaultBtcUnit: 'BTC', primaryCurrency: 'PLN' };
 
 vi.mock('../services/api', () => ({
   scanReceipt: vi.fn(),

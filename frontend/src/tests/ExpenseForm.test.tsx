@@ -8,7 +8,7 @@ import { render, screen } from '@testing-library/react';
 import ExpenseForm from '../components/ExpenseForm';
 import { AppSettings } from '../types/expense.types';
 
-const TEST_SETTINGS: AppSettings = { defaultCurrency: 'USD', defaultCategory: 'groceries', defaultBtcUnit: 'BTC' };
+const TEST_SETTINGS: AppSettings = { defaultCurrency: 'USD', defaultCategory: 'groceries', defaultBtcUnit: 'BTC', primaryCurrency: 'USD' };
 
 describe('ExpenseForm', () => {
   it('renders form with all required fields', () => {

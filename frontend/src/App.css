@@ -755,6 +755,8 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 
 /* ---------- Dashboard extras ---------- */
 .dashboard-head { display: flex; justify-content: flex-end; margin-bottom: 18px; }
+.dashboard-head-controls { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.dashboard-note { font-size: 0.82rem; text-align: right; max-width: 460px; margin-top: 0; }
 .chart-full { margin-top: 20px; }
 .donut-wrap { position: relative; }
 .donut-center {
