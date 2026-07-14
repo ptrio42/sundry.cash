@@ -36,7 +36,8 @@ export function initializeDatabase(): void {
       description TEXT NOT NULL CHECK(length(description) > 0),
       category TEXT NOT NULL CHECK(category IN ('groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other')),
       currency TEXT DEFAULT 'USD' CHECK(currency IN ('USD', 'PLN', 'BTC')),
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      receipt_image TEXT
     )
   `;
 
@@ -192,6 +193,19 @@ export function initializeDatabase(): void {
   } catch (error: any) {
     console.error('BTC currency migration check/execution failed:', error.message);
     // Continue even if migration fails - the table might already be correct
+  }
+
+  // Migration: Add receipt_image column for attached receipt photos.
+  // Runs last so it re-adds the column even if a table-recreation migration
+  // above rebuilt `expenses` without it. Idempotent: a duplicate-column error
+  // just means an existing DB already has it.
+  try {
+    db.exec(`ALTER TABLE expenses ADD COLUMN receipt_image TEXT`);
+    console.log('Added receipt_image column to expenses table');
+  } catch (error: any) {
+    if (!error.message.includes('duplicate column name')) {
+      console.error('receipt_image migration failed:', error.message);
+    }
   }
 
   console.log('Database initialized successfully');

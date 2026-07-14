@@ -17,6 +17,7 @@ export interface Expense {
   category: ExpenseCategory;
   currency: Currency;
   createdAt?: string; // ISO 8601 datetime
+  receiptImage?: string | null; // filename of an attached receipt photo, if any
 }
 
 // DTO for creating a new expense (excludes id and createdAt)

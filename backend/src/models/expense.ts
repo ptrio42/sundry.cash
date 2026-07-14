@@ -4,6 +4,7 @@
 
 import { db } from '../config/database';
 import { toMinorUnits, toMajorUnits } from '../config/money';
+import { deleteReceiptImage, clearReceiptImages } from '../services/receipt/storage';
 import {
   Expense,
   Currency,
@@ -53,7 +54,8 @@ export function getAll(filters?: ExpenseFilters): Expense[] {
     description: row.description,
     category: row.category,
     currency: row.currency,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    receiptImage: row.receipt_image ?? null
   }));
 }
 
@@ -73,7 +75,8 @@ export function getById(id: number): Expense | undefined {
     description: row.description,
     category: row.category,
     currency: row.currency,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    receiptImage: row.receipt_image ?? null
   };
 }
 
@@ -82,8 +85,8 @@ export function getById(id: number): Expense | undefined {
  */
 export function create(expense: CreateExpenseDTO): Expense {
   const stmt = db.prepare(`
-    INSERT INTO expenses (amount, date, description, category, currency)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO expenses (amount, date, description, category, currency, receipt_image)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
@@ -91,7 +94,8 @@ export function create(expense: CreateExpenseDTO): Expense {
     expense.date,
     expense.description,
     expense.category,
-    expense.currency
+    expense.currency,
+    expense.receiptImage ?? null
   );
 
   // Fetch and return the created expense
@@ -160,8 +164,14 @@ export function update(id: number, expense: UpdateExpenseDTO): Expense | undefin
  * Delete an expense
  */
 export function deleteExpense(id: number): boolean {
+  // Grab the attached receipt (if any) before the row is gone, then clean up
+  // the file so deleted expenses don't leave orphaned images on disk.
+  const existing = getById(id);
   const stmt = db.prepare('DELETE FROM expenses WHERE id = ?');
   const result = stmt.run(id);
+  if (result.changes > 0 && existing?.receiptImage) {
+    deleteReceiptImage(existing.receiptImage);
+  }
   return result.changes > 0;
 }
 
@@ -243,6 +253,9 @@ export function deleteAll(): number {
   // Reset auto-increment counter
   const resetStmt = db.prepare('DELETE FROM sqlite_sequence WHERE name = ?');
   resetStmt.run('expenses');
+
+  // Remove every stored receipt image too — wiping the DB should wipe its files.
+  clearReceiptImages();
 
   return result.changes;
 }

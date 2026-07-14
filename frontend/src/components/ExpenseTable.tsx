@@ -3,11 +3,11 @@
  * Displays expenses in a table with sorting, filtering, and actions
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { ExpenseTableProps, ExpenseCategory, SortField, SortOrder, Currency } from '../types/expense.types';
 import { formatCurrency, formatDate, CURRENCY_SYMBOLS } from '../utils/format';
 import { exportExpensesCsv } from '../utils/export';
-import { exportExpensesXlsx } from '../services/api';
+import { exportExpensesXlsx, fetchReceiptObjectUrl } from '../services/api';
 
 // Available categories for filtering
 const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
@@ -25,6 +25,67 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkCategory, setBulkCategory] = useState<ExpenseCategory>('other');
+
+  // Receipt image viewer (loaded with auth, held as an object URL)
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState<boolean>(false);
+  const [receiptError, setReceiptError] = useState<string>('');
+  const mountedRef = useRef(true);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Track mount status so an in-flight image fetch that resolves after unmount
+  // can revoke its object URL instead of leaking it.
+  useEffect(() => {
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // Revoke the object URL whenever it changes or the component unmounts.
+  useEffect(() => {
+    return () => {
+      if (receiptUrl) URL.revokeObjectURL(receiptUrl);
+    };
+  }, [receiptUrl]);
+
+  const closeReceipt = () => {
+    if (receiptUrl) URL.revokeObjectURL(receiptUrl);
+    setReceiptUrl(null);
+    setReceiptError('');
+    // Restore focus to whatever opened the modal.
+    lastFocusedRef.current?.focus();
+    lastFocusedRef.current = null;
+  };
+
+  // While the modal is open: close on Escape and move focus into the dialog.
+  useEffect(() => {
+    if (!receiptUrl) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeReceipt();
+    };
+    document.addEventListener('keydown', onKey);
+    closeButtonRef.current?.focus();
+    return () => document.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [receiptUrl]);
+
+  const viewReceipt = async (filename: string) => {
+    setReceiptError('');
+    setReceiptLoading(true);
+    lastFocusedRef.current = (document.activeElement as HTMLElement) ?? null;
+    try {
+      const url = await fetchReceiptObjectUrl(filename);
+      // If we unmounted while the request was in flight, don't leak the URL.
+      if (!mountedRef.current) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      setReceiptUrl(url);
+    } catch {
+      if (mountedRef.current) setReceiptError('Could not load the receipt image.');
+    } finally {
+      if (mountedRef.current) setReceiptLoading(false);
+    }
+  };
 
   /**
    * Handle sort by a specific field
@@ -396,7 +457,21 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
                     />
                   </td>
                   <td>{formatDate(expense.date)}</td>
-                  <td>{expense.description}</td>
+                  <td>
+                    {expense.description}
+                    {expense.receiptImage && (
+                      <button
+                        type="button"
+                        className="receipt-badge"
+                        title="View receipt"
+                        aria-label={`View receipt for ${expense.description}`}
+                        onClick={() => viewReceipt(expense.receiptImage as string)}
+                        disabled={receiptLoading}
+                      >
+                        🧾
+                      </button>
+                    )}
+                  </td>
                   <td className={`category-${expense.category}`}>
                     {expense.category.charAt(0).toUpperCase() + expense.category.slice(1)}
                   </td>
@@ -444,6 +519,19 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
           </table>
         )}
       </div>
+
+      {receiptError && <div className="error-message">{receiptError}</div>}
+
+      {receiptUrl && (
+        <div className="receipt-modal-overlay" onClick={closeReceipt} role="dialog" aria-modal="true">
+          <div className="receipt-modal" onClick={(e) => e.stopPropagation()}>
+            <button ref={closeButtonRef} type="button" className="receipt-modal-close" onClick={closeReceipt} aria-label="Close">
+              ✕
+            </button>
+            <img src={receiptUrl} alt="Receipt" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
