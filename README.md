@@ -18,6 +18,14 @@ docker compose up --build
 
 Then open **http://localhost:8847**. The frontend reaches the backend through an nginx reverse proxy, and your data persists in `./data`. To try the Excel import, use the included [`sample-data/sample-expenses.xlsx`](sample-data/sample-expenses.xlsx). For configuration and self-hosting notes, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
+**Share it across your phones/laptops (one shared "bucket").** Run the stack on
+an always-on machine (home server, NAS, Umbrel, spare laptop) and every device on
+your LAN reaches the same data at **`http://<that-machine's-IP>:8847`** (e.g.
+`http://192.168.1.20:8847`). On a phone, open that URL and tap **Add to Home
+Screen** — the app installs as a full-screen PWA, and **Scan Receipt** opens the
+camera directly. For a shared bucket, set `APP_PASSWORD` so only people who know
+the password can add or wipe expenses (see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)).
+
 ### Or run locally without Docker
 
 Requires **Node 18+**. From the project root:
@@ -56,7 +64,10 @@ Then open **http://localhost:5173**. The Vite dev server proxies `/api` to the b
 - **Sorting**: Sort by date, amount, or category
 - **Validation**: Client-side and server-side validation for data integrity
 - **TypeScript**: Full type safety across frontend and backend
-- **Responsive Design**: Works on desktop and mobile devices
+- **Mobile & PWA**: Phone-first layout with a bottom tab bar; installable to the
+  home screen ("Add to Home Screen") and opens full-screen like a native app
+- **Self-hosted & multi-device**: Run once on your LAN; every phone/laptop adds to
+  the same shared database (optional password gate)
 
 ## 🛠 Tech Stack
 

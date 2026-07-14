@@ -191,20 +191,105 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
   flex: 1;
 }
 
+/* ---------- Mobile bottom navigation (hidden on desktop) ---------- */
+.bottom-nav { display: none; }
+.more-sheet-overlay { display: none; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .more-sheet, .more-sheet-overlay { animation: none; } }
+
 @media (max-width: 680px) {
+  /* The sidebar is replaced by a fixed bottom tab bar on phones. */
   .shell { grid-template-columns: 1fr; }
-  .sidebar {
-    position: static;
-    height: auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
+  .sidebar { display: none; }
+
+  .topbar { padding: 18px 18px 14px; }
+  .topbar h1 { font-size: 1.3rem; }
+  /* Leave room for the fixed bottom nav (+ iOS home-indicator inset). */
+  .content-main { padding: 18px 16px calc(88px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Bottom tab bar */
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 90;
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--border);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    justify-content: space-around;
+    align-items: stretch;
   }
-  .sidebar-nav { flex-direction: row; flex-wrap: wrap; }
-  .sidebar-footer { margin: 0 0 0 auto; border: none; padding: 0; flex-direction: row; }
-  .sidebar-brand { width: 100%; padding-bottom: 10px; }
-  .content-main, .topbar { padding-left: 18px; padding-right: 18px; }
+  .bottom-nav button {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 48px;
+    padding: 6px 2px;
+    background: none;
+    border: none;
+    border-radius: var(--radius-xs);
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .bottom-nav button.active { color: var(--accent); }
+  .bottom-nav .nav-icon { width: auto; font-size: 1.3rem; line-height: 1; }
+  .bottom-nav-label { font-size: 0.66rem; font-weight: 600; letter-spacing: 0.01em; }
+
+  /* "More" sheet */
+  .more-sheet-overlay {
+    display: block;
+    position: fixed; inset: 0;
+    background: rgba(5, 7, 10, 0.55);
+    z-index: 95;
+    animation: fade 0.15s ease;
+  }
+  .more-sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 10px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+    box-shadow: var(--shadow);
+    max-height: 80vh; overflow-y: auto;
+    animation: slideUp 0.2s ease;
+  }
+  .more-sheet-handle {
+    width: 40px; height: 4px; border-radius: 999px;
+    background: var(--border-strong);
+    margin: 4px auto 14px;
+  }
+  .more-sheet-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .more-sheet-grid button,
+  .more-sheet-actions button {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%;
+    padding: 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 0.92rem; font-weight: 500;
+    text-align: left; cursor: pointer;
+  }
+  .more-sheet-grid button.active { border-color: var(--accent); color: var(--accent); }
+  .more-sheet-grid .nav-icon,
+  .more-sheet-actions .nav-icon { width: 20px; text-align: center; }
+  .more-sheet-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .more-sheet-actions .danger-button { color: var(--danger); }
+
+  /* Comfortable touch targets + no iOS zoom-on-focus (needs >=16px inputs) */
+  input, select, textarea { font-size: 16px; }
+  .form-row { grid-template-columns: 1fr; }
+
+  /* Stack the table's toolbar/filters so they don't overflow */
+  .table-toolbar { flex-direction: column; align-items: stretch; }
+  .filters { flex-direction: column; align-items: stretch; }
+  .filter-group { width: 100%; }
+  .filter-group select, .filter-group input { width: 100%; }
 }
 
 /* ---------- Loading / errors / empty ---------- */
