@@ -1,5 +1,5 @@
 {
-  "name": "expense-tracker",
+  "name": "sundry",
   "version": "1.0.0",
   "private": true,
   "description": "Full-stack, self-hosted personal expense tracker (Express + React)",

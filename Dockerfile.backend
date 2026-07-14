@@ -1,4 +1,4 @@
-# Backend Dockerfile for Expense Tracker (Umbrel)
+# Backend Dockerfile for Sundry (Umbrel)
 FROM node:18-alpine
 
 # Set working directory

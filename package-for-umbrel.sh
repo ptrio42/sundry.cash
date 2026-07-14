@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Package Expense Tracker for Umbrel Custom App Store
+# Package Sundry for Umbrel Custom App Store
 # Usage: ./package-for-umbrel.sh /path/to/your-umbrel-apps-repo
 
 set -e
@@ -11,10 +11,10 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
-DEST_DIR="$1/expense-tracker"
+DEST_DIR="$1/sundry"
 SOURCE_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "📦 Packaging Expense Tracker for Umbrel..."
+echo "📦 Packaging Sundry for Umbrel..."
 echo "Source: $SOURCE_DIR"
 echo "Destination: $DEST_DIR"
 echo ""
@@ -118,5 +118,5 @@ tree -L 2 "$DEST_DIR" 2>/dev/null || ls -la "$DEST_DIR"
 echo ""
 echo "To test the build locally:"
 echo "  cd $DEST_DIR"
-echo "  docker build -f Dockerfile.backend -t expense-tracker-backend:test ."
-echo "  docker build -f Dockerfile.frontend -t expense-tracker-frontend:test ."
+echo "  docker build -f Dockerfile.backend -t sundry-backend:test ."
+echo "  docker build -f Dockerfile.frontend -t sundry-frontend:test ."

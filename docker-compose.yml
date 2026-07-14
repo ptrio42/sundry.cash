@@ -3,7 +3,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: expense-tracker-backend
+    container_name: sundry-backend
     restart: unless-stopped
     volumes:
       # Persist SQLite database
@@ -31,7 +31,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: expense-tracker-frontend
+    container_name: sundry-frontend
     restart: unless-stopped
     ports:
       # Expose only to LAN (bind to all interfaces for LAN access)

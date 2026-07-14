@@ -1,4 +1,4 @@
-# Frontend Dockerfile for Expense Tracker
+# Frontend Dockerfile for Sundry
 # Multi-stage build: Build React app and serve with nginx
 
 # Stage 1: Build the React application

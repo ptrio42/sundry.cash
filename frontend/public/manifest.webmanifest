@@ -1,7 +1,7 @@
 {
-  "name": "Expense Tracker",
-  "short_name": "Expenses",
-  "description": "Self-hosted personal expense tracker — scan receipts, track spending, stay on budget.",
+  "name": "Sundry",
+  "short_name": "Sundry",
+  "description": "Sundry — a self-hosted personal expense tracker: scan receipts, track spending, stay on budget.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

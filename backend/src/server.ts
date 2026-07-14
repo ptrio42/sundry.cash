@@ -47,7 +47,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 // Root endpoint
 app.get('/', (_req: Request, res: Response) => {
   res.json({
-    message: 'Expense Tracker API',
+    message: 'Sundry API',
     version: '1.0.0',
     endpoints: {
       expenses: '/api/expenses',
