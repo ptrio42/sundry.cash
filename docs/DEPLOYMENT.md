@@ -17,6 +17,26 @@ docker compose up --build
 
 To stop: `docker compose down` (add `-v` to also drop the named volume).
 
+## Access from other devices (phones on your LAN)
+
+The frontend container publishes port **8847** on all interfaces, so once the
+stack runs on an always-on machine (home server, NAS, Umbrel, spare laptop),
+every device on the same network shares one database:
+
+1. Find the host machine's LAN IP (e.g. `ipconfig getifaddr en0` on macOS,
+   `hostname -I` on Linux) — say `192.168.1.20`.
+2. On any phone/laptop on the network, open **`http://192.168.1.20:8847`**.
+3. On a phone, use the browser's **Add to Home Screen** — the app installs as a
+   full-screen PWA and **Scan Receipt** opens the camera directly. Receipt photos
+   up to 10 MB are accepted (nginx `client_max_body_size` is set to 12 MB).
+
+All devices talk to the same backend and the same SQLite database in `./data`,
+so expenses added from any phone show up everywhere — one shared "bucket".
+
+> **Recommended for a shared bucket:** set `APP_PASSWORD` on the backend so a
+> device on the network can't add or wipe expenses without the password. Auth is
+> off by default (open on a trusted LAN); setting the variable turns it on.
+
 ## Configuration
 
 | Variable             | Where     | Default             | Purpose                                   |

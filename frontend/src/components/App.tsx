@@ -3,7 +3,7 @@
  * Manages application state and navigation between views
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ExpenseForm from './ExpenseForm';
 import ReceiptScan from './ReceiptScan';
 import ExpenseTable from './ExpenseTable';
@@ -32,6 +32,25 @@ export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() =>
     (typeof localStorage !== 'undefined' && localStorage.getItem('theme') === 'light') ? 'light' : 'dark'
   );
+  // Mobile "More" sheet (holds the secondary nav + settings on small screens)
+  const [moreOpen, setMoreOpen] = useState<boolean>(false);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const moreSheetRef = useRef<HTMLDivElement>(null);
+
+  const closeMore = () => {
+    setMoreOpen(false);
+    moreButtonRef.current?.focus();
+  };
+
+  // Close the mobile "More" sheet on Escape and move focus into it when it opens.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMore(); };
+    document.addEventListener('keydown', onKey);
+    moreSheetRef.current?.focus();
+    return () => document.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moreOpen]);
 
   // Apply and persist the theme (dark-first: dark is the default)
   useEffect(() => {
@@ -195,6 +214,17 @@ export default function App() {
     fx: 'Currency Conversion'
   };
 
+  // Mobile bottom bar: a handful of primary tabs; the rest live behind "More".
+  const PRIMARY_KEYS: View[] = ['receipt', 'form', 'table', 'dashboard'];
+  const primaryItems = PRIMARY_KEYS.map(k => NAV.find(n => n.key === k)!);
+  const secondaryItems = NAV.filter(n => !PRIMARY_KEYS.includes(n.key));
+  const secondaryActive = secondaryItems.some(n => n.key === currentView);
+
+  const goTo = (view: View) => {
+    setCurrentView(view);
+    setMoreOpen(false);
+  };
+
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -272,6 +302,76 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Mobile bottom navigation (hidden on desktop via CSS) */}
+      <nav className="bottom-nav" aria-label="Primary">
+        {primaryItems.map(item => (
+          <button
+            key={item.key}
+            className={currentView === item.key ? 'active' : ''}
+            onClick={() => goTo(item.key)}
+            aria-current={currentView === item.key ? 'page' : undefined}
+          >
+            <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+            <span className="bottom-nav-label">{item.label}</span>
+          </button>
+        ))}
+        <button
+          ref={moreButtonRef}
+          className={moreOpen || secondaryActive ? 'active' : ''}
+          onClick={() => setMoreOpen(o => !o)}
+          aria-expanded={moreOpen}
+          aria-haspopup="dialog"
+        >
+          <span className="nav-icon" aria-hidden="true">☰</span>
+          <span className="bottom-nav-label">More</span>
+        </button>
+      </nav>
+
+      {/* "More" sheet: secondary views + settings, on mobile */}
+      {moreOpen && (
+        <div className="more-sheet-overlay" onClick={closeMore}>
+          <div
+            ref={moreSheetRef}
+            className="more-sheet"
+            onClick={e => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="More"
+            tabIndex={-1}
+          >
+            <div className="more-sheet-handle" aria-hidden="true" />
+            <div className="more-sheet-grid">
+              {secondaryItems.map(item => (
+                <button
+                  key={item.key}
+                  className={currentView === item.key ? 'active' : ''}
+                  onClick={() => goTo(item.key)}
+                >
+                  <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div className="more-sheet-actions">
+              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+                <span className="nav-icon" aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span>
+                {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+              </button>
+              <button className="danger-button" onClick={() => { setMoreOpen(false); handleDeleteAll(); }}>
+                <span className="nav-icon" aria-hidden="true">🗑️</span>
+                Wipe Database
+              </button>
+              {authRequired && (
+                <button onClick={() => { setMoreOpen(false); handleLogout(); }}>
+                  <span className="nav-icon" aria-hidden="true">🔓</span>
+                  Logout
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <EditExpenseModal
         expense={editingExpense}
