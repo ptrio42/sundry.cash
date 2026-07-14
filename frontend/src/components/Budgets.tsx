@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
 import { BudgetsProps, Budget, ExpenseCategory, Currency } from '../types/expense.types';
 import { getBudgets, setBudget as apiSetBudget, deleteBudget as apiDeleteBudget } from '../services/api';
 import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
@@ -66,6 +67,26 @@ export default function Budgets({ expenses }: BudgetsProps) {
       map[e.category] = (map[e.category] || 0) + e.amount;
     }
     return map;
+  }, [expenses, currency, monthKey]);
+
+  // Cumulative spend per day of the current month (for the burn-down chart)
+  const burndown = useMemo(() => {
+    const [y, m] = monthKey.split('-').map(Number);
+    const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const perDay: Record<number, number> = {};
+    for (const e of expenses) {
+      if (e.currency !== currency) continue;
+      if (!e.date.startsWith(monthKey)) continue;
+      const day = Number(e.date.slice(8, 10));
+      perDay[day] = (perDay[day] || 0) + e.amount;
+    }
+    const data: { day: number; cumulative: number }[] = [];
+    let cum = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      cum += perDay[d] || 0;
+      data.push({ day: d, cumulative: Number(cum.toFixed(8)) });
+    }
+    return data;
   }, [expenses, currency, monthKey]);
 
   const budgetFor = (cat: ExpenseCategory): number | undefined =>
@@ -159,6 +180,32 @@ export default function Budgets({ expenses }: BudgetsProps) {
               </p>
             </div>
           </div>
+
+          {totalSpent > 0 && (
+            <div className="chart-box chart-full" style={{ marginBottom: '18px' }}>
+              <h3>Spending this month{totalBudget > 0 ? ' vs. budget' : ''}</h3>
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={burndown}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="day" tickFormatter={(d: number) => String(d)} minTickGap={16} />
+                  <YAxis width={56} tickFormatter={(v: number) => `${CURRENCY_SYMBOLS[currency]}${Math.round(v)}`} />
+                  <Tooltip
+                    formatter={(v: number) => formatCurrency(v, currency)}
+                    labelFormatter={(d) => `Day ${d}`}
+                  />
+                  {totalBudget > 0 && (
+                    <ReferenceLine
+                      y={totalBudget}
+                      stroke="var(--danger)"
+                      strokeDasharray="5 4"
+                      label={{ value: 'Budget', fill: 'var(--danger)', fontSize: 11, position: 'insideTopRight' }}
+                    />
+                  )}
+                  <Line type="monotone" dataKey="cumulative" stroke="#34d399" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           <div className="budget-list">
             {CATEGORIES.map(cat => {

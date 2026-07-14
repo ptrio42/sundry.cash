@@ -1,14 +1,17 @@
 /**
  * Dashboard Component
- * Displays charts and statistics for expense visualization
+ * Currency-scoped spending overview: donut breakdown, stacked category trend,
+ * and a calendar heatmap of daily spend.
  */
 
 import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { DashboardProps, Currency } from '../types/expense.types';
-import { formatCurrency } from '../utils/format';
+import { DashboardProps, Currency, ExpenseCategory } from '../types/expense.types';
+import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
 
-// Colors for different categories
+const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
+const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
+
 const COLORS: Record<string, string> = {
   groceries: '#34d399',
   transport: '#60a5fa',
@@ -17,6 +20,16 @@ const COLORS: Record<string, string> = {
   utilities: '#f87171',
   maintenance: '#fb923c',
   other: '#94a3b8'
+};
+
+const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  groceries: 'Groceries',
+  transport: 'Transport',
+  media: 'Media',
+  entertainment: 'Entertainment',
+  utilities: 'Utilities',
+  maintenance: 'Maintenance',
+  other: 'Other'
 };
 
 type TimeGrouping = 'day' | 'week' | 'month';
@@ -31,202 +44,212 @@ function formatPeriodTick(key: string): string {
     : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(d);
 }
 
+function mostCommonCurrency(expenses: DashboardProps['expenses']): Currency {
+  const counts: Record<string, number> = {};
+  for (const e of expenses) counts[e.currency] = (counts[e.currency] || 0) + 1;
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  return (top?.[0] as Currency) || 'USD';
+}
+
 export default function Dashboard({ expenses }: DashboardProps) {
+  const [currency, setCurrency] = useState<Currency>(() => mostCommonCurrency(expenses));
   const [timeGrouping, setTimeGrouping] = useState<TimeGrouping>('day');
 
-  /**
-   * Calculate statistics by category
-   */
+  const filtered = useMemo(() => expenses.filter(e => e.currency === currency), [expenses, currency]);
+
+  const summary = useMemo(() => {
+    const count = filtered.length;
+    const total = filtered.reduce((s, e) => s + e.amount, 0);
+    const highest = filtered.reduce((m, e) => Math.max(m, e.amount), 0);
+    return { count, total, average: count ? total / count : 0, highest };
+  }, [filtered]);
+
   const categoryStats = useMemo(() => {
     const stats: Record<string, number> = {};
+    filtered.forEach(e => { stats[e.category] = (stats[e.category] || 0) + e.amount; });
+    return Object.entries(stats)
+      .map(([category, value]) => ({ name: CATEGORY_LABELS[category as ExpenseCategory] ?? category, value, category }))
+      .sort((a, b) => b.value - a.value);
+  }, [filtered]);
 
-    expenses.forEach(expense => {
-      stats[expense.category] = (stats[expense.category] || 0) + expense.amount;
-    });
-
-    return Object.entries(stats).map(([category, total]) => ({
-      name: category.charAt(0).toUpperCase() + category.slice(1),
-      value: parseFloat(total.toFixed(2)),
-      category
-    }));
-  }, [expenses]);
-
-  /**
-   * Calculate trend data based on time grouping
-   */
   const trendData = useMemo(() => {
-    if (expenses.length === 0) return [];
-
-    const grouped: Record<string, number> = {};
-
-    expenses.forEach(expense => {
-      const date = new Date(expense.date);
+    const grouped: Record<string, Record<string, number>> = {};
+    filtered.forEach(e => {
       let key: string;
-
       if (timeGrouping === 'day') {
-        key = expense.date;
+        key = e.date;
       } else if (timeGrouping === 'week') {
-        // Get start of week (Sunday)
-        const startOfWeek = new Date(date);
-        startOfWeek.setDate(date.getDate() - date.getDay());
-        key = startOfWeek.toISOString().split('T')[0];
+        const d = new Date(`${e.date}T00:00:00Z`);
+        d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+        key = d.toISOString().split('T')[0];
       } else {
-        // Month
-        key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        key = e.date.slice(0, 7);
       }
-
-      grouped[key] = (grouped[key] || 0) + expense.amount;
+      if (!grouped[key]) grouped[key] = {};
+      grouped[key][e.category] = (grouped[key][e.category] || 0) + e.amount;
     });
-
     return Object.entries(grouped)
-      .map(([date, total]) => ({
-        date,
-        total: parseFloat(total.toFixed(2))
-      }))
+      .map(([date, cats]) => ({ date, ...cats }))
       .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(-30); // Show last 30 periods
-  }, [expenses, timeGrouping]);
+      .slice(-26);
+  }, [filtered, timeGrouping]);
 
-  /**
-   * Calculate summary statistics grouped by currency
-   */
-  const summary = useMemo(() => {
-    const byCurrency = expenses.reduce((acc, exp) => {
-      if (!acc[exp.currency]) {
-        acc[exp.currency] = { total: 0, count: 0, amounts: [] };
-      }
-      acc[exp.currency].total += exp.amount;
-      acc[exp.currency].count += 1;
-      acc[exp.currency].amounts.push(exp.amount);
-      return acc;
-    }, {} as Record<Currency, { total: number; count: number; amounts: number[] }>);
+  // Calendar heatmap: last 13 weeks of daily spend, aligned to Sundays.
+  const heatmap = useMemo(() => {
+    const byDay: Record<string, number> = {};
+    filtered.forEach(e => { byDay[e.date] = (byDay[e.date] || 0) + e.amount; });
 
-    const formatCurrencyValues = (values: Record<Currency, number>) => {
-      return Object.entries(values)
-        .map(([currency, value]) => formatCurrency(value, currency as Currency))
-        .join(' + ');
-    };
+    const WEEKS = 13;
+    const now = new Date();
+    const end = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const start = new Date(end);
+    start.setUTCDate(end.getUTCDate() - (WEEKS * 7 - 1));
+    start.setUTCDate(start.getUTCDate() - start.getUTCDay()); // back up to Sunday
 
-    const totals = Object.entries(byCurrency).reduce((acc, [currency, data]) => {
-      acc[currency as Currency] = data.total;
-      return acc;
-    }, {} as Record<Currency, number>);
+    const days: { date: string; amount: number }[] = [];
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      const key = cursor.toISOString().split('T')[0];
+      days.push({ date: key, amount: byDay[key] || 0 });
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    const max = Math.max(1, ...days.map(d => d.amount));
+    const weeks: { date: string; amount: number }[][] = [];
+    for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
+    return { weeks, max };
+  }, [filtered]);
 
-    const averages = Object.entries(byCurrency).reduce((acc, [currency, data]) => {
-      acc[currency as Currency] = data.total / data.count;
-      return acc;
-    }, {} as Record<Currency, number>);
-
-    const highest = Object.entries(byCurrency).reduce((acc, [currency, data]) => {
-      acc[currency as Currency] = Math.max(...data.amounts);
-      return acc;
-    }, {} as Record<Currency, number>);
-
-    return {
-      total: formatCurrencyValues(totals),
-      count: expenses.length,
-      average: formatCurrencyValues(averages),
-      highest: formatCurrencyValues(highest)
-    };
-  }, [expenses]);
+  const fmt = (v: number) => formatCurrency(v, currency);
 
   return (
     <div className="dashboard">
-      <h2>Dashboard</h2>
+      <div className="dashboard-head">
+        <div className="currency-buttons">
+          {CURRENCIES.map(c => (
+            <button key={c} className={currency === c ? 'active' : ''} onClick={() => setCurrency(c)}>
+              {c} ({CURRENCY_SYMBOLS[c]})
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {expenses.length === 0 ? (
-        <p className="no-data">No expenses to display. Add some expenses to see your statistics!</p>
+      {filtered.length === 0 ? (
+        <p className="no-data">No {currency} expenses yet. Add some to see your dashboard.</p>
       ) : (
         <>
-          {/* Summary Cards */}
+          {/* Summary */}
           <div className="summary-cards">
             <div className="summary-card">
-              <h3>Total Expenses</h3>
-              <p className="value">{summary.total}</p>
+              <h3>Total Spent</h3>
+              <p className="value">{fmt(summary.total)}</p>
             </div>
             <div className="summary-card">
-              <h3>Number of Expenses</h3>
+              <h3>Expenses</h3>
               <p className="value">{summary.count}</p>
             </div>
             <div className="summary-card">
-              <h3>Average Expense</h3>
-              <p className="value">{summary.average}</p>
+              <h3>Average</h3>
+              <p className="value">{fmt(summary.average)}</p>
             </div>
             <div className="summary-card">
-              <h3>Highest Expense</h3>
-              <p className="value">{summary.highest}</p>
+              <h3>Largest</h3>
+              <p className="value">{fmt(summary.highest)}</p>
             </div>
           </div>
 
-          {/* Charts Section */}
           <div className="charts-container">
-            {/* Category Pie Chart */}
+            {/* Donut */}
             <div className="chart-box">
-              <h3>Expenses by Category</h3>
-              <ResponsiveContainer width="100%" height={350}>
-                <PieChart>
-                  <Pie
-                    data={categoryStats}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={true}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={90}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {categoryStats.map((entry) => (
-                      <Cell key={entry.category} fill={COLORS[entry.category]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => value.toFixed(2)} />
-                  <Legend verticalAlign="bottom" height={36} />
-                </PieChart>
-              </ResponsiveContainer>
+              <h3>By Category</h3>
+              <div className="donut-wrap">
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={categoryStats}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={72}
+                      outerRadius={104}
+                      paddingAngle={2}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {categoryStats.map(entry => (
+                        <Cell key={entry.category} fill={COLORS[entry.category]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => fmt(value)} />
+                    <Legend verticalAlign="bottom" height={36} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="donut-center">
+                  <span className="donut-total">{fmt(summary.total)}</span>
+                  <span className="donut-label">total</span>
+                </div>
+              </div>
             </div>
 
-            {/* Trend Bar Chart */}
+            {/* Stacked trend */}
             <div className="chart-box">
               <div className="chart-header">
-                <h3>Expense Trends</h3>
+                <h3>Trend by Category</h3>
                 <div className="time-grouping">
-                  <button
-                    className={timeGrouping === 'day' ? 'active' : ''}
-                    onClick={() => setTimeGrouping('day')}
-                  >
-                    Daily
-                  </button>
-                  <button
-                    className={timeGrouping === 'week' ? 'active' : ''}
-                    onClick={() => setTimeGrouping('week')}
-                  >
-                    Weekly
-                  </button>
-                  <button
-                    className={timeGrouping === 'month' ? 'active' : ''}
-                    onClick={() => setTimeGrouping('month')}
-                  >
-                    Monthly
-                  </button>
+                  {(['day', 'week', 'month'] as TimeGrouping[]).map(g => (
+                    <button key={g} className={timeGrouping === g ? 'active' : ''} onClick={() => setTimeGrouping(g)}>
+                      {g.charAt(0).toUpperCase() + g.slice(1)}
+                    </button>
+                  ))}
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={trendData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="date"
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                    tickFormatter={formatPeriodTick}
-                    interval="preserveStartEnd"
-                    minTickGap={16}
-                  />
-                  <YAxis />
-                  <Tooltip formatter={(value: number) => value.toFixed(2)} />
-                  <Bar dataKey="total" fill="#34d399" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={formatPeriodTick} interval="preserveStartEnd" minTickGap={16} />
+                  <YAxis width={44} />
+                  <Tooltip formatter={(value: number, name: string) => [fmt(value), CATEGORY_LABELS[name as ExpenseCategory] ?? name]} />
+                  {CATEGORIES.map((cat, i) => (
+                    <Bar
+                      key={cat}
+                      dataKey={cat}
+                      stackId="a"
+                      fill={COLORS[cat]}
+                      radius={i === CATEGORIES.length - 1 ? [4, 4, 0, 0] : undefined}
+                    />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Calendar heatmap */}
+          <div className="chart-box chart-full">
+            <h3>Daily Spend — last 13 weeks</h3>
+            <div className="heatmap-scroll">
+              <div className="heatmap">
+                {heatmap.weeks.map((week, wi) => (
+                  <div className="heatmap-col" key={wi}>
+                    {week.map((d, di) => {
+                      const intensity = d.amount > 0 ? 0.2 + 0.8 * (d.amount / heatmap.max) : 0;
+                      return (
+                        <div
+                          key={di}
+                          className="heatmap-cell"
+                          style={{ background: d.amount > 0 ? `rgba(52, 211, 153, ${intensity})` : 'var(--surface-3)' }}
+                          title={`${d.date}: ${fmt(d.amount)}`}
+                        />
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="heatmap-legend">
+              <span>Less</span>
+              <span className="heatmap-cell" style={{ background: 'var(--surface-3)' }} />
+              <span className="heatmap-cell" style={{ background: 'rgba(52,211,153,0.35)' }} />
+              <span className="heatmap-cell" style={{ background: 'rgba(52,211,153,0.65)' }} />
+              <span className="heatmap-cell" style={{ background: 'rgba(52,211,153,1)' }} />
+              <span>More</span>
             </div>
           </div>
         </>
