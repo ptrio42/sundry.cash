@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import ExpenseForm from './ExpenseForm';
+import ReceiptScan from './ReceiptScan';
 import ExpenseTable from './ExpenseTable';
 import Dashboard from './Dashboard';
 import ExcelImport from './ExcelImport';
@@ -17,7 +18,7 @@ import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthSt
 import { Expense } from '../types/expense.types';
 import '../App.css';
 
-type View = 'form' | 'table' | 'dashboard' | 'import' | 'analytics' | 'budgets' | 'fx';
+type View = 'form' | 'receipt' | 'table' | 'dashboard' | 'import' | 'analytics' | 'budgets' | 'fx';
 
 export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -175,6 +176,7 @@ export default function App() {
 
   const NAV: { key: View; label: string; icon: string }[] = [
     { key: 'form', label: 'Add Expense', icon: '➕' },
+    { key: 'receipt', label: 'Scan Receipt', icon: '🧾' },
     { key: 'import', label: 'Import Excel', icon: '📥' },
     { key: 'table', label: 'All Expenses', icon: '📋' },
     { key: 'dashboard', label: 'Dashboard', icon: '📊' },
@@ -184,6 +186,7 @@ export default function App() {
   ];
   const VIEW_TITLES: Record<View, string> = {
     form: 'Add Expense',
+    receipt: 'Scan Receipt',
     import: 'Import from Excel',
     table: 'All Expenses',
     dashboard: 'Dashboard',
@@ -251,6 +254,7 @@ export default function App() {
           ) : (
             <>
               {currentView === 'form' && <ExpenseForm onExpenseAdded={handleExpenseAdded} />}
+              {currentView === 'receipt' && <ReceiptScan onExpenseAdded={handleExpenseAdded} />}
               {currentView === 'import' && <ExcelImport />}
               {currentView === 'table' && (
                 <ExpenseTable

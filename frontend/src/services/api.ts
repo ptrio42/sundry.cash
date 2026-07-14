@@ -10,7 +10,10 @@ import {
   ExpenseFilters,
   CategoryStats,
   DateStats,
-  Budget
+  Budget,
+  ReceiptExtraction,
+  ExpenseCategory,
+  Currency
 } from '../types/expense.types';
 import { downloadBlob } from '../utils/export';
 
@@ -299,6 +302,66 @@ export async function confirmImport(
   });
 
   return handleResponse(response);
+}
+
+// --- Receipt scanning ----------------------------------------------------
+
+/**
+ * Upload a receipt photo for OCR and get back the extracted fields to review.
+ * No expense is created by this call.
+ */
+export async function scanReceipt(file: File): Promise<ReceiptExtraction> {
+  const formData = new FormData();
+  formData.append('receipt', file);
+
+  const response = await apiFetch('/receipts/scan', {
+    method: 'POST',
+    body: formData
+  });
+
+  return handleResponse<ReceiptExtraction>(response);
+}
+
+/**
+ * Create an expense from reviewed receipt fields, attaching the photo.
+ */
+export async function createReceiptExpense(
+  fields: {
+    amount: number;
+    date: string;
+    description: string;
+    category: ExpenseCategory;
+    currency: Currency;
+  },
+  file?: File | null
+): Promise<Expense> {
+  const formData = new FormData();
+  if (file) formData.append('receipt', file);
+  formData.append('amount', String(fields.amount));
+  formData.append('date', fields.date);
+  formData.append('description', fields.description);
+  formData.append('category', fields.category);
+  formData.append('currency', fields.currency);
+
+  const response = await apiFetch('/receipts', {
+    method: 'POST',
+    body: formData
+  });
+
+  return handleResponse<Expense>(response);
+}
+
+/**
+ * Fetch a stored receipt image (with auth) and return an object URL for display.
+ * The caller is responsible for URL.revokeObjectURL when the image is unmounted.
+ */
+export async function fetchReceiptObjectUrl(filename: string): Promise<string> {
+  const response = await apiFetch(`/receipts/${encodeURIComponent(filename)}`);
+  if (!response.ok) {
+    throw new Error('Failed to load receipt image');
+  }
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
 }
 
 /**

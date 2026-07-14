@@ -98,7 +98,7 @@ export function validateExpense(req: Request, res: Response, next: NextFunction)
 /**
  * Validate date string in ISO format (YYYY-MM-DD)
  */
-function isValidDate(dateString: string): boolean {
+export function isValidDate(dateString: string): boolean {
   // Check format with regex
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRegex.test(dateString)) {

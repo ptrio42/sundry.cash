@@ -18,6 +18,19 @@ export interface Expense {
   category: ExpenseCategory;
   currency: Currency;
   createdAt?: string; // ISO 8601 datetime
+  receiptImage?: string | null; // filename of an attached receipt photo, if any
+}
+
+// Fields extracted from a receipt photo by the backend OCR (any may be null).
+export interface ReceiptExtraction {
+  amount: number | null;
+  date: string | null;
+  merchant: string | null;
+  currency: Currency | null;
+  category: ExpenseCategory;
+  rawText: string;
+  confidence: number; // 0..1
+  warnings: string[];
 }
 
 // DTO for creating a new expense (excludes id and createdAt)

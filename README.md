@@ -32,6 +32,11 @@ Then open **http://localhost:5173**. The Vite dev server proxies `/api` to the b
 ## ✨ Features
 
 - **Add Expenses**: Simple form to add expenses with amount, date, description, and category
+- **Receipt Scanning**: Snap a photo of a receipt and the app extracts the amount, date, and store:
+  - Fully offline OCR by default (Tesseract.js, Polish + English) — no data leaves your server
+  - Pluggable OCR provider (`RECEIPT_OCR_PROVIDER`) so a cloud AI vision engine can be added later
+  - Review/correct the extracted fields before saving; auto-categorization from the store name
+  - The photo is attached to the expense and viewable from the table
 - **Excel Import**: Bulk import expenses from .xlsx files with:
   - Column mapping interface
   - Currency selection (USD, PLN)
@@ -277,6 +282,33 @@ categoryColumn: Column index for category (optional, e.g., "3")
 currency: Currency code (USD or PLN)
 ```
 **Response**: Import results with success/failure counts and error details
+
+### Receipts
+
+#### Scan a Receipt Photo
+```
+POST /receipts/scan
+Content-Type: multipart/form-data
+
+receipt: image file (JPEG, PNG, or WebP)
+```
+**Response**: Extracted fields for review — `{ amount, date, merchant, currency, category, rawText, confidence, warnings }` (any field may be null). No expense is created.
+
+#### Save an Expense from a Receipt
+```
+POST /receipts
+Content-Type: multipart/form-data
+
+receipt: image file (optional — attaches the photo)
+amount, date, description, category, currency: the reviewed fields
+```
+**Response**: The created expense (including `receiptImage` filename).
+
+#### View a Stored Receipt Image
+```
+GET /receipts/:filename
+```
+**Response**: The image bytes (auth-protected).
 
 ### Validation Rules
 

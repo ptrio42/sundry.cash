@@ -7,6 +7,7 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import expenseRoutes from './routes/expenses';
 import importRoutes from './routes/import';
+import receiptRoutes from './routes/receipts';
 import authRoutes from './routes/auth';
 import budgetRoutes from './routes/budgets';
 import fxRoutes from './routes/fx';
@@ -32,6 +33,7 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/expenses', requireAuth, expenseRoutes);
 app.use('/api/import', requireAuth, importRoutes);
+app.use('/api/receipts', requireAuth, receiptRoutes);
 app.use('/api/budgets', requireAuth, budgetRoutes);
 app.use('/api/fx', requireAuth, fxRoutes);
 
