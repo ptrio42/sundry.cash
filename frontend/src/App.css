@@ -782,6 +782,12 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .fx-cur { width: 96px; font-weight: 600; }
 .fx-eq { color: var(--text-muted); font-size: 0.9rem; }
 
+/* ---------- Settings ---------- */
+.settings-intro { color: var(--text-muted); font-size: 0.9rem; margin: 4px 0 18px; max-width: 560px; }
+.settings-form { max-width: 460px; }
+.settings-actions { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
+.settings-saved { color: var(--accent); font-size: 0.88rem; font-weight: 600; }
+
 /* ---------- Receipt scanning ---------- */
 .receipt-intro { color: var(--text-muted); font-size: 0.9rem; margin: 4px 0 18px; max-width: 620px; }
 .field-hint { color: var(--text-dim); font-size: 0.8rem; margin-top: 6px; }

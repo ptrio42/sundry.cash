@@ -9,6 +9,16 @@ export type ExpenseCategory = 'groceries' | 'transport' | 'media' | 'entertainme
 // Available currencies
 export type Currency = 'USD' | 'PLN' | 'BTC';
 
+// Display/entry unit for BTC amounts
+export type BtcUnit = 'BTC' | 'sats';
+
+// User preferences (single-user, shared across devices via the backend)
+export interface AppSettings {
+  defaultCurrency: Currency;
+  defaultCategory: ExpenseCategory;
+  defaultBtcUnit: BtcUnit;
+}
+
 // Main Expense interface representing a complete expense record
 export interface Expense {
   id: number;
@@ -72,6 +82,7 @@ export interface Budget {
 
 export interface ExpenseFormProps {
   onExpenseAdded: (expense: Expense) => void;
+  settings: AppSettings;
 }
 
 export interface ExpenseTableProps {

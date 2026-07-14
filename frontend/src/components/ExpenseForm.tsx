@@ -14,13 +14,13 @@ const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'enter
 // Available currencies for the dropdown
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
-export default function ExpenseForm({ onExpenseAdded }: ExpenseFormProps) {
+export default function ExpenseForm({ onExpenseAdded, settings }: ExpenseFormProps) {
   const [amount, setAmount] = useState<string>('');
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState<string>('');
-  const [category, setCategory] = useState<ExpenseCategory>('groceries');
-  const [currency, setCurrency] = useState<Currency>('USD');
-  const [btcUnit, setBtcUnit] = useState<'BTC' | 'sats'>('BTC');
+  const [category, setCategory] = useState<ExpenseCategory>(settings.defaultCategory);
+  const [currency, setCurrency] = useState<Currency>(settings.defaultCurrency);
+  const [btcUnit, setBtcUnit] = useState<'BTC' | 'sats'>(settings.defaultBtcUnit);
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -102,13 +102,13 @@ export default function ExpenseForm({ onExpenseAdded }: ExpenseFormProps) {
       // Notify parent component
       onExpenseAdded(newExpense);
 
-      // Reset form
+      // Reset form back to the configured defaults
       setAmount('');
       setDate(new Date().toISOString().split('T')[0]);
       setDescription('');
-      setCategory('groceries');
-      setCurrency('USD');
-      setBtcUnit('BTC');
+      setCategory(settings.defaultCategory);
+      setCurrency(settings.defaultCurrency);
+      setBtcUnit(settings.defaultBtcUnit);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create expense');
     } finally {

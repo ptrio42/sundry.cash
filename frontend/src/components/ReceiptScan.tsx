@@ -13,7 +13,7 @@ const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
 type Phase = 'capture' | 'review';
 
-export default function ReceiptScan({ onExpenseAdded }: ExpenseFormProps) {
+export default function ReceiptScan({ onExpenseAdded, settings }: ExpenseFormProps) {
   const [phase, setPhase] = useState<Phase>('capture');
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
@@ -23,8 +23,8 @@ export default function ReceiptScan({ onExpenseAdded }: ExpenseFormProps) {
   const [amount, setAmount] = useState<string>('');
   const [date, setDate] = useState<string>('');
   const [description, setDescription] = useState<string>('');
-  const [category, setCategory] = useState<ExpenseCategory>('other');
-  const [currency, setCurrency] = useState<Currency>('PLN');
+  const [category, setCategory] = useState<ExpenseCategory>(settings.defaultCategory);
+  const [currency, setCurrency] = useState<Currency>(settings.defaultCurrency);
 
   const [scanning, setScanning] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
@@ -47,8 +47,8 @@ export default function ReceiptScan({ onExpenseAdded }: ExpenseFormProps) {
     setAmount('');
     setDate('');
     setDescription('');
-    setCategory('other');
-    setCurrency('PLN');
+    setCategory(settings.defaultCategory);
+    setCurrency(settings.defaultCurrency);
     setError('');
     setShowRawText(false);
   };
@@ -82,7 +82,7 @@ export default function ReceiptScan({ onExpenseAdded }: ExpenseFormProps) {
       setDate(result.date ?? new Date().toISOString().split('T')[0]);
       setDescription(result.merchant ?? '');
       setCategory(result.category);
-      setCurrency(result.currency ?? 'PLN');
+      setCurrency(result.currency ?? settings.defaultCurrency);
       setPhase('review');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to read the receipt');

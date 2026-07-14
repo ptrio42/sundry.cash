@@ -6,12 +6,15 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ExpenseForm from '../components/ExpenseForm';
+import { AppSettings } from '../types/expense.types';
+
+const TEST_SETTINGS: AppSettings = { defaultCurrency: 'USD', defaultCategory: 'groceries', defaultBtcUnit: 'BTC' };
 
 describe('ExpenseForm', () => {
   it('renders form with all required fields', () => {
     const mockOnExpenseAdded = vi.fn();
 
-    render(<ExpenseForm onExpenseAdded={mockOnExpenseAdded} />);
+    render(<ExpenseForm onExpenseAdded={mockOnExpenseAdded} settings={TEST_SETTINGS} />);
 
     // Check for form heading
     expect(screen.getByText('Add New Expense')).toBeInTheDocument();
@@ -29,7 +32,7 @@ describe('ExpenseForm', () => {
   it('has category dropdown with all options', () => {
     const mockOnExpenseAdded = vi.fn();
 
-    render(<ExpenseForm onExpenseAdded={mockOnExpenseAdded} />);
+    render(<ExpenseForm onExpenseAdded={mockOnExpenseAdded} settings={TEST_SETTINGS} />);
 
     const categorySelect = screen.getByLabelText(/category/i) as HTMLSelectElement;
     const options = Array.from(categorySelect.options).map(opt => opt.value);
@@ -44,7 +47,7 @@ describe('ExpenseForm', () => {
   it('displays submit button with correct initial text', () => {
     const mockOnExpenseAdded = vi.fn();
 
-    render(<ExpenseForm onExpenseAdded={mockOnExpenseAdded} />);
+    render(<ExpenseForm onExpenseAdded={mockOnExpenseAdded} settings={TEST_SETTINGS} />);
 
     const submitButton = screen.getByRole('button', { name: /add expense/i });
     expect(submitButton).not.toBeDisabled();
