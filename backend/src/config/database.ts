@@ -42,6 +42,18 @@ export function initializeDatabase(): void {
 
   db.exec(createTableSQL);
 
+  // Budgets: one optional monthly limit per (category, currency)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS budgets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL CHECK(category IN ('groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other')),
+      currency TEXT NOT NULL CHECK(currency IN ('USD', 'PLN', 'BTC')),
+      amount INTEGER NOT NULL CHECK(amount > 0),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(category, currency)
+    )
+  `);
+
   // Migration: Add currency column to existing tables if it doesn't exist
   try {
     // First, try to add the column (without NOT NULL to avoid SQLite limitations)

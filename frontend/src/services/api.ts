@@ -9,7 +9,8 @@ import {
   UpdateExpenseDTO,
   ExpenseFilters,
   CategoryStats,
-  DateStats
+  DateStats,
+  Budget
 } from '../types/expense.types';
 
 // Base URL for the API.
@@ -180,6 +181,29 @@ export async function getStatsByCategory(): Promise<CategoryStats[]> {
 export async function getStatsByDate(): Promise<DateStats[]> {
   const response = await apiFetch('/expenses/stats/by-date');
   return handleResponse<DateStats[]>(response);
+}
+
+// --- Budgets -------------------------------------------------------------
+
+export async function getBudgets(): Promise<Budget[]> {
+  const response = await apiFetch('/budgets');
+  return handleResponse<Budget[]>(response);
+}
+
+export async function setBudget(category: string, currency: string, amount: number): Promise<Budget> {
+  const response = await apiFetch('/budgets', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category, currency, amount })
+  });
+  return handleResponse<Budget>(response);
+}
+
+export async function deleteBudget(category: string, currency: string): Promise<void> {
+  const response = await apiFetch(`/budgets/${category}?currency=${encodeURIComponent(currency)}`, {
+    method: 'DELETE'
+  });
+  return handleResponse<void>(response);
 }
 
 // --- Import --------------------------------------------------------------

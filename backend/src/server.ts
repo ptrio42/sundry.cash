@@ -8,6 +8,7 @@ import cors from 'cors';
 import expenseRoutes from './routes/expenses';
 import importRoutes from './routes/import';
 import authRoutes from './routes/auth';
+import budgetRoutes from './routes/budgets';
 import { requireAuth } from './middleware/auth';
 import { closeDatabase } from './config/database';
 
@@ -30,6 +31,7 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/expenses', requireAuth, expenseRoutes);
 app.use('/api/import', requireAuth, importRoutes);
+app.use('/api/budgets', requireAuth, budgetRoutes);
 
 // Health check endpoint
 app.get('/api/health', (_req: Request, res: Response) => {

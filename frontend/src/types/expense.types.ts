@@ -48,6 +48,13 @@ export interface DateStats {
   count: number;
 }
 
+// A monthly spending limit for a category in a given currency
+export interface Budget {
+  category: ExpenseCategory;
+  currency: Currency;
+  amount: number; // major units (monthly limit)
+}
+
 // Component Props Types
 
 export interface ExpenseFormProps {
@@ -62,6 +69,10 @@ export interface ExpenseTableProps {
 }
 
 export interface DashboardProps {
+  expenses: Expense[];
+}
+
+export interface BudgetsProps {
   expenses: Expense[];
 }
 

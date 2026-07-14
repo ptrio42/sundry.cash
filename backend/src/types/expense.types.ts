@@ -33,6 +33,13 @@ export interface ExpenseFilters {
   currency?: Currency;
 }
 
+// A monthly spending limit for a category in a given currency
+export interface Budget {
+  category: ExpenseCategory;
+  currency: Currency;
+  amount: number; // major units (monthly limit)
+}
+
 // Statistics by category (per currency)
 export interface CategoryStats {
   category: ExpenseCategory;

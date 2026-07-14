@@ -647,3 +647,24 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
   padding: 11px 22px; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer;
 }
 .btn-danger:hover { filter: brightness(1.08); }
+
+/* ---------- Budgets ---------- */
+.budgets-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+.muted-text { color: var(--text-muted); font-size: 0.9rem; margin-top: 3px; }
+.budget-list { display: flex; flex-direction: column; gap: 14px; }
+.budget-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+.budget-row.over { border-color: rgba(248, 113, 113, 0.5); }
+.budget-row-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
+.budget-cat { font-weight: 600; }
+.budget-figures { font-variant-numeric: tabular-nums; font-size: 0.95rem; }
+.over-badge { margin-left: 8px; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: var(--danger); background: var(--danger-soft); padding: 2px 7px; border-radius: 999px; }
+.budget-bar-track { height: 10px; background: var(--surface-3); border-radius: 999px; overflow: hidden; margin-bottom: 12px; }
+.budget-bar-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+.budget-row-actions { display: flex; align-items: center; gap: 12px; }
+.budget-input { display: flex; align-items: center; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding-left: 11px; }
+.budget-input:focus-within { border-color: var(--accent); box-shadow: var(--ring); }
+.budget-input-symbol { color: var(--text-muted); font-size: 0.9rem; }
+.budget-input input { border: none; background: transparent; box-shadow: none; padding: 9px 11px; color: var(--text); width: 130px; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.budget-input input:focus { box-shadow: none; outline: none; }
+.btn-link { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.85rem; text-decoration: underline; text-underline-offset: 2px; }
+.btn-link:hover { color: var(--text); }
