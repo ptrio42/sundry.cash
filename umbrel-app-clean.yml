@@ -1,7 +1,7 @@
 manifestVersion: 1
-id: expense-tracker
+id: sundry
 category: finance
-name: Expense Tracker
+name: Sundry
 version: "1.0.0"
 tagline: Track your expenses locally with multi-currency support
 description: >-
@@ -27,10 +27,10 @@ description: >-
 
   Perfect for personal finance management without cloud dependencies.
 developer: ptrio42
-website: https://github.com/yourusername/expense-tracker
+website: https://github.com/yourusername/sundry
 dependencies: []
-repo: https://github.com/yourusername/expense-tracker
-support: https://github.com/yourusername/expense-tracker/issues
+repo: https://github.com/yourusername/sundry
+support: https://github.com/yourusername/sundry/issues
 port: 8847
 gallery:
   - 1.jpg

@@ -1,5 +1,5 @@
 {
-  "name": "expense-tracker-backend",
+  "name": "sundry-backend",
   "version": "1.0.0",
   "description": "Backend API for expense tracker application",
   "main": "dist/server.js",

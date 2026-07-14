@@ -27,7 +27,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
 // --- Auth token (single-user gate) ---------------------------------------
 
-const TOKEN_KEY = 'expense-tracker-token';
+const TOKEN_KEY = 'sundry-token';
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);

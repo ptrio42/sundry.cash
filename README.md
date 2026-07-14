@@ -1,4 +1,4 @@
-# 💰 Expense Tracker
+# 💰 Sundry
 
 A full-stack, self-hosted personal expense tracker built with **TypeScript**, **React**, **Express**, and **SQLite**. Add expenses, bulk-import them from Excel, and visualize spending across categories, time, and multiple currencies (USD / PLN / BTC). Runs entirely on your own hardware — no cloud, no account.
 
@@ -96,7 +96,7 @@ Then open **http://localhost:5173**. The Vite dev server proxies `/api` to the b
 ### 1. Clone or Download the Project
 
 ```bash
-cd expense-tracker
+cd sundry
 ```
 
 ### 2. Install Backend Dependencies
@@ -136,7 +136,7 @@ The frontend will start on **http://localhost:5173** and automatically open in y
 ## 📁 Project Structure
 
 ```
-expense-tracker/
+sundry/
 ├── backend/
 │   ├── src/
 │   │   ├── config/

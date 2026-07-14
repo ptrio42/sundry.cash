@@ -32,7 +32,7 @@ export default function Login({ onSuccess }: LoginProps) {
     <div className="login-screen">
       <form className="login-card" onSubmit={handleSubmit}>
         <div className="login-brand" aria-hidden="true">💰</div>
-        <h1>Expense Tracker</h1>
+        <h1>Sundry</h1>
         <p className="login-sub">Enter your password to continue</p>
 
         {error && <div className="error-message">{error}</div>}

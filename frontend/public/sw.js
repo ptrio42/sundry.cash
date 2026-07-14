@@ -11,7 +11,7 @@
  * Bump CACHE when the shell/precache set changes so old caches are purged.
  */
 
-const CACHE = 'expense-tracker-v2';
+const CACHE = 'sundry-v2';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {

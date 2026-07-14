@@ -61,7 +61,7 @@ keep only the frontend on a network with a published port.
 The repo includes an Umbrel app manifest (`umbrel-app.yml`) and packaging
 scripts. **Known limitation:** Umbrel installs store apps by *pulling* images,
 not by building from source, so the Umbrel compose must reference published
-images (e.g. `ghcr.io/<user>/expense-tracker-backend:<tag>`) rather than `build:`
+images (e.g. `ghcr.io/<user>/sundry-backend:<tag>`) rather than `build:`
 directives. Publishing those images via CI and wiring them into the manifest is
 the remaining step before this installs cleanly on a stock Umbrel. Until then,
 use the Docker Compose flow above.

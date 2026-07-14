@@ -1,4 +1,4 @@
-# Expense Tracker — CLAUDE.md
+# Sundry — CLAUDE.md
 
 Self-hosted, single-user personal expense tracker. Two-package **TypeScript monorepo**:
 `backend/` (Express + better-sqlite3 REST API) and `frontend/` (React 18 + Vite SPA).
@@ -58,7 +58,7 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 - `src/main.tsx` -> `src/components/App.tsx`. Feature components: `Dashboard`, `Analytics`, `Budgets`,
   `Fx`, `ExpenseForm`, `ExpenseTable`, `ExcelImport`, `EditExpenseModal`, `Login`.
 - `src/services/api.ts` — central `apiFetch` wrapper (base `/api`, bearer from localStorage key
-  `expense-tracker-token`, 401 -> `auth-expired` window event). Add API calls here.
+  `sundry-token`, 401 -> `auth-expired` window event). Add API calls here.
 - `src/utils/` — `format.ts`, `export.ts` (client-side .xlsx). Charts: recharts. Styling: single
   dark-first `src/App.css`.
 

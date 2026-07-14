@@ -255,8 +255,8 @@ export default function App() {
     <div className="shell">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <span className="logo" aria-hidden="true">💰</span>
-          <span>Expense Tracker</span>
+          <img className="logo" src="/icons/icon-192.png" alt="" aria-hidden="true" />
+          <span>Sundry</span>
         </div>
 
         <nav className="sidebar-nav" aria-label="Main">
