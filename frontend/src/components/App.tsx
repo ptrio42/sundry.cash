@@ -28,6 +28,15 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState<boolean>(false);
   const [authRequired, setAuthRequired] = useState<boolean>(false);
   const [authed, setAuthed] = useState<boolean>(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>(() =>
+    (typeof localStorage !== 'undefined' && localStorage.getItem('theme') === 'light') ? 'light' : 'dark'
+  );
+
+  // Apply and persist the theme (dark-first: dark is the default)
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   /**
    * Check whether the backend requires a password, and listen for session expiry
@@ -206,6 +215,10 @@ export default function App() {
         </nav>
 
         <div className="sidebar-footer">
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} title="Toggle light/dark theme">
+            <span className="nav-icon" aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span>
+            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          </button>
           <button className="danger-button" onClick={handleDeleteAll} title="Delete all expenses from database">
             <span className="nav-icon" aria-hidden="true">🗑️</span>
             Wipe Database
