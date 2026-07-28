@@ -9,9 +9,11 @@ Runs entirely on your own hardware. No cloud, no account, no telemetry. One SQLi
 
 ![Dashboard](gallery/dashboard.png)
 
-| Expenses | Budgets | Currencies |
-| :---: | :---: | :---: |
-| ![Expense table](gallery/expenses.png) | ![Monthly budgets](gallery/budgets.png) | ![Currency conversion](gallery/currencies.png) |
+| Expenses | Budgets |
+| :---: | :---: |
+| ![Expense table](gallery/expenses.png) | ![Monthly budgets](gallery/budgets.png) |
+| **Analytics** | **Currencies** |
+| ![Analytics](gallery/analytics.png) | ![Currency conversion](gallery/currencies.png) |
 
 <p align="center">
   <img src="gallery/mobile.png" alt="Mobile layout" width="260">
