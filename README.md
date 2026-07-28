@@ -38,9 +38,9 @@ npm run install:all && npm run dev
 Open **http://localhost:5173**. Vite proxies `/api` to the backend on `:5000`, so there is nothing else to
 configure. To try the importer, use [`sample-data/sample-expenses.xlsx`](sample-data/sample-expenses.xlsx).
 
-> The Docker images pin Node 18 and CI runs Node 20 — those are the tested versions. On newer releases
-> better-sqlite3 ships no prebuilt binary and compiles from source, so you will need a C++ toolchain and
-> Python installed.
+> The Docker images and CI both pin **Node 22**, which is what this is tested on (`.nvmrc` matches). On
+> Node releases where better-sqlite3 ships no prebuilt binary it compiles from source, so you would need a
+> C++ toolchain and Python installed.
 
 ### Sharing it across your devices
 
@@ -50,7 +50,8 @@ as a full-screen PWA, and **Scan Receipt** opens the camera directly.
 
 > **Set `APP_PASSWORD` before you expose this anywhere.** With no password the API is completely open —
 > deliberate, so a localhost-only install needs zero setup, but it means anyone who can reach the port can
-> read and delete your data. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+> read and delete your data. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and
+> [SECURITY.md](SECURITY.md).
 
 ## Features
 
@@ -103,8 +104,9 @@ confirm — because OCR on a crumpled receipt is a suggestion, not a fact.
 **What I would do differently.** The frontend and backend keep two hand-maintained copies of the same types
 instead of a shared package, and they have already drifted once — a small workspace would have been cheaper
 than the discipline. `routes/import.ts` grew business logic that belongs in a service, which is why it is
-the least-tested file in the repo. And the Excel importer parses amounts with its own regex rather than
-reusing the well-tested parser the receipt scanner already has; that is the next thing I would fix.
+the least-tested file in the repo. And the importer used to parse amounts with its own regex that silently
+deleted the comma — so the European `1 234,56` imported as `123456` — until it was pointed at the parser the
+receipt scanner already had; two implementations of one idea is how that happens.
 
 ## Configuration
 
@@ -117,6 +119,7 @@ environment or set them in `docker-compose.yml`. See [`backend/.env.example`](ba
 | `DB_PATH` | `<cwd>/data/expenses.db` | SQLite file. Also roots the receipts and OCR-cache directories |
 | `APP_PASSWORD` | *(unset — auth disabled)* | Enables the login gate |
 | `AUTH_SECRET` | falls back to `APP_PASSWORD` | HMAC signing key for bearer tokens |
+| `AUTH_RATE_LIMIT_MAX` | `10` | Failed logins allowed per IP per 15 minutes |
 | `RECEIPT_OCR_PROVIDER` | `tesseract` | `tesseract` or `stub`. `claude` is a documented placeholder that throws |
 | `RECEIPT_OCR_LANGS` | `pol+eng` | Tesseract language packs |
 | `RECEIPTS_DIR` | `<dir of DB_PATH>/receipts` | Where receipt images are written |
@@ -197,6 +200,12 @@ Worth knowing before you rely on it:
 - **Manual FX rates.** No live feed by design.
 - **No recurring expenses**, no income tracking, no attachments beyond receipt photos.
 - **Backups are your job** — copy the `data/` directory; it holds both the database and the receipt images.
+
+## Security
+
+Auth is opt-in, this is meant for a machine you control, and one dependency (`xlsx`) carries
+advisories with no upstream fix. All of that is written down in [SECURITY.md](SECURITY.md) rather
+than left for you to find in a Dependabot alert.
 
 ## License
 
