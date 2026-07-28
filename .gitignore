@@ -14,9 +14,11 @@ data/
 .env.local
 .env.*.local
 
-# IDE
+# IDE / agent tooling
 .vscode/
 .idea/
+# Machine-local Claude Code permissions; .claude/launch.json is intentionally tracked.
+.claude/settings.local.json
 *.swp
 *.swo
 *~
