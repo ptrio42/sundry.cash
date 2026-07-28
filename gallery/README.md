@@ -7,6 +7,7 @@ Screenshots used by the top-level [README](../README.md).
 | `dashboard.png` | Dashboard — category donut, stacked trend, 13-week heatmap | 1360×860 @2x |
 | `expenses.png` | All Expenses — search, filters, sorting, export | 1360×860 @2x |
 | `budgets.png` | Monthly Budgets — burn-down and per-category progress | 1360×900 @2x |
+| `analytics.png` | Analytics — filters, converted total beside native subtotals | 1360×940 @2x |
 | `currencies.png` | Currency Conversion — manual rates, per-currency totals | 1360×820 @2x |
 | `mobile.png` | Dashboard on a phone, with the bottom tab bar | 390×844 @3x |
 

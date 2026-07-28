@@ -201,4 +201,60 @@ describe('Expense API', () => {
       expect(response.headers['content-disposition']).toContain('expenses.xlsx');
     });
   });
+
+  describe('GET /api/expenses/stats/analytics', () => {
+    /**
+     * Regression: byCategory used to collapse the currency dimension, summing
+     * major units across currencies — so 100 USD + 100 PLN in one category came
+     * back as a single "200", which the UI then labelled "$". Aggregating
+     * currencies is the client's decision (it needs an FX rate), so the API has
+     * to keep them apart.
+     */
+    it('keeps byCategory rows scoped to one currency', async () => {
+      const day = '2027-05-04';
+      await request(app)
+        .post('/api/expenses')
+        .send({ amount: 100, date: day, description: 'USD groceries', category: 'groceries', currency: 'USD' })
+        .expect(201);
+      await request(app)
+        .post('/api/expenses')
+        .send({ amount: 100, date: day, description: 'PLN groceries', category: 'groceries', currency: 'PLN' })
+        .expect(201);
+
+      const response = await request(app)
+        .get(`/api/expenses/stats/analytics?startDate=${day}&endDate=${day}`)
+        .expect(200);
+
+      const groceries = response.body.byCategory.filter((r: any) => r.category === 'groceries');
+      expect(groceries).toHaveLength(2);
+
+      const byCurrency = Object.fromEntries(groceries.map((r: any) => [r.currency, r.total]));
+      expect(byCurrency.USD).toBeCloseTo(100, 2);
+      expect(byCurrency.PLN).toBeCloseTo(100, 2);
+
+      // No row may claim the combined 200.
+      expect(groceries.some((r: any) => r.total > 150)).toBe(false);
+    });
+
+    it('scopes byCategory to the requested currency when one is given', async () => {
+      const day = '2027-05-05';
+      await request(app)
+        .post('/api/expenses')
+        .send({ amount: 70, date: day, description: 'USD transport', category: 'transport', currency: 'USD' })
+        .expect(201);
+      await request(app)
+        .post('/api/expenses')
+        .send({ amount: 900, date: day, description: 'PLN transport', category: 'transport', currency: 'PLN' })
+        .expect(201);
+
+      const response = await request(app)
+        .get(`/api/expenses/stats/analytics?startDate=${day}&endDate=${day}&currency=USD`)
+        .expect(200);
+
+      const transport = response.body.byCategory.filter((r: any) => r.category === 'transport');
+      expect(transport).toHaveLength(1);
+      expect(transport[0].currency).toBe('USD');
+      expect(transport[0].total).toBeCloseTo(70, 2);
+    });
+  });
 });

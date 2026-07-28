@@ -409,7 +409,7 @@ export async function getAnalytics(params: {
   total: number;
   count: number;
   average: number;
-  byCategory: Array<{ category: string; total: number; count: number; average: number }>;
+  byCategory: Array<{ category: string; currency: string; total: number; count: number; average: number }>;
   byCurrency: Array<{ currency: string; total: number; count: number; average: number }>;
 }> {
   const queryParams = new URLSearchParams();

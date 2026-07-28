@@ -9,6 +9,7 @@ import xlsx from 'xlsx';
 import { Currency, ExpenseCategory } from '../types/expense.types';
 import * as ExpenseModel from '../models/expense';
 import { autoCategorizeByKeywords } from '../services/categorize';
+import { parseMoneyToken } from '../services/receipt/parse';
 
 const router = Router();
 
@@ -38,6 +39,37 @@ const upload = multer({
     }
   },
 });
+
+/**
+ * Read an amount out of a spreadsheet cell, in major units.
+ *
+ * Two paths on purpose:
+ *
+ * - **Numeric cells** are already exact — use them as-is. Round-tripping them
+ *   through the text parser would be actively wrong, because a cell holding
+ *   1.234 stringifies to "1.234", which the separator heuristic reads as a
+ *   thousands group and returns 1234.
+ * - **Text cells** go through `parseMoneyToken`, which understands both decimal
+ *   conventions. The previous `replace(/[^0-9.-]/g, '')` simply deleted the
+ *   comma, so the European "1 234,56" became 123456 — a 100x overstatement on
+ *   every row exported by a Polish bank. Only US-formatted text survived it.
+ *
+ * `parseMoneyToken` drops the sign, so it is restored here; negative and zero
+ * amounts are rejected by the caller's validation, as before.
+ */
+function parseAmountCell(value: unknown): number {
+  if (typeof value === 'number') return value;
+
+  const raw = String(value ?? '').trim();
+  if (raw === '') return NaN;
+
+  // Leading "-" or accounting-style "(123,45)" both mean negative.
+  const negative = /^-/.test(raw) || /^\(.*\)$/.test(raw);
+  const magnitude = parseMoneyToken(raw);
+  if (magnitude === null) return NaN;
+
+  return negative ? -magnitude : magnitude;
+}
 
 /**
  * Preprocess data to handle merged cells
@@ -296,7 +328,7 @@ router.post('/confirm', upload.single('file'), async (req: Request, res: Respons
       // A real data row: count it, then validate. Invalid rows are reported as
       // errors rather than being silently dropped.
       results.total++;
-      const amount = parseFloat(String(amountValue ?? '').replace(/[^0-9.-]/g, ''));
+      const amount = parseAmountCell(amountValue);
 
       try {
         if (isNaN(amount) || amount <= 0) {
