@@ -43,8 +43,13 @@ cp "$SOURCE_DIR/Dockerfile.frontend" "$DEST_DIR/"
 
 # Copy backend source (excluding node_modules and build artifacts)
 echo "✓ Copying backend source..."
+# `--exclude='data'` is the load-bearing one: without it this copies the live
+# expenses.db AND data/receipts/*.jpg (real receipt photographs) into a tree the
+# script later tells you to commit and push to a public app-store repo. The
+# *.db globs below do not cover data/receipts/ at all.
 rsync -av --exclude='node_modules' \
           --exclude='dist' \
+          --exclude='data' \
           --exclude='*.db' \
           --exclude='*.db-journal' \
           --exclude='.env' \
