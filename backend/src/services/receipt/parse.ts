@@ -175,7 +175,7 @@ export function parseDate(text: string): string | null {
   // format); fall back to month-first (US) when that's the only valid reading,
   // e.g. "01/15/2024".
   for (const line of lines) {
-    for (const match of line.matchAll(/\b(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})\b/g)) {
+    for (const match of line.matchAll(/\b(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})\b/g)) {
       const a = Number(match[1]);
       const b = Number(match[2]);
       let y = Number(match[3]);

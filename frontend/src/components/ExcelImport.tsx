@@ -9,7 +9,7 @@ import { previewImport, confirmImport } from '../services/api';
 
 interface PreviewData {
   columns: string[];
-  preview: any[][];
+  preview: unknown[][];
   totalRows: number;
 }
 
@@ -18,7 +18,7 @@ interface ImportResults {
   success: number;
   failed: number;
   skipped: number;
-  errors: Array<{ row: number; error: string; data: any }>;
+  errors: Array<{ row: number; error: string; data: unknown }>;
 }
 
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
@@ -284,7 +284,9 @@ export default function ExcelImport({ settings }: { settings: AppSettings }) {
                     {previewData.preview.map((row, rowIndex) => (
                       <tr key={rowIndex}>
                         {row.map((cell, cellIndex) => (
-                          <td key={cellIndex}>{cell ?? ''}</td>
+                          // Cells come straight from the spreadsheet, so they are
+                          // typed `unknown` — stringify explicitly for display.
+                          <td key={cellIndex}>{cell == null ? '' : String(cell)}</td>
                         ))}
                       </tr>
                     ))}
