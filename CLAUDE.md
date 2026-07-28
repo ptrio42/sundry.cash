@@ -5,8 +5,8 @@ Self-hosted, single-user personal expense tracker. Two-package **TypeScript mono
 The root `package.json` orchestrates both with `concurrently` — **this is NOT an npm-workspaces
 repo**, so dependencies and most scripts are per-package.
 
-This repo is a **portfolio / CV showcase**: clarity for a first-time reader and a clean git
-history matter as much as the code itself.
+Optimize for a first-time reader: small, focused commits and code that explains its own
+constraints. Where something non-obvious is load-bearing, leave the reason in a comment.
 
 ## Commands (run from repo root)
 
@@ -46,17 +46,21 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 **backend/** — Express + TypeScript, layered:
 - `src/server.ts` — app wiring, middleware, route mounts, graceful shutdown. Exports `app`; binds a
   port only when `NODE_ENV !== 'test'`.
-- `src/routes/` — Express routers: `expenses`, `import`, `budgets`, `fx`, `auth`. New endpoints go here.
-- `src/models/` — better-sqlite3 prepared statements (`expense`, `budget`, `fx`). All SQL lives here.
+- `src/routes/` — Express routers: `expenses`, `import`, `budgets`, `fx`, `auth`, `settings`,
+  `receipts`. New endpoints go here.
+- `src/models/` — better-sqlite3 prepared statements (`expense`, `budget`, `fx`, `settings`). All SQL
+  lives here.
 - `src/config/` — `database.ts` (schema + idempotent migrations + FX seed), `auth.ts` (HMAC tokens),
   `money.ts` (minor-unit conversion).
 - `src/middleware/` — `auth` (`requireAuth`), `validation`.
 - `src/services/` — `categorize.ts` (keyword auto-categorization, EN + PL); `receipt/` (OCR factory — see gotchas).
-- `src/tests/` — Jest + supertest, ~46 cases across 6 files.
+- `src/tests/` — Jest + supertest, 92 cases across 10 files (plus `env.ts` / `paths.ts` /
+  `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
 
 **frontend/** — React 18 + Vite, single-page tabbed UI (no router, no state library — plain hooks):
 - `src/main.tsx` -> `src/components/App.tsx`. Feature components: `Dashboard`, `Analytics`, `Budgets`,
-  `Fx`, `ExpenseForm`, `ExpenseTable`, `ExcelImport`, `EditExpenseModal`, `Login`.
+  `Fx`, `ExpenseForm`, `ExpenseTable`, `ExcelImport`, `EditExpenseModal`, `Login`, `Settings`,
+  `ReceiptScan`.
 - `src/services/api.ts` — central `apiFetch` wrapper (base `/api`, bearer from localStorage key
   `sundry-token`, 401 -> `auth-expired` window event). Add API calls here.
 - `src/utils/` — `format.ts`, `export.ts` (client-side .xlsx). Charts: recharts. Styling: single
@@ -71,18 +75,24 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   deliberate for self-hosting.
 - **Types are duplicated per package** (`src/types/expense.types.ts` in each), not shared across the
   boundary — keep them in sync manually.
-- **Receipt OCR is pluggable but dormant** — `services/receipt/` selects an engine via
-  `RECEIPT_OCR_PROVIDER` (default `tesseract`, `stub` under test). It is **not mounted on any route** —
-  scaffolding, not a live feature.
+- **Receipt OCR is pluggable and live** — `services/receipt/` selects an engine via
+  `RECEIPT_OCR_PROVIDER` (default `tesseract`, `stub` under test). The router is mounted at
+  `server.ts` (`app.use('/api/receipts', requireAuth, receiptRoutes)`) and drives a real two-step
+  UI: scan -> review/edit -> save. The provider seam exists so Claude Vision can replace Tesseract
+  without touching routes or frontend — don't collapse it.
 - **Dark-first UI** — `index.html` sets the dark background before React mounts to avoid a flash.
 
 ## Gotchas
 
-- **`npm install` at root installs only `concurrently` / `cross-env`** — not the sub-packages. Always
-  `npm run install:all` first, or dev/build/test fail with missing modules.
+- **`npm run install:all` installs all three package roots** (root tooling + backend + frontend).
+  A bare `npm install` at root only gets `concurrently` / `cross-env`, so `npm run dev` then fails
+  with missing modules in the sub-packages.
 - **Node 18 vs 20** — Docker pins `node:18-alpine`, CI runs Node 20. Keep new code Node-18-compatible.
-- **`RECEIPT_OCR_PROVIDER=claude` throws "not implemented"**, and the whole receipt service is
-  route-less dead code — don't assume it is reachable.
+- **`RECEIPT_OCR_PROVIDER=claude` throws "not implemented"** — only `tesseract` and `stub` work today.
+- **Tests run against a temp DB, never the real one.** `jest.config.js` wires `src/tests/env.ts` as a
+  `setupFile` that repoints `DB_PATH` at `$TMPDIR/sundry-test-data/` before any app module loads —
+  `receiptsDir()` derives from `DB_PATH`, so uploaded images are isolated too. Never remove this:
+  without it the suite writes fixtures straight into `backend/data/expenses.db`.
 - **README drifts from code** — the README mentions only USD/PLN and 5 categories; the code supports
   **USD/PLN/BTC**, 7 categories, auth, FX conversion, budgets, and export. **Trust the code**, and fix
   the README rather than the code when they disagree.
@@ -92,8 +102,8 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 ## Definition of done
 
 1. `npm run build` passes (strict, zero errors) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes. The **frontend is under-tested** (one
-   component test only), so new UI logic especially warrants a test.
+2. `npm run test` passes; add/extend tests for behavior changes. The **frontend is under-tested**
+   (4 test files / 14 cases against 12 components), so new UI logic especially warrants a test.
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).
 

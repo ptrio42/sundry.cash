@@ -3,7 +3,15 @@ npm-debug.log
 .env
 .git
 .gitignore
+# NOTE: `*.db` alone is NOT enough — Docker matches patterns against the whole
+# relative path with Go filepath.Match semantics, where `*` never crosses a `/`.
+# So `*.db` excludes a root-level foo.db but NOT data/expenses.db. The `data`
+# entry below is what actually keeps the live database and the receipt photos
+# in data/receipts/ out of the image.
 *.db
+data
+dist
+coverage
 *.md
 Dockerfile
 .dockerignore

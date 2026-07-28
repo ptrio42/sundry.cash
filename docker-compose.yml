@@ -6,8 +6,11 @@ services:
     container_name: sundry-backend
     restart: unless-stopped
     volumes:
-      # Persist SQLite database
-      - expense-data:/app/data
+      # Persist the SQLite database and receipt images. Plain bind mount on
+      # purpose: Docker creates ./data if it is missing, whereas a named volume
+      # with `driver_opts: {type: none, o: bind}` fails on a fresh clone because
+      # ./data is gitignored and therefore absent.
+      - ./data:/app/data
     environment:
       - NODE_ENV=production
       - PORT=5000
@@ -55,14 +58,5 @@ networks:
   expense-network:
     driver: bridge
     internal: false  # allow LAN access to the published frontend port
-    ipam:
-      config:
-        - subnet: 172.28.0.0/16
-
-volumes:
-  expense-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./data
+    # No `ipam` subnet on purpose: nothing here needs fixed addressing, and a
+    # hardcoded 172.28.0.0/16 can collide with a VPN or another Compose stack.
