@@ -2,7 +2,7 @@
 # Multi-stage build: Build React app and serve with nginx
 
 # Stage 1: Build the React application
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 

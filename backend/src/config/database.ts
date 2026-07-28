@@ -89,8 +89,8 @@ export function initializeDatabase(): void {
       // Column exists, make sure all rows have a currency value
       try {
         db.exec(`UPDATE expenses SET currency = 'USD' WHERE currency IS NULL`);
-      } catch (updateError) {
-        // Ignore update errors
+      } catch {
+        // Backfill is best-effort: the column exists either way.
       }
     }
   }

@@ -3,7 +3,7 @@
  * Shows spending analytics by time period and category
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getAnalytics } from '../services/api';
 import { ExpenseCategory, Currency, AppSettings, FxRates } from '../types/expense.types';
 import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
@@ -191,13 +191,15 @@ export default function Analytics({ settings, rates }: AnalyticsProps) {
   const formatAmount = (amount: number, currency?: string): string =>
     formatCurrency(amount, (currency as Currency) || displayCurrency);
 
-  const toDisplay = (amount: number, from: string) =>
-    convertAmount(amount, from as Currency, displayCurrency, rates);
+  const toDisplay = useCallback(
+    (amount: number, from: string) => convertAmount(amount, from as Currency, displayCurrency, rates),
+    [displayCurrency, rates]
+  );
 
   // Per-currency subtotals are exact, so convert each once and then add.
   const overallTotal = useMemo(
     () => (analytics?.byCurrency ?? []).reduce((sum, c) => sum + toDisplay(c.total, c.currency), 0),
-    [analytics, displayCurrency, rates]
+    [analytics, toDisplay]
   );
 
   // Collapse the (category, currency) rows the API returns into one row per
@@ -214,7 +216,7 @@ export default function Analytics({ settings, rates }: AnalyticsProps) {
     return Array.from(map.entries())
       .map(([category, d]) => ({ ...d, category, average: d.count > 0 ? d.total / d.count : 0 }))
       .sort((a, b) => b.total - a.total);
-  }, [analytics, displayCurrency, rates]);
+  }, [analytics, toDisplay]);
 
   const daysInPeriod = getDaysInPeriod();
   const averagePerDay = daysInPeriod > 0 ? overallTotal / daysInPeriod : 0;

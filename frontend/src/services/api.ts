@@ -20,7 +20,7 @@ import { downloadBlob } from '../utils/export';
 
 // Base URL for the API.
 // Defaults to the relative "/api" path so the same build works everywhere:
-//   - in Docker/Umbrel, nginx reverse-proxies /api -> the backend container
+//   - in Docker, nginx reverse-proxies /api -> the backend container
 //   - in local dev, Vite proxies /api -> http://localhost:5000 (see vite.config.ts)
 // Override with VITE_API_BASE_URL only for non-proxied setups.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
@@ -251,7 +251,7 @@ export async function exportExpensesXlsx(filename = 'expenses.xlsx'): Promise<vo
  */
 export async function previewImport(file: File): Promise<{
   columns: string[];
-  preview: any[][];
+  preview: unknown[][];
   totalRows: number;
 }> {
   const formData = new FormData();
@@ -284,7 +284,7 @@ export async function confirmImport(
     success: number;
     failed: number;
     skipped: number;
-    errors: Array<{ row: number; error: string; data: any }>;
+    errors: Array<{ row: number; error: string; data: unknown }>;
   };
 }> {
   const formData = new FormData();

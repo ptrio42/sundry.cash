@@ -44,6 +44,9 @@ export default function Login({ onSuccess }: LoginProps) {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            // The login screen exists solely to take this one field, so focusing it
+            // on mount saves a keystroke rather than stealing focus from anything else.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             required
           />

@@ -65,7 +65,6 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
     document.addEventListener('keydown', onKey);
     closeButtonRef.current?.focus();
     return () => document.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [receiptUrl]);
 
   const viewReceipt = async (filename: string) => {
@@ -185,16 +184,6 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
     sortField === field ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none';
 
   /**
-   * Make a header cell keyboard-operable (Enter / Space triggers the sort)
-   */
-  const handleSortKey = (e: React.KeyboardEvent, field: SortField) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleSort(field);
-    }
-  };
-
-  /**
    * Toggle selection of a single expense
    */
   const toggleSelection = (id: number) => {
@@ -255,7 +244,7 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
       }
       // Clear selection after successful updates
       setSelectedIds(new Set());
-    } catch (error) {
+    } catch {
       alert('Failed to update some expenses. Please try again.');
     }
   };
@@ -411,36 +400,21 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
                     aria-label="Select all expenses"
                   />
                 </th>
-                <th
-                  className="sortable"
-                  role="button"
-                  tabIndex={0}
-                  aria-sort={ariaSort('date')}
-                  onClick={() => handleSort('date')}
-                  onKeyDown={(e) => handleSortKey(e, 'date')}
-                >
-                  Date <span aria-hidden="true">{getSortIcon('date')}</span>
+                <th className="sortable" scope="col" aria-sort={ariaSort('date')}>
+                  <button type="button" onClick={() => handleSort('date')}>
+                    Date <span aria-hidden="true">{getSortIcon('date')}</span>
+                  </button>
                 </th>
                 <th>Description</th>
-                <th
-                  className="sortable"
-                  role="button"
-                  tabIndex={0}
-                  aria-sort={ariaSort('category')}
-                  onClick={() => handleSort('category')}
-                  onKeyDown={(e) => handleSortKey(e, 'category')}
-                >
-                  Category <span aria-hidden="true">{getSortIcon('category')}</span>
+                <th className="sortable" scope="col" aria-sort={ariaSort('category')}>
+                  <button type="button" onClick={() => handleSort('category')}>
+                    Category <span aria-hidden="true">{getSortIcon('category')}</span>
+                  </button>
                 </th>
-                <th
-                  className="sortable"
-                  role="button"
-                  tabIndex={0}
-                  aria-sort={ariaSort('amount')}
-                  onClick={() => handleSort('amount')}
-                  onKeyDown={(e) => handleSortKey(e, 'amount')}
-                >
-                  Amount <span aria-hidden="true">{getSortIcon('amount')}</span>
+                <th className="sortable" scope="col" aria-sort={ariaSort('amount')}>
+                  <button type="button" onClick={() => handleSort('amount')}>
+                    Amount <span aria-hidden="true">{getSortIcon('amount')}</span>
+                  </button>
                 </th>
                 <th>Actions</th>
               </tr>
@@ -523,8 +497,14 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
       {receiptError && <div className="error-message">{receiptError}</div>}
 
       {receiptUrl && (
-        <div className="receipt-modal-overlay" onClick={closeReceipt} role="dialog" aria-modal="true">
-          <div className="receipt-modal" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="receipt-modal-overlay"
+          role="presentation"
+          onClick={(e) => { if (e.target === e.currentTarget) closeReceipt(); }}
+        >
+          {/* role="dialog" belongs on the panel that holds the content and the
+              close button, not on the backdrop. Escape also closes (see above). */}
+          <div className="receipt-modal" role="dialog" aria-modal="true" aria-label="Receipt image">
             <button ref={closeButtonRef} type="button" className="receipt-modal-close" onClick={closeReceipt} aria-label="Close">
               ✕
             </button>

@@ -162,7 +162,9 @@ export default function EditExpenseModal({ expense, onSave, onClose }: EditExpen
   if (!expense) return null;
 
   return (
-    <div className="modal-backdrop" onClick={handleBackdropClick}>
+    // Backdrop click is a convenience: the dialog traps focus, closes on Escape,
+    // and has a visible Cancel control, so the keyboard path does not rely on it.
+    <div className="modal-backdrop" onClick={handleBackdropClick} role="presentation">
       <div
         className="modal-content"
         ref={dialogRef}

@@ -62,7 +62,6 @@ export default function App() {
     document.addEventListener('keydown', onKey);
     moreSheetRef.current?.focus();
     return () => document.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [moreOpen]);
 
   // Apply and persist the theme (dark-first: dark is the default)
@@ -147,12 +146,9 @@ export default function App() {
    * Update an expense
    */
   const handleUpdateExpense = async (id: number, updates: Partial<Expense>) => {
-    try {
-      const updated = await updateExpense(id, updates);
-      setExpenses(prev => prev.map(exp => exp.id === id ? updated : exp));
-    } catch (err) {
-      throw err;
-    }
+    // Errors propagate to the caller (the edit modal), which surfaces them.
+    const updated = await updateExpense(id, updates);
+    setExpenses(prev => prev.map(exp => exp.id === id ? updated : exp));
   };
 
   /**
@@ -357,11 +353,16 @@ export default function App() {
 
       {/* "More" sheet: secondary views + settings, on mobile */}
       {moreOpen && (
-        <div className="more-sheet-overlay" onClick={closeMore}>
+        // Escape closes the sheet and focus is moved into it, so this click
+        // handler is additive rather than the only way out.
+        <div
+          className="more-sheet-overlay"
+          role="presentation"
+          onClick={e => { if (e.target === e.currentTarget) closeMore(); }}
+        >
           <div
             ref={moreSheetRef}
             className="more-sheet"
-            onClick={e => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-label="More"
