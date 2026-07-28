@@ -1,56 +1,25 @@
-# Gallery Screenshots
+# Gallery
 
-This folder should contain screenshots for the umbrelOS App Store listing.
+Screenshots used by the top-level [README](../README.md).
 
-## Required Screenshots
+| File | View | Viewport |
+| --- | --- | --- |
+| `dashboard.png` | Dashboard — category donut, stacked trend, 13-week heatmap | 1360×860 @2x |
+| `expenses.png` | All Expenses — search, filters, sorting, export | 1360×860 @2x |
+| `budgets.png` | Monthly Budgets — burn-down and per-category progress | 1360×900 @2x |
+| `currencies.png` | Currency Conversion — manual rates, per-currency totals | 1360×820 @2x |
+| `mobile.png` | Dashboard on a phone, with the bottom tab bar | 390×844 @3x |
 
-Add 3-5 high-quality screenshots (1920x1080 or similar) named:
-- `1.jpg` or `1.png` - Main dashboard with expense analytics
-- `2.jpg` or `2.png` - All Expenses table showing bulk operations
-- `3.jpg` or `3.png` - Add/Edit expense form
-- `4.jpg` or `4.png` (optional) - Excel import feature
-- `5.jpg` or `5.png` (optional) - Analytics and charts view
+## Regenerating them
 
-## Screenshot Guidelines
+**Every screenshot must be taken against throwaway data — never a real ledger.** Point the backend at a
+scratch database, seed it, and shoot that:
 
-- **Resolution**: 1920x1080 or 2560x1440 (16:9 ratio)
-- **Format**: JPG or PNG
-- **Size**: Keep under 1MB each
-- **Content**: Show the app with sample data (not empty states)
-- **Quality**: Clear, well-lit, professional appearance
+```bash
+DB_PATH=/tmp/sundry-demo/expenses.db npm --prefix backend run dev
+```
 
-## Taking Screenshots
-
-1. Add sample expense data to the app
-2. Navigate to each main view
-3. Use browser dev tools to set viewport to consistent size
-4. Take screenshots with browser's built-in tools or screenshot utility
-5. Crop to remove browser chrome if desired
-6. Optimize image size before adding to this folder
-
-## Example Content for Screenshots
-
-### Screenshot 1 - Dashboard
-- Show total expenses by currency
-- Display category breakdown pie chart
-- Show spending trends over time
-
-### Screenshot 2 - All Expenses
-- Show filtered expense list
-- Display some rows selected (bulk operations UI visible)
-- Show date range filters
-
-### Screenshot 3 - Add Expense
-- Show the expense form filled out
-- Display category selection
-- Show currency dropdown
-
-### Screenshot 4 - Excel Import
-- Show the import dialog
-- Display file upload area
-- Show sample import results
-
-### Screenshot 5 - Analytics
-- Show monthly spending chart
-- Display category comparisons
-- Show multi-currency breakdown
+Then run the frontend (`npm --prefix frontend run dev`), add a few dozen expenses across several
+categories, currencies and months, and set a budget or two so the charts have something to show. Capture
+in **dark mode** with an **en-US** locale — the app formats dates and currency via `Intl`, so a Polish
+locale renders `dd.mm.rrrr` and Polish month abbreviations in the charts.

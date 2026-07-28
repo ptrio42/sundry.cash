@@ -1,529 +1,201 @@
-# 💰 Sundry
+# Sundry
 
-A full-stack, self-hosted personal expense tracker built with **TypeScript**, **React**, **Express**, and **SQLite**. Add expenses, bulk-import them from Excel, and visualize spending across categories, time, and multiple currencies (USD / PLN / BTC). Runs entirely on your own hardware — no cloud, no account.
+A self-hosted personal expense tracker. Add expenses by hand, snap a photo of a receipt, or bulk-import
+a spreadsheet — then see where the money went across categories, time, and three currencies.
 
-## 📸 Screenshots
+Runs entirely on your own hardware. No cloud, no account, no telemetry. One SQLite file holds everything.
 
-| Dashboard | Expenses | Analytics |
+**Stack:** TypeScript end to end — Express + better-sqlite3 on the back, React 18 + Vite on the front.
+
+![Dashboard](gallery/dashboard.png)
+
+| Expenses | Budgets | Currencies |
 | :---: | :---: | :---: |
-| ![Dashboard](gallery/1.png) | ![Expenses table](gallery/2.png) | ![Analytics](gallery/3.png) |
+| ![Expense table](gallery/expenses.png) | ![Monthly budgets](gallery/budgets.png) | ![Currency conversion](gallery/currencies.png) |
 
-## 🚀 Quickstart (Docker)
+<p align="center">
+  <img src="gallery/mobile.png" alt="Mobile layout" width="260">
+</p>
 
-Run the whole stack with one command:
+## Quickstart
+
+**Docker** — the whole stack behind nginx:
 
 ```bash
 docker compose up --build
 ```
 
-Then open **http://localhost:8847**. The frontend reaches the backend through an nginx reverse proxy, and your data persists in `./data`. To try the Excel import, use the included [`sample-data/sample-expenses.xlsx`](sample-data/sample-expenses.xlsx). For configuration and self-hosting notes, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Open **http://localhost:8847**. Data persists in `./data`.
 
-**Share it across your phones/laptops (one shared "bucket").** Run the stack on
-an always-on machine (home server, NAS, Umbrel, spare laptop) and every device on
-your LAN reaches the same data at **`http://<that-machine's-IP>:8847`** (e.g.
-`http://192.168.1.20:8847`). On a phone, open that URL and tap **Add to Home
-Screen** — the app installs as a full-screen PWA, and **Scan Receipt** opens the
-camera directly. For a shared bucket, set `APP_PASSWORD` so only people who know
-the password can add or wipe expenses (see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)).
-
-### Or run locally without Docker
-
-Requires **Node 18+**. From the project root:
+**Without Docker** — needs Node 18 or newer:
 
 ```bash
-npm run install:all   # install backend + frontend dependencies
-npm run dev           # start both servers together
+npm run install:all && npm run dev
 ```
 
-Then open **http://localhost:5173**. The Vite dev server proxies `/api` to the backend (on `:5000`), so there's nothing else to configure. See **Getting Started** below for the step-by-step version.
+Open **http://localhost:5173**. Vite proxies `/api` to the backend on `:5000`, so there is nothing else to
+configure. To try the importer, use [`sample-data/sample-expenses.xlsx`](sample-data/sample-expenses.xlsx).
 
-## ✨ Features
+> The Docker images pin Node 18 and CI runs Node 20 — those are the tested versions. On newer releases
+> better-sqlite3 ships no prebuilt binary and compiles from source, so you will need a C++ toolchain and
+> Python installed.
 
-- **Add Expenses**: Simple form to add expenses with amount, date, description, and category
-- **Receipt Scanning**: Snap a photo of a receipt and the app extracts the amount, date, and store:
-  - Fully offline OCR by default (Tesseract.js, Polish + English) — no data leaves your server
-  - Pluggable OCR provider (`RECEIPT_OCR_PROVIDER`) so a cloud AI vision engine can be added later
-  - Review/correct the extracted fields before saving; auto-categorization from the store name
-  - The photo is attached to the expense and viewable from the table
-- **Excel Import**: Bulk import expenses from .xlsx files with:
-  - Column mapping interface
-  - Currency selection (USD, PLN)
-  - Data preview before import
-  - Validation and error reporting
-  - Support for multiple date formats
-  - Auto-categorization based on keywords
-- **Multi-Currency Support**: Track expenses in USD and PLN
-- **View All Expenses**: Table view with sorting and filtering capabilities
-- **Dashboard**: Visual insights with:
-  - Category-based pie chart
-  - Time-based trend charts (daily/weekly/monthly)
-  - Summary statistics (total, average, highest expense)
-- **CRUD Operations**: Create, read, update, and delete expenses
-- **Database Management**: Wipe all expenses with double confirmation
-- **Filtering**: Filter by category and date range
-- **Sorting**: Sort by date, amount, or category
-- **Validation**: Client-side and server-side validation for data integrity
-- **TypeScript**: Full type safety across frontend and backend
-- **Mobile & PWA**: Phone-first layout with a bottom tab bar; installable to the
-  home screen ("Add to Home Screen") and opens full-screen like a native app
-- **Self-hosted & multi-device**: Run once on your LAN; every phone/laptop adds to
-  the same shared database (optional password gate)
+### Sharing it across your devices
 
-## 🛠 Tech Stack
+Run the stack on an always-on machine and every device on your LAN reaches the same data at
+`http://<that-machine's-ip>:8847`. On a phone, open that URL and tap **Add to Home Screen** — it installs
+as a full-screen PWA, and **Scan Receipt** opens the camera directly.
 
-### Backend
-- **Node.js** + **Express**: REST API server
-- **TypeScript**: Type-safe backend code
-- **SQLite** + **better-sqlite3**: Local database with synchronous API
-- **xlsx**: Excel file parsing for imports
-- **Multer**: File upload handling
-- **Jest** + **Supertest**: API testing
+> **Set `APP_PASSWORD` before you expose this anywhere.** With no password the API is completely open —
+> deliberate, so a localhost-only install needs zero setup, but it means anyone who can reach the port can
+> read and delete your data. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-### Frontend
-- **React 18**: UI library with hooks
-- **TypeScript**: Type-safe frontend code
-- **Recharts**: Data visualization
-- **Vite**: Fast build tool and dev server
-- **Vitest**: Unit testing
+## Features
 
-## 📋 Prerequisites
+- **Expenses** — add, edit, delete; search across description/category/amount; filter by category, currency
+  and date range; sort by date, category or amount; select rows to bulk-assign a category or bulk-delete.
+- **Receipt scanning** — photograph a receipt and the app pulls out amount, date and merchant. OCR runs
+  **offline** by default (Tesseract.js, Polish + English), so no image leaves your server. You get a
+  confidence score and per-field warnings, and you review and correct everything before it saves; the photo
+  is attached to the expense.
+- **Excel import** — upload an `.xlsx`, map the columns (common names are auto-detected), preview the first
+  ten rows, then import. Handles merged cells, title rows and several date formats, and reports per-row
+  errors instead of failing the batch.
+- **Auto-categorization** — keyword matching in English and Polish, including Polish chains (Biedronka,
+  Lidl, Żabka, Orlen, Castorama…) and utility providers (Tauron, PGE, Enea…). Shared by the importer and
+  the receipt scanner. Matching is whole-word, so "scarf" is not transport and "photography" is not a game.
+- **Budgets** — a monthly limit per category and currency, with per-category progress bars and a
+  cumulative burn-down against the month's total.
+- **Multi-currency** — USD, PLN and BTC (stored to satoshi precision). Totals are grouped per currency by
+  default; set a primary currency and the dashboard converts everything into it using your own rates.
+- **Analytics & dashboard** — category donut with a running total, stacked day/week/month trend, and a
+  13-week daily-spend heatmap.
+- **Export** — the whole ledger as `.xlsx` from the server, or CSV generated in the browser.
+- **Optional login** — set `APP_PASSWORD` and the app gates behind a 7-day HMAC bearer token.
+- **Dark-first UI, mobile layout, installable PWA** — with a light theme toggle.
 
-- **Node.js** 18 or higher
-- **npm** or **yarn**
+## Design notes
 
-## 🚀 Getting Started
+The decisions worth explaining, and what I would revisit:
 
-### 1. Clone or Download the Project
+**Money is stored as integer minor units, never floats.** `amount` is an `INTEGER` column holding cents,
+grosze or satoshis; the REST API speaks major units and conversion happens only at the model boundary
+([`config/money.ts`](backend/src/config/money.ts)). A `REAL` column accumulates binary rounding error —
+`0.1 + 0.2 !== 0.3` — which is invisible on one row and wrong on a thousand. BTC forced the issue: two
+decimal places would have been useless, so the per-currency scale is explicit (100, 100, 100 000 000).
+
+**better-sqlite3, synchronously.** This is a single-user app on a home server. An async driver plus a pool
+would buy concurrency nobody needs, at the cost of every query becoming a promise. The prepared statements
+in [`models/`](backend/src/models) are the entire data layer, and there is no ORM.
+
+**Auth is opt-in, not off or on.** Most self-hosted trackers make you invent a password before you can add
+your first expense. Here, no `APP_PASSWORD` means no gate — right for `localhost`. Setting it turns on an
+HMAC bearer token. The tradeoff is real and stated loudly above rather than hidden in a config file.
+
+**The OCR engine sits behind a provider seam.** [`services/receipt/`](backend/src/services/receipt) picks an
+extractor from `RECEIPT_OCR_PROVIDER`; the parsing heuristics are pure functions with their own unit tests,
+independent of whichever engine produced the text. Tesseract runs offline today; a hosted vision model can
+drop in without touching routes or UI. Scanning is deliberately two-step — extract, then let the human
+confirm — because OCR on a crumpled receipt is a suggestion, not a fact.
+
+**What I would do differently.** The frontend and backend keep two hand-maintained copies of the same types
+instead of a shared package, and they have already drifted once — a small workspace would have been cheaper
+than the discipline. `routes/import.ts` grew business logic that belongs in a service, which is why it is
+the least-tested file in the repo. And the Excel importer parses amounts with its own regex rather than
+reusing the well-tested parser the receipt scanner already has; that is the next thing I would fix.
+
+## Configuration
+
+All backend variables are optional. There is no `.env` loading on the backend — export them in the
+environment or set them in `docker-compose.yml`. See [`backend/.env.example`](backend/.env.example).
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `5000` | API listen port |
+| `DB_PATH` | `<cwd>/data/expenses.db` | SQLite file. Also roots the receipts and OCR-cache directories |
+| `APP_PASSWORD` | *(unset — auth disabled)* | Enables the login gate |
+| `AUTH_SECRET` | falls back to `APP_PASSWORD` | HMAC signing key for bearer tokens |
+| `RECEIPT_OCR_PROVIDER` | `tesseract` | `tesseract` or `stub`. `claude` is a documented placeholder that throws |
+| `RECEIPT_OCR_LANGS` | `pol+eng` | Tesseract language packs |
+| `RECEIPTS_DIR` | `<dir of DB_PATH>/receipts` | Where receipt images are written |
+| `TESSERACT_CACHE_PATH` | `<dir of DB_PATH>/tesseract` | Cache for downloaded language data |
+| `TESSERACT_LANG_PATH` | *(unset)* | Point at local `*.traineddata` for fully offline OCR |
+
+The frontend reads one variable, baked in at build time: `VITE_API_BASE_URL` (default `/api`).
+
+## API
+
+Base URL `http://localhost:5000/api`. Everything except `/health` and `/auth/*` requires
+`Authorization: Bearer <token>` **when `APP_PASSWORD` is set** — otherwise all routes are open.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Liveness check (public) |
+| `GET` | `/auth/status` | Whether a password is configured (public) |
+| `POST` | `/auth/login` | Exchange password for a 7-day token (public) |
+| `GET` | `/expenses` | List expenses; filter by `category`, `currency`, `startDate`, `endDate` |
+| `POST` | `/expenses` | Create one — `amount`, `date`, `description`, `category`, `currency` all required |
+| `GET` | `/expenses/:id` | Fetch one |
+| `PUT` | `/expenses/:id` | Partial update |
+| `DELETE` | `/expenses/:id` | Delete one, plus its receipt image |
+| `DELETE` | `/expenses/all` | Wipe everything and reset the id counter |
+| `GET` | `/expenses/export` | Download the ledger as `.xlsx` |
+| `GET` | `/expenses/stats/by-category` | Totals grouped by category and currency |
+| `GET` | `/expenses/stats/by-date` | Totals grouped by date and currency |
+| `GET` | `/expenses/stats/analytics` | Aggregates for a filtered slice |
+| `POST` | `/import/preview` | Upload a spreadsheet, get headers + first 10 rows |
+| `POST` | `/import/confirm` | Import using a column mapping |
+| `POST` | `/receipts/scan` | OCR a photo and return fields for review — creates nothing |
+| `POST` | `/receipts` | Create an expense from reviewed fields, attaching the photo |
+| `GET` | `/receipts/:filename` | Stream a stored receipt image |
+| `GET`, `PUT` | `/budgets` | List limits / upsert one for a category+currency pair |
+| `DELETE` | `/budgets/:category` | Remove a limit (`?currency=` required) |
+| `GET`, `PUT` | `/fx` | Read / set manual exchange rates |
+| `GET`, `PUT` | `/settings` | Read / update preferences |
+
+## Data model
+
+Four tables — `expenses`, `budgets`, `fx_rates`, `settings` — created idempotently on boot.
+
+**Categories** (CHECK-constrained): `groceries`, `transport`, `media`, `entertainment`, `utilities`,
+`maintenance`, `other`.
+
+**Currencies** (CHECK-constrained): `USD` (2dp), `PLN` (2dp), `BTC` (8dp).
+
+**Exchange rates** are manual and user-editable — there is no live feed, because the app is meant to run
+offline. A rate is the value of one unit in USD; seeds are `USD 1`, `PLN 0.25`, `BTC 65000`.
+
+Adding a category or currency means a migration in
+[`config/database.ts`](backend/src/config/database.ts), not just a type change.
+
+## Development
 
 ```bash
-cd sundry
+npm run install:all   # root + backend + frontend
+npm run dev           # both servers, backend :5000 + Vite :5173
+npm run build         # typecheck and build both packages
+npm run test          # backend Jest, then frontend Vitest
 ```
 
-### 2. Install Backend Dependencies
+Tests: **92 backend cases** across 10 files (Jest + supertest) and **14 frontend cases** across 4 files
+(Vitest + Testing Library). The backend suite redirects `DB_PATH` to a temp directory before any app module
+loads, so running it never touches your real database. CI
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) typechecks, builds and tests both packages and
+builds the Docker images.
 
-```bash
-cd backend
-npm install
-```
+The frontend is the under-tested half — 4 test files against 12 components. That is the honest gap.
 
-### 3. Install Frontend Dependencies
+## Limitations
 
-```bash
-cd ../frontend
-npm install
-```
+Worth knowing before you rely on it:
 
-### 4. Start the Backend Server
+- **Single user.** One password, one ledger. No accounts, no sharing model, no per-user data.
+- **No pagination.** Every expense is fetched and rendered at once. Fine for the thousands a person
+  actually records; not built for a hundred thousand.
+- **Manual FX rates.** No live feed by design.
+- **No recurring expenses**, no income tracking, no attachments beyond receipt photos.
+- **Backups are your job** — copy the `data/` directory; it holds both the database and the receipt images.
 
-```bash
-cd ../backend
-npm run dev
-```
+## License
 
-The backend server will start on **http://localhost:5000**
-
-### 5. Start the Frontend Development Server
-
-Open a new terminal:
-
-```bash
-cd frontend
-npm run dev
-```
-
-The frontend will start on **http://localhost:5173** and automatically open in your browser.
-
-## 📁 Project Structure
-
-```
-sundry/
-├── backend/
-│   ├── src/
-│   │   ├── config/
-│   │   │   └── database.ts          # SQLite database configuration
-│   │   ├── routes/
-│   │   │   ├── expenses.ts          # Expense API route handlers
-│   │   │   └── import.ts            # Excel import route handlers
-│   │   ├── models/
-│   │   │   └── expense.ts           # Database queries and operations
-│   │   ├── middleware/
-│   │   │   └── validation.ts        # Request validation
-│   │   ├── types/
-│   │   │   └── expense.types.ts     # TypeScript type definitions
-│   │   ├── tests/
-│   │   │   ├── expenses.test.ts     # API tests
-│   │   │   └── import.test.ts       # Import endpoint tests
-│   │   └── server.ts                # Express server setup
-│   ├── tsconfig.json
-│   ├── jest.config.js
-│   ├── package.json
-│   └── expenses.db                  # SQLite database (auto-generated)
-│
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── App.tsx              # Main app component
-│   │   │   ├── ExpenseForm.tsx      # Form to add expenses
-│   │   │   ├── ExcelImport.tsx      # Excel import interface
-│   │   │   ├── ExpenseTable.tsx     # Table with sorting/filtering
-│   │   │   └── Dashboard.tsx        # Charts and statistics
-│   │   ├── services/
-│   │   │   └── api.ts               # API client functions
-│   │   ├── types/
-│   │   │   └── expense.types.ts     # TypeScript type definitions
-│   │   ├── tests/
-│   │   │   ├── setup.ts             # Test configuration
-│   │   │   └── ExpenseForm.test.tsx # Component tests
-│   │   ├── App.css                  # Global styles
-│   │   ├── main.tsx                 # React entry point
-│   │   └── vite-env.d.ts            # Vite type declarations
-│   ├── public/
-│   │   └── index.html
-│   ├── tsconfig.json
-│   ├── tsconfig.node.json
-│   ├── vite.config.ts
-│   └── package.json
-│
-└── README.md
-```
-
-## 🔌 API Endpoints
-
-### Base URL
-```
-http://localhost:5000/api
-```
-
-### Expenses
-
-#### Get All Expenses
-```
-GET /expenses?category={category}&startDate={date}&endDate={date}
-```
-**Query Parameters** (all optional):
-- `category`: Filter by category (groceries, transport, media, entertainment, other)
-- `startDate`: Filter by start date (ISO format: YYYY-MM-DD)
-- `endDate`: Filter by end date (ISO format: YYYY-MM-DD)
-
-**Response**: Array of expense objects
-
-#### Get Single Expense
-```
-GET /expenses/:id
-```
-**Response**: Single expense object or 404
-
-#### Create Expense
-```
-POST /expenses
-Content-Type: application/json
-
-{
-  "amount": 50.99,
-  "date": "2026-01-27",
-  "description": "Grocery shopping",
-  "category": "groceries"
-}
-```
-**Response**: Created expense object with ID
-
-#### Update Expense
-```
-PUT /expenses/:id
-Content-Type: application/json
-
-{
-  "amount": 75.50,
-  "description": "Updated description"
-}
-```
-**Response**: Updated expense object
-
-#### Delete Expense
-```
-DELETE /expenses/:id
-```
-**Response**: 204 No Content
-
-#### Delete All Expenses
-```
-DELETE /expenses/all
-```
-**Response**: JSON with deletion count
-```json
-{
-  "message": "All expenses deleted successfully",
-  "deletedCount": 123
-}
-```
-
-#### Get Statistics by Category
-```
-GET /expenses/stats/by-category
-```
-**Response**: Array of category statistics
-
-#### Get Statistics by Date
-```
-GET /expenses/stats/by-date
-```
-**Response**: Array of date statistics
-
-### Import
-
-#### Preview Excel File
-```
-POST /import/preview
-Content-Type: multipart/form-data
-
-file: Excel file (.xlsx)
-```
-**Response**: Column names, preview rows (first 10), and total row count
-
-#### Import Excel File
-```
-POST /import/confirm
-Content-Type: multipart/form-data
-
-file: Excel file (.xlsx)
-dateColumn: Column index for date (e.g., "0")
-amountColumn: Column index for amount (e.g., "1")
-descriptionColumn: Column index for description (e.g., "2")
-categoryColumn: Column index for category (optional, e.g., "3")
-currency: Currency code (USD or PLN)
-```
-**Response**: Import results with success/failure counts and error details
-
-### Receipts
-
-#### Scan a Receipt Photo
-```
-POST /receipts/scan
-Content-Type: multipart/form-data
-
-receipt: image file (JPEG, PNG, or WebP)
-```
-**Response**: Extracted fields for review — `{ amount, date, merchant, currency, category, rawText, confidence, warnings }` (any field may be null). No expense is created.
-
-#### Save an Expense from a Receipt
-```
-POST /receipts
-Content-Type: multipart/form-data
-
-receipt: image file (optional — attaches the photo)
-amount, date, description, category, currency: the reviewed fields
-```
-**Response**: The created expense (including `receiptImage` filename).
-
-#### View a Stored Receipt Image
-```
-GET /receipts/:filename
-```
-**Response**: The image bytes (auth-protected).
-
-### Validation Rules
-
-- **amount**: Must be a positive number
-- **date**: Must be a valid ISO date (YYYY-MM-DD)
-- **description**: Required, cannot be empty
-- **category**: Must be one of: groceries, transport, media, entertainment, other
-- **currency**: Must be one of: USD, PLN
-
-## 🧪 Running Tests
-
-### Backend Tests
-```bash
-cd backend
-npm test
-```
-
-Tests include:
-- Creating expenses with valid data
-- Rejecting invalid data (negative amounts, invalid dates, etc.)
-- Fetching expenses with filters
-- Updating and deleting expenses
-- Category statistics
-- Excel file preview and import
-- Column mapping validation
-- Import error handling
-
-### Frontend Tests
-```bash
-cd frontend
-npm test
-```
-
-Tests include:
-- Component rendering
-- Form field validation
-- User interactions
-
-## 🏗 Building for Production
-
-### Backend
-```bash
-cd backend
-npm run build
-npm start
-```
-
-The TypeScript code will be compiled to JavaScript in the `dist/` directory.
-
-### Frontend
-```bash
-cd frontend
-npm run build
-npm run preview
-```
-
-The optimized production build will be created in the `dist/` directory.
-
-## 📥 Importing Expenses from Excel
-
-### Excel File Format
-
-Your Excel file (.xlsx) should have columns for:
-- **Date**: In format like "2024-01-15" or Excel date format
-- **Amount**: Numeric value (e.g., 50.25)
-- **Description**: Text description of the expense
-- **Category** (optional): One of: groceries, transport, media, entertainment, other
-
-Example Excel structure:
-```
-| Date       | Amount | Description      | Category     |
-|------------|--------|------------------|--------------|
-| 2024-01-15 | 50.25  | Grocery shopping | groceries    |
-| 2024-01-16 | 30.00  | Gas              | transport    |
-| 2024-01-17 | 15.99  | Netflix          | media        |
-```
-
-### Import Process
-
-1. Click "📥 Import Excel" in the navigation
-2. Select your .xlsx file
-3. Click "Preview File" to see the data
-4. Map your Excel columns to expense fields:
-   - Select which column contains dates
-   - Select which column contains amounts
-   - Select which column contains descriptions
-   - (Optional) Select which column contains categories
-5. Choose the currency (USD or PLN)
-6. Click "Import Expenses"
-7. Review the import results showing successful and failed imports
-
-### Import Features
-
-- **Automatic column detection**: Common column names are auto-detected
-- **Merged cell support**: Automatically handles merged cells in your Excel file
-  - Detects and skips title rows
-  - Forward-fills values from merged cells
-  - Perfect for files with grouped dates or repeated values
-- **Keyword-based auto-categorization**: Automatically assigns categories based on expense descriptions
-  - Supports 100+ keywords in English and Polish
-  - Fallback when no category column is provided
-  - Works with Polish store names (Biedronka, Lidl, Orlen, etc.)
-- **Data validation**: Invalid rows are skipped with detailed error messages
-- **Preview before import**: See first 10 rows before committing (after merge processing)
-- **Error reporting**: Detailed errors for each failed row
-- **Multi-currency**: Select currency for all expenses in the file
-- **Flexible date formats**: Supports Excel date format, DD-MM-YYYY, and ISO date strings
-- **Smart row skipping**: Automatically skips rows with zero amounts or empty descriptions
-
-## 🎨 Categories
-
-The application supports five expense categories:
-
-- 🛒 **Groceries** (green) - Food, supermarkets, restaurants
-- 🚗 **Transport** (blue) - Fuel, parking, public transport, car expenses
-- 📺 **Media** (purple) - Internet, phone, streaming services, subscriptions
-- 🎮 **Entertainment** (orange) - Movies, sports, gym, recreation
-- 📦 **Other** (gray) - Health, clothing, insurance, utilities, home improvement
-
-Categories are automatically assigned during Excel import based on description keywords.
-
-## 💱 Supported Currencies
-
-- **USD** ($) - US Dollar
-- **PLN** (zł) - Polish Złoty
-
-Currency totals are displayed separately when mixing currencies.
-
-## 🗑️ Database Management
-
-The application includes a database wipe feature for quick cleanup:
-
-1. Click the "Wipe Database" button in the navigation bar
-2. Confirm the action in the first dialog
-3. Confirm again in the second dialog (double confirmation for safety)
-4. All expenses will be deleted and the auto-increment counter will be reset
-
-This feature is useful for:
-- Testing and development
-- Starting fresh with new data
-- Clearing sample or test expenses
-
-**Warning**: This action cannot be undone. Always ensure you have a backup if needed.
-
-## 💡 TypeScript Benefits
-
-This project uses TypeScript throughout for:
-
-- **Type Safety**: Catch errors at compile time instead of runtime
-- **Better IDE Support**: IntelliSense, autocomplete, and inline documentation
-- **Refactoring**: Safely rename and restructure code
-- **Self-Documenting**: Types serve as inline documentation
-- **Shared Types**: Frontend and backend share the same type definitions
-
-## 🔮 Future Enhancements
-
-Potential features to add:
-
-- **User Authentication**: Multi-user support with login/signup
-- **Budget Limits**: Set monthly budgets per category with alerts
-- **Recurring Expenses**: Automatically add monthly bills
-- **Export Data**: Export to CSV/PDF
-- **Receipt Upload**: Attach images to expenses
-- **More Currencies**: Support for additional international currencies
-- **Currency Conversion**: Automatic conversion between currencies
-- **Tags**: Add custom tags to expenses
-- **Advanced Analytics**: Spending predictions and insights
-- **Mobile App**: React Native mobile version
-- **Cloud Sync**: Backend deployment with cloud database
-- **CSV Import**: Support for CSV file imports
-- **Batch Edit**: Edit multiple expenses at once
-
-## 🐛 Troubleshooting
-
-### Backend Won't Start
-- Check if port 5000 is already in use
-- Run `npm install` again in the backend directory
-- Delete `expenses.db` to reset the database
-
-### Frontend Won't Connect to Backend
-- Verify backend is running on http://localhost:5000
-- Check browser console for CORS errors
-- Ensure both servers are running simultaneously
-
-### Database Errors
-- Delete `backend/expenses.db` and restart the server
-- The database will be recreated automatically
-
-## 📄 License
-
-Released under the [MIT License](LICENSE).
-
-## 🤝 Contributing
-
-Issues and pull requests are welcome. Fork the repo, create a feature branch, and open a PR.
-
-## 📞 Support
-
-If you encounter any issues:
-1. Check that Node.js 18+ is installed
-2. Verify all dependencies are installed (`npm install`)
-3. Ensure both backend and frontend servers are running
-4. Check the console for error messages
-
----
-
-**Built with ❤️ using TypeScript, React, Express, and SQLite**
+[MIT](LICENSE).
