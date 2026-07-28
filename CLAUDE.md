@@ -15,6 +15,7 @@ npm run install:all         # install backend + frontend deps — REQUIRED first
 npm run dev                 # both servers: backend :5000 (cross-env PORT=5000) + Vite :5173 (auto-opens)
 npm run build               # backend: tsc -> dist/ ; frontend: tsc && vite build
 npm run test                # backend Jest (--runInBand), then frontend Vitest
+npm run lint                # ESLint (flat config) for both packages
 docker compose up --build   # full stack behind nginx -> http://localhost:8847
 ```
 
@@ -30,12 +31,10 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   `git add`, confirm nothing under `data/`, no `*.db` / `*.db-journal`, and no `.env*` is staged.
   Never paste the DB's contents into chat, PRs, or artifacts. If asked to commit one of these, stop
   and flag it instead.
-- **Verify before "done": run `npm run build` (typecheck) and `npm run test`, and show the output.**
-  `tsc` is strict (`noUnusedLocals` / `noUnusedParameters`) and fails the build on unused vars. A
-  change is not finished until both pass — do not assert success without evidence.
-- **Edit the per-package Dockerfiles, not the root ones.** `backend/Dockerfile` + `frontend/Dockerfile`
-  are what `docker-compose.yml` and CI actually build. Root `Dockerfile.backend` / `Dockerfile.frontend`
-  are legacy duplicates — don't wire new work into them.
+- **Verify before "done": run `npm run lint`, `npm run build` (typecheck) and `npm run test`, and
+  show the output.** `tsc` is strict (`noUnusedLocals` / `noUnusedParameters`) and fails the build on
+  unused vars; ESLint (flat config, per package) gates on errors while leaving warnings visible. A
+  change is not finished until all three pass — do not assert success without evidence.
 - **Money is stored as integer minor units** (cents / satoshis) via `backend/src/config/money.ts`.
   Convert only at the model boundary — never put a float in the `amount` column.
 - **Categories and currencies are CHECK-constrained enums.** Adding one requires a migration in
@@ -54,7 +53,7 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   `money.ts` (minor-unit conversion).
 - `src/middleware/` — `auth` (`requireAuth`), `validation`.
 - `src/services/` — `categorize.ts` (keyword auto-categorization, EN + PL); `receipt/` (OCR factory — see gotchas).
-- `src/tests/` — Jest + supertest, 92 cases across 10 files (plus `env.ts` / `paths.ts` /
+- `src/tests/` — Jest + supertest, 97 cases across 10 files (plus `env.ts` / `paths.ts` /
   `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
 
 **frontend/** — React 18 + Vite, single-page tabbed UI (no router, no state library — plain hooks):
@@ -87,28 +86,26 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 - **`npm run install:all` installs all three package roots** (root tooling + backend + frontend).
   A bare `npm install` at root only gets `concurrently` / `cross-env`, so `npm run dev` then fails
   with missing modules in the sub-packages.
-- **Node 18 vs 20** — Docker pins `node:18-alpine`, CI runs Node 20. Keep new code Node-18-compatible.
+- **Node 22** — Docker images and CI both pin Node 22; `.nvmrc` says 22 and `engines` declares
+  `>=18`. better-sqlite3 is a native module: on Node releases without a prebuild it compiles from
+  source, which needs a C++ toolchain.
 - **`RECEIPT_OCR_PROVIDER=claude` throws "not implemented"** — only `tesseract` and `stub` work today.
 - **Tests run against a temp DB, never the real one.** `jest.config.js` wires `src/tests/env.ts` as a
   `setupFile` that repoints `DB_PATH` at `$TMPDIR/sundry-test-data/` before any app module loads —
   `receiptsDir()` derives from `DB_PATH`, so uploaded images are isolated too. Never remove this:
   without it the suite writes fixtures straight into `backend/data/expenses.db`.
-- **README drifts from code** — the README mentions only USD/PLN and 5 categories; the code supports
-  **USD/PLN/BTC**, 7 categories, auth, FX conversion, budgets, and export. **Trust the code**, and fix
-  the README rather than the code when they disagree.
 - **Reset the local DB** by deleting `backend/data/expenses.db` — it is recreated on next backend start.
-- `umbrel-app.yml` still has placeholder `yourusername` GitHub URLs.
 
 ## Definition of done
 
-1. `npm run build` passes (strict, zero errors) for the touched package(s).
+1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
 2. `npm run test` passes; add/extend tests for behavior changes. The **frontend is under-tested**
-   (4 test files / 14 cases against 12 components), so new UI logic especially warrants a test.
+   (5 test files / 19 cases against 12 components), so new UI logic especially warrants a test.
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).
 
 ## Pointers
 
 - Setup & self-hosting: `docs/DEPLOYMENT.md`. Feature/endpoint reference: `README.md` (secondary to code).
-- CI: `.github/workflows/ci.yml` (typecheck + build + test for both packages + docker build).
+- CI: `.github/workflows/ci.yml` (lint + typecheck + build + test for both packages + docker build).
 - Personal / sandbox-only notes: put them in a gitignored `CLAUDE.local.md`, never here.

@@ -20,7 +20,7 @@ To stop: `docker compose down` (add `-v` to also drop the named volume).
 ## Access from other devices (phones on your LAN)
 
 The frontend container publishes port **8847** on all interfaces, so once the
-stack runs on an always-on machine (home server, NAS, Umbrel, spare laptop),
+stack runs on an always-on machine (home server, NAS, spare laptop),
 every device on the same network shares one database:
 
 1. Find the host machine's LAN IP (e.g. `ipconfig getifaddr en0` on macOS,
@@ -56,12 +56,3 @@ genuine no-egress posture, put the backend on a dedicated `internal: true`
 network (which blocks outbound routing while still resolving service names) and
 keep only the frontend on a network with a published port.
 
-## Umbrel packaging (self-hosting) — status
-
-The repo includes an Umbrel app manifest (`umbrel-app.yml`) and packaging
-scripts. **Known limitation:** Umbrel installs store apps by *pulling* images,
-not by building from source, so the Umbrel compose must reference published
-images (e.g. `ghcr.io/<user>/sundry-backend:<tag>`) rather than `build:`
-directives. Publishing those images via CI and wiring them into the manifest is
-the remaining step before this installs cleanly on a stock Umbrel. Until then,
-use the Docker Compose flow above.
