@@ -64,5 +64,30 @@ describe('Auth gate', () => {
         .set('Authorization', `Bearer ${login.body.token}`)
         .expect(200);
     });
+
+    it('sets security headers and hides the framework', async () => {
+      const res = await request(app).get('/api/auth/status').expect(200);
+      expect(res.headers['x-powered-by']).toBeUndefined();
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+      expect(res.headers['x-frame-options']).toBeDefined();
+    });
+
+    // Kept last on purpose: the limiter counts per IP for the whole process, so
+    // exhausting the budget here would make any later failed-login test 429.
+    it('throttles repeated failed logins', async () => {
+      const limit = Number(process.env.AUTH_RATE_LIMIT_MAX) || 10;
+      let sawTooMany = false;
+
+      // One failed attempt was already spent by the wrong-password test above.
+      for (let i = 0; i < limit + 1; i++) {
+        const res = await request(app).post('/api/auth/login').send({ password: 'wrong' });
+        if (res.status === 429) { sawTooMany = true; break; }
+      }
+      expect(sawTooMany).toBe(true);
+
+      // A correct password is refused too while the block is in force —
+      // otherwise throttling would be trivially bypassable.
+      await request(app).post('/api/auth/login').send({ password: 'hunter2' }).expect(429);
+    });
   });
 });

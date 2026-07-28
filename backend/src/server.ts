@@ -5,6 +5,7 @@
 
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import expenseRoutes from './routes/expenses';
 import importRoutes from './routes/import';
 import receiptRoutes from './routes/receipts';
@@ -19,10 +20,20 @@ import { closeDatabase } from './config/database';
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
+// nginx is the only way in for a Docker/LAN install, so without this every
+// client shares one apparent IP and the login rate limiter would throttle the
+// whole network as a single caller. One hop = the bundled reverse proxy.
+app.set('trust proxy', 1);
+
+// Security headers. contentSecurityPolicy is off because this process only
+// serves JSON and receipt images — the frontend (and its CSP) is nginx's job,
+// and a default CSP here would apply to responses that never render as pages.
+app.use(helmet({ contentSecurityPolicy: false }));
+
 // Middleware
 app.use(cors()); // Enable CORS for frontend
-app.use(express.json()); // Parse JSON request bodies
-app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+app.use(express.json({ limit: '1mb' })); // Parse JSON request bodies
+app.use(express.urlencoded({ extended: true, limit: '1mb' })); // Parse URL-encoded bodies
 
 // Request logging middleware
 app.use((req: Request, _res: Response, next: NextFunction) => {
