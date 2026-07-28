@@ -272,7 +272,7 @@ export function getAnalytics(params: {
   total: number;
   count: number;
   average: number;
-  byCategory: Array<{ category: string; total: number; count: number; average: number }>;
+  byCategory: Array<{ category: string; currency: string; total: number; count: number; average: number }>;
   byCurrency: Array<{ currency: string; total: number; count: number; average: number }>;
 } {
   let query = 'SELECT category, currency, SUM(amount) as total, COUNT(*) as count FROM expenses WHERE 1=1';
@@ -306,10 +306,12 @@ export function getAnalytics(params: {
 
   // Each row is a single (category, currency) group; row.total is exact minor units.
   // byCurrency stays exact (minor units summed per currency, converted once).
-  // byCategory and the grand total are expressed in major units; note they can mix
-  // currencies when the query spans more than one — the UI surfaces byCurrency for
-  // an accurate per-currency view.
-  const categoryMap = new Map<string, { total: number; count: number }>();       // major units
+  //
+  // byCategory keeps the currency dimension rather than collapsing it. Summing
+  // across currencies here would be meaningless — 100 USD + 1 BTC is not 101 of
+  // anything — and the client cannot undo the collapse. Emitting one row per
+  // (category, currency) lets the UI convert at a rate the user controls.
+  const categoryMap = new Map<string, { category: string; currency: string; totalMinor: number; count: number }>();
   const currencyMap = new Map<string, { totalMinor: number; count: number }>();   // exact minor units
   let grandTotalMajor = 0;
   let grandCount = 0;
@@ -317,10 +319,15 @@ export function getAnalytics(params: {
   rows.forEach(row => {
     const rowMajor = toMajorUnits(row.total, row.currency);
 
-    const cat = categoryMap.get(row.category) || { total: 0, count: 0 };
-    categoryMap.set(row.category, {
-      total: cat.total + rowMajor,
-      count: cat.count + row.count
+    // Key only identifies the group; the fields are carried in the value so
+    // nothing has to be parsed back out of the key later.
+    const catKey = `${row.category}|${row.currency}`;
+    const cat = categoryMap.get(catKey);
+    categoryMap.set(catKey, {
+      category: row.category,
+      currency: row.currency,
+      totalMinor: (cat?.totalMinor ?? 0) + row.total,
+      count: (cat?.count ?? 0) + row.count
     });
 
     const cur = currencyMap.get(row.currency) || { totalMinor: 0, count: 0 };
@@ -333,12 +340,16 @@ export function getAnalytics(params: {
     grandCount += row.count;
   });
 
-  const byCategory = Array.from(categoryMap.entries()).map(([category, data]) => ({
-    category,
-    total: data.total,
-    count: data.count,
-    average: data.count > 0 ? data.total / data.count : 0
-  }));
+  const byCategory = Array.from(categoryMap.values()).map(data => {
+    const total = toMajorUnits(data.totalMinor, data.currency as Currency);
+    return {
+      category: data.category,
+      currency: data.currency,
+      total,
+      count: data.count,
+      average: data.count > 0 ? total / data.count : 0
+    };
+  });
 
   const byCurrency = Array.from(currencyMap.entries()).map(([currency, data]) => {
     const total = toMajorUnits(data.totalMinor, currency as Currency);
@@ -351,6 +362,10 @@ export function getAnalytics(params: {
   });
 
   return {
+    // NOTE: `total` and `average` add up major units across whatever currencies
+    // the query matched, so they are only meaningful when the caller scoped the
+    // request to one currency. Clients spanning currencies must build their
+    // totals from `byCurrency` / `byCategory`, which stay currency-scoped.
     total: grandTotalMajor,
     count: grandCount,
     average: grandCount > 0 ? grandTotalMajor / grandCount : 0,

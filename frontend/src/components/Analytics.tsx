@@ -3,10 +3,11 @@
  * Shows spending analytics by time period and category
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getAnalytics } from '../services/api';
-import { ExpenseCategory, Currency } from '../types/expense.types';
+import { ExpenseCategory, Currency, AppSettings, FxRates } from '../types/expense.types';
 import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
+import { convertAmount } from '../utils/fx';
 
 const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
@@ -37,11 +38,16 @@ interface AnalyticsData {
   total: number;
   count: number;
   average: number;
-  byCategory: Array<{ category: string; total: number; count: number; average: number }>;
+  byCategory: Array<{ category: string; currency: string; total: number; count: number; average: number }>;
   byCurrency: Array<{ currency: string; total: number; count: number; average: number }>;
 }
 
-export default function Analytics() {
+interface AnalyticsProps {
+  settings: AppSettings;
+  rates: FxRates;
+}
+
+export default function Analytics({ settings, rates }: AnalyticsProps) {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('month');
   const [selectedCategories, setSelectedCategories] = useState<ExpenseCategory[]>([...CATEGORIES]);
   const [selectedCurrency, setSelectedCurrency] = useState<Currency | 'all'>('all');
@@ -169,18 +175,50 @@ export default function Analytics() {
   /**
    * Format amount with currency symbol
    */
-  const formatAmount = (amount: number, currency?: string): string => {
-    const resolved: Currency =
-      selectedCurrency !== 'all'
-        ? selectedCurrency
-        : currency === 'USD' || currency === 'PLN' || currency === 'BTC'
-        ? currency
-        : 'USD';
-    return formatCurrency(amount, resolved);
-  };
+  // Everything below a mixed-currency query has to be expressed in ONE currency.
+  // Filtering to a single currency means the server already scoped the numbers;
+  // otherwise we combine using the user's own FX rates, exactly as the Dashboard
+  // does. Summing raw major units across currencies (100 USD + 1 BTC = 101) was
+  // the previous behaviour, and it was labelled "$" regardless of the data.
+  const displayCurrency: Currency =
+    selectedCurrency !== 'all' ? selectedCurrency : settings.primaryCurrency;
+
+  // True only when we actually had to convert — used to caption the numbers.
+  const isConverted =
+    selectedCurrency === 'all' &&
+    (analytics?.byCurrency.some(c => c.currency !== displayCurrency) ?? false);
+
+  const formatAmount = (amount: number, currency?: string): string =>
+    formatCurrency(amount, (currency as Currency) || displayCurrency);
+
+  const toDisplay = (amount: number, from: string) =>
+    convertAmount(amount, from as Currency, displayCurrency, rates);
+
+  // Per-currency subtotals are exact, so convert each once and then add.
+  const overallTotal = useMemo(
+    () => (analytics?.byCurrency ?? []).reduce((sum, c) => sum + toDisplay(c.total, c.currency), 0),
+    [analytics, displayCurrency, rates]
+  );
+
+  // Collapse the (category, currency) rows the API returns into one row per
+  // category, converting as we go.
+  const categoryTotals = useMemo(() => {
+    const map = new Map<string, { total: number; count: number }>();
+    for (const row of analytics?.byCategory ?? []) {
+      const prev = map.get(row.category) || { total: 0, count: 0 };
+      map.set(row.category, {
+        total: prev.total + toDisplay(row.total, row.currency),
+        count: prev.count + row.count,
+      });
+    }
+    return Array.from(map.entries())
+      .map(([category, d]) => ({ ...d, category, average: d.count > 0 ? d.total / d.count : 0 }))
+      .sort((a, b) => b.total - a.total);
+  }, [analytics, displayCurrency, rates]);
 
   const daysInPeriod = getDaysInPeriod();
-  const averagePerDay = analytics && daysInPeriod > 0 ? analytics.total / daysInPeriod : 0;
+  const averagePerDay = daysInPeriod > 0 ? overallTotal / daysInPeriod : 0;
+  const overallAverage = analytics && analytics.count > 0 ? overallTotal / analytics.count : 0;
 
   return (
     <div className="analytics">
@@ -301,48 +339,55 @@ export default function Analytics() {
         <div className="analytics-results">
           {/* Summary Cards */}
           <div className="analytics-summary">
-            {selectedCurrency === 'all' && analytics.byCurrency.length > 1 ? (
-              // Show currency breakdown when viewing all currencies
-              analytics.byCurrency.map(curr => (
+            <div className="summary-card">
+              <h3>Total Spent</h3>
+              <p className="value">{formatAmount(overallTotal)}</p>
+              <p className="subtitle">
+                {isConverted ? `converted to ${displayCurrency}` : `${daysInPeriod} days`}
+              </p>
+            </div>
+            <div className="summary-card">
+              <h3>Total Expenses</h3>
+              <p className="value">{analytics.count}</p>
+              <p className="subtitle">transactions</p>
+            </div>
+            <div className="summary-card">
+              <h3>Average per Expense</h3>
+              <p className="value">{formatAmount(overallAverage)}</p>
+              <p className="subtitle">per transaction</p>
+            </div>
+            <div className="summary-card">
+              <h3>Average per Day</h3>
+              <p className="value">{formatAmount(averagePerDay)}</p>
+              <p className="subtitle">daily spending</p>
+            </div>
+          </div>
+
+          {/* Native per-currency subtotals — exact, no conversion applied. */}
+          {isConverted && (
+            <div className="analytics-summary">
+              {analytics.byCurrency.map(curr => (
                 <div key={curr.currency} className="summary-card">
                   <h3>{curr.currency} Total</h3>
                   <p className="value">{formatAmount(curr.total, curr.currency)}</p>
                   <p className="subtitle">{curr.count} transactions</p>
                 </div>
-              ))
-            ) : (
-              <>
-                <div className="summary-card">
-                  <h3>Total Spent</h3>
-                  <p className="value">{formatAmount(analytics.total)}</p>
-                  <p className="subtitle">{daysInPeriod} days</p>
-                </div>
-                <div className="summary-card">
-                  <h3>Total Expenses</h3>
-                  <p className="value">{analytics.count}</p>
-                  <p className="subtitle">transactions</p>
-                </div>
-                <div className="summary-card">
-                  <h3>Average per Expense</h3>
-                  <p className="value">{formatAmount(analytics.average)}</p>
-                  <p className="subtitle">per transaction</p>
-                </div>
-                <div className="summary-card">
-                  <h3>Average per Day</h3>
-                  <p className="value">{formatAmount(averagePerDay)}</p>
-                  <p className="subtitle">daily spending</p>
-                </div>
-              </>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Category Breakdown */}
-          {analytics.byCategory.length > 0 && (
+          {categoryTotals.length > 0 && (
             <div className="category-breakdown">
-              <h3>Breakdown by Category</h3>
+              <h3>
+                Breakdown by Category
+                {isConverted && (
+                  <span className="subtitle"> · converted to {displayCurrency}</span>
+                )}
+              </h3>
               <div className="category-bars">
-                {analytics.byCategory.map(cat => {
-                  const percentage = (cat.total / analytics.total) * 100;
+                {categoryTotals.map(cat => {
+                  const percentage = overallTotal > 0 ? (cat.total / overallTotal) * 100 : 0;
                   return (
                     <div key={cat.category} className="category-bar-item">
                       <div className="category-bar-header">
@@ -373,7 +418,7 @@ export default function Analytics() {
             </div>
           )}
 
-          {analytics.byCategory.length === 0 && (
+          {categoryTotals.length === 0 && (
             <div className="no-data">
               No expenses found for the selected period and categories.
             </div>

@@ -321,7 +321,7 @@ export default function App() {
                 />
               )}
               {currentView === 'dashboard' && <Dashboard expenses={expenses} settings={settings} rates={fxRates} />}
-              {currentView === 'analytics' && <Analytics />}
+              {currentView === 'analytics' && <Analytics settings={settings} rates={fxRates} />}
               {currentView === 'budgets' && <Budgets expenses={expenses} />}
               {currentView === 'fx' && <Fx expenses={expenses} rates={fxRates} onRatesChanged={setFxRates} />}
               {currentView === 'settings' && <Settings settings={settings} onSaved={handleSettingsSaved} />}
