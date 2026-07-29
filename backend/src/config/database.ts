@@ -23,6 +23,14 @@ export const db: Database.Database = new Database(DB_PATH);
 // Enable foreign keys
 db.pragma('foreign_keys = ON');
 
+// Write-ahead logging. Two reasons that matter for a self-hosted install:
+// readers no longer block on the writer (several phones on the LAN hitting the
+// API at once), and `sqlite3 .backup` can run against a live database without
+// tearing it. The trade is two sidecar files next to the DB — `-wal` and
+// `-shm` — so a backup must copy the whole `data/` directory, or use `.backup`,
+// never just `expenses.db`. See docs/DEPLOYMENT.md.
+db.pragma('journal_mode = WAL');
+
 /**
  * Initialize database schema
  * Creates the expenses table if it doesn't exist

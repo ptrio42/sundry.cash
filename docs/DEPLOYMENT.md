@@ -56,3 +56,49 @@ genuine no-egress posture, put the backend on a dedicated `internal: true`
 network (which blocks outbound routing while still resolving service names) and
 keep only the frontend on a network with a published port.
 
+
+## Backups and restore
+
+Everything Sundry owns lives in one directory: `./data` (the compose bind mount,
+`/app/data` inside the container). It holds the SQLite database **and** the
+receipt images — so `data/` is the unit of backup, not `expenses.db` alone.
+
+The database runs in **WAL mode**, which means two sidecar files sit next to it:
+`expenses.db-wal` and `expenses.db-shm`. Copying only `expenses.db` while the
+app is running can therefore lose the most recent writes.
+
+**The safe way — an online backup, no downtime:**
+
+```bash
+sqlite3 data/expenses.db ".backup 'backup/expenses.db'"
+```
+
+`.backup` takes a consistent snapshot of a live database, WAL included. Pair it
+with the images:
+
+```bash
+mkdir -p backup && sqlite3 data/expenses.db ".backup 'backup/expenses.db'" && cp -r data/receipts backup/
+```
+
+**The simple way — stop first:**
+
+```bash
+docker compose stop backend && cp -r data backup-$(date +%F) && docker compose start backend
+```
+
+**Restore:** stop the backend, put the files back at `data/`, delete any stale
+`-wal` / `-shm` sidecars, then start it again.
+
+```bash
+docker compose stop backend
+rm -f data/expenses.db-wal data/expenses.db-shm
+cp backup/expenses.db data/expenses.db && cp -r backup/receipts data/
+docker compose start backend
+```
+
+Schema migrations run automatically and idempotently on boot, so restoring a
+database from an older version of the app is fine — it will be brought up to
+date the first time the backend starts.
+
+There is no scheduled-backup mechanism built in; wire the command above into
+cron or your NAS's own backup tooling.
