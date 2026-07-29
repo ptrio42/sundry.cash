@@ -15,6 +15,11 @@ const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'enter
 // Available currencies for filtering
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
+// Rows rendered at once. The whole ledger is still fetched — the charts need
+// it — but an unwindowed <tbody> of several thousand <tr>s is what actually
+// makes the page crawl, so only a slice reaches the DOM.
+const PAGE_SIZE = 50;
+
 export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: ExpenseTableProps) {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -25,6 +30,7 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkCategory, setBulkCategory] = useState<ExpenseCategory>('other');
+  const [page, setPage] = useState<number>(1);
 
   // Receipt image viewer (loaded with auth, held as an object URL)
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
@@ -151,6 +157,24 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
 
     return result;
   }, [expenses, searchQuery, filterCategory, filterCurrency, startDate, endDate, sortField, sortOrder]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredAndSortedExpenses.length / PAGE_SIZE));
+
+  // Filtering can shrink the list under the current page (or a delete can empty
+  // the last page); snap back rather than showing a blank table.
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+
+  // Any change to what is being listed should start from the top again.
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, filterCategory, filterCurrency, startDate, endDate, sortField, sortOrder]);
+
+  const visibleExpenses = useMemo(
+    () => filteredAndSortedExpenses.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredAndSortedExpenses, page]
+  );
 
   /**
    * Handle delete with confirmation
@@ -420,7 +444,7 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
               </tr>
             </thead>
             <tbody>
-              {filteredAndSortedExpenses.map((expense) => (
+              {visibleExpenses.map((expense) => (
                 <tr key={expense.id} className={selectedIds.has(expense.id) ? 'selected-row' : ''}>
                   <td className="checkbox-cell">
                     <input
@@ -491,6 +515,35 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
               </tr>
             </tfoot>
           </table>
+        )}
+
+        {pageCount > 1 && (
+          <nav className="pagination" aria-label="Expense pages">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              ← Previous
+            </button>
+            {/* aria-live so the position is announced after the rows swap out. */}
+            <span className="pagination-status" aria-live="polite">
+              Page {page} of {pageCount}
+              <span className="pagination-count">
+                {' '}· {filteredAndSortedExpenses.length} expense
+                {filteredAndSortedExpenses.length === 1 ? '' : 's'}
+              </span>
+            </span>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setPage(p => Math.min(pageCount, p + 1))}
+              disabled={page === pageCount}
+            >
+              Next →
+            </button>
+          </nav>
         )}
       </div>
 

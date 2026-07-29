@@ -4,7 +4,7 @@
  * and a calendar heatmap of daily spend.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { DashboardProps, Currency, ExpenseCategory } from '../types/expense.types';
 import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
@@ -55,11 +55,20 @@ export default function Dashboard({ expenses, settings, rates }: DashboardProps)
   );
 
   // View can be a single native currency, or 'primary' = all currencies
-  // converted to the primary currency and combined. Default to the combined
-  // view when the data spans more than one currency.
-  const [view, setView] = useState<Currency | 'primary'>(() =>
-    presentCurrencies.length === 1 ? presentCurrencies[0] : 'primary'
-  );
+  // converted to the primary currency and combined.
+  const [view, setView] = useState<Currency | 'primary'>('primary');
+
+  // Pick the default once the data actually arrives. A lazy useState initializer
+  // cannot do this: App fetches expenses *after* mount, so on the first render
+  // `expenses` is always [] and the single-currency default never fired — a
+  // PLN-only user was permanently shown "All -> PLN", converting PLN to PLN.
+  // `defaulted` keeps this to one shot so it never overrides a later choice.
+  const defaulted = useRef(false);
+  useEffect(() => {
+    if (defaulted.current || presentCurrencies.length === 0) return;
+    defaulted.current = true;
+    if (presentCurrencies.length === 1) setView(presentCurrencies[0]);
+  }, [presentCurrencies]);
   const [timeGrouping, setTimeGrouping] = useState<TimeGrouping>('day');
 
   const converted = view === 'primary';
@@ -150,7 +159,7 @@ export default function Dashboard({ expenses, settings, rates }: DashboardProps)
             >
               All → {primary}
             </button>
-            {CURRENCIES.map(c => (
+            {CURRENCIES.filter(c => presentCurrencies.includes(c)).map(c => (
               <button key={c} className={view === c ? 'active' : ''} onClick={() => setView(c)}>
                 {c} ({CURRENCY_SYMBOLS[c]})
               </button>

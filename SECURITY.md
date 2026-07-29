@@ -68,8 +68,13 @@ alert. If you intend to import spreadsheets you did not create, that changes the
   rejection of separators and null bytes, and an independent `path.resolve` containment check.
 - **Tokens** are HMAC-SHA256 with a 7-day expiry and no server-side revocation list. Changing
   `AUTH_SECRET` (or `APP_PASSWORD`) invalidates every outstanding token.
-- **Containers currently run as root.** Fixing this properly requires handling ownership of the
-  bind-mounted `./data` volume so existing installs do not break with `SQLITE_CANTOPEN`; it is a
-  known gap rather than an oversight.
-- **Backups are not automated.** Copy the `data/` directory — it holds both the database and the
-  receipt images.
+- **The backend process runs unprivileged.** `backend/docker-entrypoint.sh` starts as root only long
+  enough to `chown` the bind-mounted `./data` volume — whose ownership comes from the host and so
+  cannot be baked into the image — then `exec`s the server as the `node` user via `su-exec`. Declaring
+  `USER node` outright instead would break every existing install with `SQLITE_CANTOPEN` on upgrade.
+  The nginx container follows the standard model: the master process binds port 80 as root and its
+  workers run as the unprivileged `nginx` user.
+- **Backups are not automated,** but the database runs in WAL mode so it can be snapshotted live with
+  `sqlite3 data/expenses.db ".backup 'backup/expenses.db'"`. Back up the whole `data/` directory — it
+  holds the receipt images too, and WAL adds `-wal`/`-shm` sidecars that make a bare copy of
+  `expenses.db` unsafe. Recipes are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).

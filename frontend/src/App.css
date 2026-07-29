@@ -450,6 +450,9 @@ button[type='submit']:disabled,
 .summary-card .subtitle { color: var(--text-dim); font-size: 0.82rem; margin-top: 4px; }
 .result-card.success .result-value { color: var(--accent); }
 .result-card.failed .result-value { color: var(--danger); }
+/* Skipped rows are neither a success nor an error — blank and summary lines the
+   importer deliberately passed over. Muted so it does not read as a failure. */
+.result-card.skipped .result-value { color: var(--text-muted); }
 
 /* ---------- Charts ---------- */
 .charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -923,3 +926,20 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
   box-shadow: var(--shadow-sm);
 }
 .receipt-modal-close:hover { background: var(--surface); }
+
+/* Table pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px 12px 4px;
+  flex-wrap: wrap;
+}
+.pagination-status {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.pagination-count { color: var(--text-dim); }
+.pagination button[disabled] { opacity: 0.45; cursor: not-allowed; }

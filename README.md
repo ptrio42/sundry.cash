@@ -182,24 +182,26 @@ npm run build         # typecheck and build both packages
 npm run test          # backend Jest, then frontend Vitest
 ```
 
-Tests: **92 backend cases** across 10 files (Jest + supertest) and **14 frontend cases** across 4 files
-(Vitest + Testing Library). The backend suite redirects `DB_PATH` to a temp directory before any app module
-loads, so running it never touches your real database. CI
-([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) typechecks, builds and tests both packages and
-builds the Docker images.
-
-The frontend is the under-tested half — 4 test files against 12 components. That is the honest gap.
+Tests: **99 backend cases** across 10 files (Jest + supertest) and **95 frontend cases** across 13 files
+(Vitest + Testing Library) — every component has a suite, plus the API wrapper and the FX helper. The
+backend suite redirects `DB_PATH` to a temp directory before any app module loads, so running it never
+touches your real database. CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) lints, typechecks,
+builds and tests both packages, and builds the Docker images.
 
 ## Limitations
 
 Worth knowing before you rely on it:
 
 - **Single user.** One password, one ledger. No accounts, no sharing model, no per-user data.
-- **No pagination.** Every expense is fetched and rendered at once. Fine for the thousands a person
-  actually records; not built for a hundred thousand.
+- **The whole ledger is fetched in one request.** The table pages 50 rows at a time so the DOM stays
+  small, but the dashboard and analytics need every row to draw their charts, so there is no
+  server-side paging. Fine for the thousands of expenses a person actually records; not built for a
+  hundred thousand.
 - **Manual FX rates.** No live feed by design.
 - **No recurring expenses**, no income tracking, no attachments beyond receipt photos.
-- **Backups are your job** — copy the `data/` directory; it holds both the database and the receipt images.
+- **Backups are your job**, but the database runs in WAL mode so it can be snapshotted while running:
+  `sqlite3 data/expenses.db ".backup 'backup/expenses.db'"`. Back up the whole `data/` directory — it
+  holds the receipt images too. Recipes in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Security
 

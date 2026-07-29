@@ -320,6 +320,16 @@ export default function ExcelImport({ settings }: { settings: AppSettings }) {
               <h4>✗ Failed</h4>
               <p className="result-value">{importResults.failed}</p>
             </div>
+            {/* The server counts skipped rows (blank/summary lines) separately
+                so nothing vanishes unexplained. Dropping it here put that back:
+                130 successful + 5 failed against a total of 137 left the reader
+                to wonder about the other two. */}
+            {importResults.skipped > 0 && (
+              <div className="result-card skipped">
+                <h4>⤼ Skipped</h4>
+                <p className="result-value">{importResults.skipped}</p>
+              </div>
+            )}
             <div className="result-card total">
               <h4>Total</h4>
               <p className="result-value">{importResults.total}</p>
