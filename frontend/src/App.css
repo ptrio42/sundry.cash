@@ -923,3 +923,20 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
   box-shadow: var(--shadow-sm);
 }
 .receipt-modal-close:hover { background: var(--surface); }
+
+/* Table pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px 12px 4px;
+  flex-wrap: wrap;
+}
+.pagination-status {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.pagination-count { color: var(--text-dim); }
+.pagination button[disabled] { opacity: 0.45; cursor: not-allowed; }
