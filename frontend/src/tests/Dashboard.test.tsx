@@ -1,0 +1,162 @@
+/**
+ * Tests for the Dashboard component.
+ *
+ * The charts are untestable in jsdom (no layout), but the currency handling
+ * around them is the part that can silently go wrong: the dashboard either
+ * shows one native currency, or converts every expense into the primary
+ * currency through the user's FX rates. Which of those it starts on depends on
+ * how many currencies the data actually spans. The summary tiles are the
+ * visible output of that choice, so they are what these tests pin down.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import Dashboard from '../components/Dashboard';
+import { AppSettings, Expense, FxRates } from '../types/expense.types';
+
+// Value of one unit in USD: 1 PLN = 0.25 USD (so 1 USD = 4 PLN), 1 BTC = 65000 USD.
+const rates: FxRates = { USD: 1, PLN: 0.25, BTC: 65000 };
+
+const settings = (primaryCurrency: AppSettings['primaryCurrency']): AppSettings => ({
+  defaultCurrency: 'USD',
+  defaultCategory: 'groceries',
+  defaultBtcUnit: 'BTC',
+  primaryCurrency,
+});
+
+const expense = (e: Partial<Expense> & Pick<Expense, 'id' | 'amount'>): Expense => ({
+  date: '2026-07-10',
+  description: 'x',
+  category: 'groceries',
+  currency: 'USD',
+  ...e,
+});
+
+// One currency only. Total 200.00, 3 expenses, average 66.666… , largest 120.
+const usdOnly: Expense[] = [
+  expense({ id: 1, amount: 120, category: 'groceries' }),
+  expense({ id: 2, amount: 50, category: 'transport', date: '2026-07-11' }),
+  expense({ id: 3, amount: 30, category: 'media', date: '2026-07-12' }),
+];
+
+// Three currencies. Converted into PLN: 25 USD -> 100, 400 PLN -> 400,
+// 0.002 BTC -> 0.002 * 65000 / 0.25 = 520. Total 1020 over 3 expenses.
+const mixed: Expense[] = [
+  expense({ id: 1, amount: 25, currency: 'USD', category: 'groceries' }),
+  expense({ id: 2, amount: 400, currency: 'PLN', category: 'transport', date: '2026-07-11' }),
+  expense({ id: 3, amount: 0.002, currency: 'BTC', category: 'media', date: '2026-07-12' }),
+];
+
+/** The `.summary-card` whose heading is `heading`. */
+const card = (heading: string): HTMLElement => {
+  const el = screen.getByText(heading).closest('.summary-card');
+  if (!el) throw new Error(`no summary card titled "${heading}"`);
+  return el as HTMLElement;
+};
+
+describe('Dashboard', () => {
+  it('computes the summary tiles from a single-currency fixture', () => {
+    // Primary is PLN, but the data is USD-only, so nothing should be converted.
+    render(<Dashboard expenses={usdOnly} settings={settings('PLN')} rates={rates} />);
+
+    expect(card('Total Spent')).toHaveTextContent('$200.00'); // 120 + 50 + 30
+    expect(card('Expenses')).toHaveTextContent('3');
+    expect(card('Average')).toHaveTextContent('$66.67'); // 200 / 3
+    expect(card('Largest')).toHaveTextContent('$120.00');
+  });
+
+  it('starts on the sole native currency when the data spans only one', () => {
+    render(<Dashboard expenses={usdOnly} settings={settings('PLN')} rates={rates} />);
+
+    expect(screen.getByRole('button', { name: /^USD/ })).toHaveClass('active');
+    expect(screen.getByRole('button', { name: /^All/ })).not.toHaveClass('active');
+    // The combined view's caveat belongs to the converted view only.
+    expect(screen.queryByText(/converted from all currencies/i)).not.toBeInTheDocument();
+    // 200 USD would be 800 PLN if it had been converted to the primary currency.
+    expect(card('Total Spent')).not.toHaveTextContent('800');
+  });
+
+  it('starts on the combined view and converts everything into the primary currency', () => {
+    render(<Dashboard expenses={mixed} settings={settings('PLN')} rates={rates} />);
+
+    expect(screen.getByRole('button', { name: /^All → PLN/ })).toHaveClass('active');
+    expect(screen.getByText(/converted from all currencies/i)).toBeInTheDocument();
+
+    // 100 + 400 + 520 = 1020 PLN, not the meaningless raw sum of 425.002.
+    expect(card('Total Spent')).toHaveTextContent(/1\s*020,00\s*zł/);
+    expect(card('Expenses')).toHaveTextContent('3');
+    expect(card('Average')).toHaveTextContent(/340,00\s*zł/); // 1020 / 3
+    // The BTC row is the smallest raw number but the largest once converted.
+    expect(card('Largest')).toHaveTextContent(/520,00\s*zł/);
+  });
+
+  it('converts into USD instead when USD is the primary currency', () => {
+    render(<Dashboard expenses={mixed} settings={settings('USD')} rates={rates} />);
+
+    // 25 + (400 * 0.25) + (0.002 * 65000) = 25 + 100 + 130 = 255 USD.
+    expect(screen.getByRole('button', { name: /^All → USD/ })).toHaveClass('active');
+    expect(card('Total Spent')).toHaveTextContent('$255.00');
+    expect(card('Largest')).toHaveTextContent('$130.00');
+  });
+
+  it('narrows to a single native currency and back again', () => {
+    render(<Dashboard expenses={mixed} settings={settings('PLN')} rates={rates} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^USD/ }));
+
+    // Only the one USD expense survives, and it is shown unconverted.
+    expect(card('Expenses')).toHaveTextContent('1');
+    expect(card('Total Spent')).toHaveTextContent('$25.00');
+    expect(card('Largest')).toHaveTextContent('$25.00');
+    expect(card('Total Spent')).not.toHaveTextContent('zł');
+    expect(screen.queryByText(/converted from all currencies/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^All → PLN/ }));
+    expect(card('Total Spent')).toHaveTextContent(/1\s*020,00\s*zł/);
+    expect(card('Expenses')).toHaveTextContent('3');
+  });
+
+  it('shows a native BTC view in BTC units', () => {
+    render(<Dashboard expenses={mixed} settings={settings('PLN')} rates={rates} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^BTC/ }));
+
+    expect(card('Total Spent')).toHaveTextContent('₿0.002');
+    expect(card('Expenses')).toHaveTextContent('1');
+    expect(card('Largest')).toHaveTextContent('₿0.002');
+  });
+
+  it('only offers currencies the data actually contains', () => {
+    render(<Dashboard expenses={usdOnly} settings={settings('PLN')} rates={rates} />);
+
+    // USD is present, so it is offered alongside the combined view. PLN and BTC
+    // are not in the data and would lead to a guaranteed-empty dashboard, so
+    // they are not offered at all.
+    expect(screen.getByRole('button', { name: /^USD/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^PLN/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^BTC/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^USD/ }));
+    expect(card('Total Spent')).toHaveTextContent('$200.00');
+  });
+
+  it('defaults to the sole native currency once the data arrives', () => {
+    // The default is applied in an effect, not a lazy useState initializer:
+    // App fetches expenses after mount, so on the first render there is no data
+    // to inspect and a single-currency user would otherwise be stuck on the
+    // combined view converting USD to PLN.
+    render(<Dashboard expenses={usdOnly} settings={settings('PLN')} rates={rates} />);
+
+    expect(screen.getByRole('button', { name: /^USD/ })).toHaveClass('active');
+    expect(card('Total Spent')).toHaveTextContent('$200.00');
+  });
+
+  it('renders the combined empty state when there are no expenses at all', () => {
+    render(<Dashboard expenses={[]} settings={settings('PLN')} rates={rates} />);
+
+    expect(screen.getByText('No expenses yet. Add some to see your dashboard.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^All → PLN/ })).toHaveClass('active');
+    expect(screen.queryByText('Expenses')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Daily Spend/)).not.toBeInTheDocument();
+  });
+});
