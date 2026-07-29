@@ -53,7 +53,7 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   `money.ts` (minor-unit conversion).
 - `src/middleware/` — `auth` (`requireAuth`), `validation`.
 - `src/services/` — `categorize.ts` (keyword auto-categorization, EN + PL); `receipt/` (OCR factory — see gotchas).
-- `src/tests/` — Jest + supertest, 97 cases across 10 files (plus `env.ts` / `paths.ts` /
+- `src/tests/` — Jest + supertest, 99 cases across 10 files (plus `env.ts` / `paths.ts` /
   `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
 
 **frontend/** — React 18 + Vite, single-page tabbed UI (no router, no state library — plain hooks):
@@ -99,8 +99,8 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes. The **frontend is under-tested**
-   (5 test files / 19 cases against 12 components), so new UI logic especially warrants a test.
+2. `npm run test` passes; add/extend tests for behavior changes (99 backend + 95 frontend cases;
+   every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).
 
