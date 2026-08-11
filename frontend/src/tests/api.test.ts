@@ -18,6 +18,7 @@ import {
   getToken,
   getInsightsComparison,
   getInsightsRecurring,
+  createReceiptExpense,
   getCategories,
   createCategory,
   updateCategory,
@@ -288,6 +289,39 @@ describe('insights', () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: 'Validation failed' }, 400));
 
     await expect(getInsightsComparison({ anchor: 'nope' })).rejects.toThrow('Validation failed');
+  });
+});
+
+describe('receipts', () => {
+  const fields = {
+    amount: 11.18,
+    date: '2024-01-15',
+    description: "beer for Ada's party",
+    category: 'groceries',
+    currency: 'PLN'
+  };
+
+  /** The multipart body the wrapper built for the Nth call. */
+  const sentForm = (n = 0): FormData => fetchMock.mock.calls[n][1].body as FormData;
+
+  it('carries the detected merchant alongside the description', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: 1 }));
+
+    await createReceiptExpense({ ...fields, merchant: 'Żabka' });
+
+    expect(requestedUrl()).toBe('/api/receipts');
+    expect(sentForm().get('description')).toBe("beer for Ada's party");
+    expect(sentForm().get('merchant')).toBe('Żabka');
+  });
+
+  it('omits the merchant entirely when the scan found none', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: 1 }));
+
+    await createReceiptExpense({ ...fields, merchant: null });
+
+    // Absent, not an empty string: the column is nullable and the backend falls
+    // back to the description.
+    expect(sentForm().has('merchant')).toBe(false);
   });
 });
 

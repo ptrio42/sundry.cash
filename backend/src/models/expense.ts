@@ -85,17 +85,21 @@ export function getById(id: number): Expense | undefined {
  */
 export function create(expense: CreateExpenseDTO): Expense {
   const stmt = db.prepare(`
-    INSERT INTO expenses (amount, date, description, category, currency, receipt_image)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO expenses (amount, date, description, category, currency, receipt_image, merchant)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
+  // `merchant` is written but never read back into `Expense`: it is the
+  // scanner's observation, not a field of the expense the user owns. Only
+  // `models/insights.ts` reads it. See the DTO for why.
   const result = stmt.run(
     toMinorUnits(expense.amount, expense.currency),
     expense.date,
     expense.description,
     expense.category,
     expense.currency,
-    expense.receiptImage ?? null
+    expense.receiptImage ?? null,
+    expense.merchant ?? null
   );
 
   // Fetch and return the created expense

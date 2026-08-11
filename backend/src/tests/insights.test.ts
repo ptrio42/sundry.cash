@@ -1,5 +1,5 @@
 /**
- * Tests for the insights API (comparison + recurring).
+ * Tests for the insights API (comparison + recurring + merchants + patterns).
  *
  * Every fixture date is hardcoded and every assertion is anchored explicitly —
  * a suite that seeded relative to `new Date()` would start failing on its own
@@ -493,6 +493,343 @@ describe('Recurring grouping folds non-ASCII case', () => {
   });
 });
 
+describe('GET /api/insights/merchants', () => {
+  // Window used by every case below: 2026-01-01..2026-08-31.
+  beforeAll(() => {
+    reset([
+      // Six coffees at 15 zł. Individually trivial, together the third-biggest
+      // line in the ledger — the spend a category total cannot show you.
+      { amount: 15, date: '2026-02-02', description: 'Coffee Shop', category: 'other', currency: 'PLN' },
+      { amount: 15, date: '2026-02-09', description: 'coffee shop', category: 'other', currency: 'PLN' },
+      { amount: 15, date: '2026-02-16', description: 'COFFEE SHOP', category: 'other', currency: 'PLN' },
+      { amount: 15, date: '2026-02-23', description: '  Coffee Shop  ', category: 'other', currency: 'PLN' },
+      { amount: 15, date: '2026-03-02', description: 'Coffee Shop', category: 'other', currency: 'PLN' },
+      { amount: 15, date: '2026-03-09', description: 'Coffee Shop', category: 'other', currency: 'PLN' },
+
+      // One shop, four spellings, and a receipt-sourced merchant on a row whose
+      // description the user rewrote into something else entirely.
+      { amount: 30, date: '2026-05-06', description: 'Żabka', category: 'groceries', currency: 'PLN' },
+      { amount: 30, date: '2026-06-06', description: 'żabka', category: 'groceries', currency: 'PLN' },
+      { amount: 30, date: '2026-07-06', description: 'ŻABKA', category: 'groceries', currency: 'PLN' },
+      { amount: 40, date: '2026-08-06', description: "beer for Ada's party", category: 'groceries', currency: 'PLN', merchant: 'Żabka' },
+
+      // The merchant wins over the description whenever it is present.
+      { amount: 45, date: '2026-04-01', description: 'lunch', category: 'other', currency: 'PLN', merchant: 'Pasibus' },
+      { amount: 55, date: '2026-04-15', description: 'burger and fries', category: 'other', currency: 'PLN', merchant: 'Pasibus' },
+
+      // An empty-string merchant is not a merchant: these two must land in the
+      // same 'kiosk' group as the row that has none at all (hence the NULLIF).
+      { amount: 12, date: '2026-03-01', description: 'Kiosk', category: 'other', currency: 'PLN', merchant: '' },
+      { amount: 8, date: '2026-03-02', description: 'kiosk', category: 'other', currency: 'PLN' },
+
+      // Biggest single line, so ordering is checkable.
+      { amount: 2000, date: '2026-04-05', description: 'Landlord', category: 'utilities', currency: 'PLN' },
+
+      // Same label in two currencies, which must never merge.
+      { amount: 0.0015, date: '2026-05-01', description: 'Netflix', category: 'media', currency: 'BTC' },
+      { amount: 43, date: '2026-05-01', description: 'Netflix', category: 'media', currency: 'PLN' },
+
+      // Exactly on each edge, which is inclusive, and one day outside each.
+      { amount: 1, date: '2026-01-01', description: 'first day', category: 'other', currency: 'PLN' },
+      { amount: 1, date: '2026-08-31', description: 'last day', category: 'other', currency: 'PLN' },
+      { amount: 5000, date: '2025-12-31', description: 'last year', category: 'other', currency: 'PLN' },
+      { amount: 5000, date: '2026-09-01', description: 'next month', category: 'other', currency: 'PLN' }
+    ]);
+  });
+
+  const merchants = (body: any, key: string, currency = 'PLN') =>
+    body.merchants.find((m: any) => m.key === key && m.currency === currency);
+
+  it('adds up small frequent purchases the category total hides', async () => {
+    const res = await request(app).get('/api/insights/merchants?since=2026-01-01&until=2026-08-31').expect(200);
+    expect(merchants(res.body, 'coffee shop')).toMatchObject({
+      key: 'coffee shop',   // case and padding folded away, as in `recurring`
+      currency: 'PLN',
+      total: 90,
+      count: 6,
+      average: 15,
+      firstSeen: '2026-02-02',
+      lastSeen: '2026-03-09'
+    });
+  });
+
+  it('falls back to the description when no merchant was captured', async () => {
+    const res = await request(app).get('/api/insights/merchants?since=2026-01-01&until=2026-08-31').expect(200);
+    expect(merchants(res.body, 'landlord')).toMatchObject({ total: 2000, count: 1 });
+  });
+
+  it('prefers the detected merchant over the description', async () => {
+    const res = await request(app).get('/api/insights/merchants?since=2026-01-01&until=2026-08-31').expect(200);
+    expect(merchants(res.body, 'pasibus')).toMatchObject({ total: 100, count: 2, average: 50 });
+    // The descriptions those two rows carry are not groups of their own.
+    expect(merchants(res.body, 'lunch')).toBeUndefined();
+    expect(merchants(res.body, 'burger and fries')).toBeUndefined();
+  });
+
+  it('folds non-ASCII case and merges a scanned merchant with a typed one', async () => {
+    const res = await request(app).get('/api/insights/merchants?since=2026-01-01&until=2026-08-31').expect(200);
+    // Three spellings plus one row that only knows it was Żabka from the scan.
+    expect(merchants(res.body, 'żabka')).toMatchObject({
+      total: 130,
+      count: 4,
+      firstSeen: '2026-05-06',
+      lastSeen: '2026-08-06'
+    });
+    expect(merchants(res.body, "beer for ada's party")).toBeUndefined();
+  });
+
+  it('treats an empty-string merchant as no merchant at all', async () => {
+    const res = await request(app).get('/api/insights/merchants?since=2026-01-01&until=2026-08-31').expect(200);
+    expect(merchants(res.body, 'kiosk')).toMatchObject({ total: 20, count: 2 });
+    // Not a group keyed on the empty string, which is what a bare COALESCE gives.
+    expect(res.body.merchants.some((m: any) => m.key === '')).toBe(false);
+  });
+
+  it('never merges currencies', async () => {
+    const res = await request(app).get('/api/insights/merchants?since=2026-01-01&until=2026-08-31').expect(200);
+    const netflix = res.body.merchants.filter((m: any) => m.key === 'netflix');
+    expect(netflix).toHaveLength(2);
+    expect(merchants(res.body, 'netflix', 'BTC')).toMatchObject({ total: 0.0015, count: 1 });
+    expect(merchants(res.body, 'netflix', 'PLN')).toMatchObject({ total: 43, count: 1 });
+  });
+
+  it('respects the window on both sides', async () => {
+    const res = await request(app).get('/api/insights/merchants?since=2026-01-01&until=2026-08-31').expect(200);
+
+    // Both ends are inclusive: a charge dated exactly on an edge counts, and
+    // the day either side of it does not. `until` defaults to today, so an
+    // off-by-one here would drop everything entered today.
+    expect(merchants(res.body, 'first day')).toMatchObject({ count: 1, firstSeen: '2026-01-01' });
+    expect(merchants(res.body, 'last day')).toMatchObject({ count: 1, lastSeen: '2026-08-31' });
+    expect(merchants(res.body, 'last year')).toBeUndefined();
+    expect(merchants(res.body, 'next month')).toBeUndefined();
+
+    // Widened, both appear.
+    const wider = await request(app).get('/api/insights/merchants?since=2025-01-01&until=2026-12-31&limit=100').expect(200);
+    expect(merchants(wider.body, 'last year')).toBeTruthy();
+    expect(merchants(wider.body, 'next month')).toBeTruthy();
+  });
+
+  it('says so when the limit cut the list', async () => {
+    const cut = await request(app).get('/api/insights/merchants?since=2026-01-01&until=2026-08-31&limit=2').expect(200);
+    expect(cut.body.truncated).toBe(true);
+    expect(cut.body.limit).toBe(2);
+    // Two per currency, biggest first, so a truncated list is still the
+    // interesting end of each one.
+    expect(cut.body.merchants.map((m: any) => `${m.currency}:${m.key}`)).toEqual([
+      'BTC:netflix',
+      'PLN:landlord',
+      'PLN:żabka'
+    ]);
+
+    const whole = await request(app).get('/api/insights/merchants?since=2026-01-01&until=2026-08-31&limit=100').expect(200);
+    expect(whole.body.truncated).toBe(false);
+    expect(whole.body.merchants.map((m: any) => `${m.currency}:${m.key}`)).toEqual([
+      'BTC:netflix',
+      'PLN:landlord',
+      'PLN:żabka',
+      'PLN:pasibus',
+      'PLN:coffee shop',
+      'PLN:netflix',
+      'PLN:kiosk',
+      'PLN:first day',
+      'PLN:last day'
+    ]);
+  });
+
+  it('cuts each currency to the limit rather than ranking satoshis against grosze', async () => {
+    // 0.0015 BTC is 150 000 satoshis; 2000 zł is 200 000 grosze. A single
+    // ordered top-N over the raw column would therefore have dropped BTC
+    // entirely here — and on a default install (USD, PLN, BTC) one BTC row
+    // would outrank almost every PLN merchant there is.
+    const res = await request(app).get('/api/insights/merchants?since=2026-01-01&until=2026-08-31&limit=1').expect(200);
+
+    expect(res.body.merchants.map((m: any) => `${m.currency}:${m.key}`)).toEqual(['BTC:netflix', 'PLN:landlord']);
+    expect(res.body.truncated).toBe(true);
+  });
+
+  it('reports the window it used and defaults it to the last twelve months', () => {
+    // Anchored on a fixed today so the assertion cannot rot.
+    const result = insightsModel.getMerchants({ today: '2026-08-31' });
+    expect(result).toMatchObject({ since: '2025-08-31', until: '2026-08-31', limit: 20 });
+    // 2026-09-01 is past `until`, 2025-12-31 is inside the twelve months.
+    expect(result.merchants.find(m => m.key === 'next month')).toBeUndefined();
+    expect(result.merchants.find(m => m.key === 'last year')).toBeTruthy();
+
+    // `since` defaults relative to `until`, not to today, so an old `until`
+    // still answers for the year before it rather than for an empty window.
+    const historical = insightsModel.getMerchants({ until: '2026-03-31', today: '2026-08-31' });
+    expect(historical.since).toBe('2025-03-31');
+    expect(historical.merchants.find(m => m.key === 'coffee shop')).toMatchObject({ count: 6 });
+  });
+
+  it('filters to a single currency on request', async () => {
+    const res = await request(app)
+      .get('/api/insights/merchants?since=2026-01-01&until=2026-08-31&currency=BTC')
+      .expect(200);
+    expect(res.body.merchants).toHaveLength(1);
+    expect(res.body.merchants[0]).toMatchObject({ key: 'netflix', currency: 'BTC', total: 0.0015, average: 0.0015 });
+  });
+
+  it('rejects unknown parameter values', async () => {
+    await request(app).get('/api/insights/merchants?since=nope').expect(400);
+    await request(app).get('/api/insights/merchants?until=2026-13-01').expect(400);
+    await request(app).get('/api/insights/merchants?since=2026-08-01&until=2026-07-01').expect(400);
+    await request(app).get('/api/insights/merchants?currency=ZZZ').expect(400);
+    await request(app).get('/api/insights/merchants?limit=0').expect(400);
+    await request(app).get('/api/insights/merchants?limit=101').expect(400);
+    const res = await request(app).get('/api/insights/merchants?limit=2.5').expect(400);
+    expect(res.body.error).toBe('Validation failed');
+  });
+});
+
+describe('GET /api/insights/patterns', () => {
+  // 2026-06-01 is a Monday, so 06-06 is the Saturday and 06-07 the Sunday.
+  beforeAll(() => {
+    reset([
+      // Exactly 100 PLN on every day of one week. The weekday *total* is 500
+      // against the weekend's 200 — which is a fact about the calendar, not
+      // about the spending, and is precisely what the per-day figures remove.
+      { amount: 100, date: '2026-06-01', description: 'mon', category: 'other', currency: 'PLN' },
+      { amount: 100, date: '2026-06-02', description: 'tue', category: 'other', currency: 'PLN' },
+      { amount: 100, date: '2026-06-03', description: 'wed', category: 'other', currency: 'PLN' },
+      { amount: 100, date: '2026-06-04', description: 'thu', category: 'other', currency: 'PLN' },
+      { amount: 100, date: '2026-06-05', description: 'fri', category: 'other', currency: 'PLN' },
+      { amount: 100, date: '2026-06-06', description: 'sat', category: 'other', currency: 'PLN' },
+      { amount: 100, date: '2026-06-07', description: 'sun', category: 'other', currency: 'PLN' },
+
+      // A second currency in the same window, spent only at the weekend.
+      { amount: 0.001, date: '2026-06-06', description: 'sat btc', category: 'other', currency: 'BTC' },
+      { amount: 0.001, date: '2026-06-07', description: 'sun btc', category: 'other', currency: 'BTC' }
+    ]);
+  });
+
+  const forCurrency = (body: any, currency: string) =>
+    body.byCurrency.find((c: any) => c.currency === currency);
+
+  it('reports a ratio of 1.0 for an even spread, not a weekday win', async () => {
+    const res = await request(app).get('/api/insights/patterns?since=2026-06-01&until=2026-06-07').expect(200);
+    const pln = forCurrency(res.body, 'PLN');
+
+    expect(pln.weekdayPerDay).toBe(100);
+    expect(pln.weekendPerDay).toBe(100);
+    expect(pln.weekendRatio).toBe(1);
+
+    // The totals the naive version would have compared: 5:2, all calendar.
+    const weekdayTotal = [1, 2, 3, 4, 5].reduce((sum, dow) => sum + pln.byWeekday[dow].total, 0);
+    const weekendTotal = pln.byWeekday[0].total + pln.byWeekday[6].total;
+    expect(weekdayTotal).toBe(500);
+    expect(weekendTotal).toBe(200);
+  });
+
+  it('returns all seven days, Sunday first, with zeros where nothing was spent', async () => {
+    const res = await request(app).get('/api/insights/patterns?since=2026-06-01&until=2026-06-05').expect(200);
+    const pln = forCurrency(res.body, 'PLN');
+
+    expect(pln.byWeekday).toHaveLength(7);
+    expect(pln.byWeekday.map((d: any) => d.dow)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    // Monday to Friday only: the weekend buckets exist and are empty.
+    expect(pln.byWeekday[0]).toMatchObject({ dow: 0, days: 0, total: 0, count: 0, perDay: 0 });
+    expect(pln.byWeekday[6]).toMatchObject({ dow: 6, days: 0, total: 0, count: 0, perDay: 0 });
+    expect(pln.byWeekday[1]).toMatchObject({ dow: 1, days: 1, total: 100, count: 1, perDay: 100 });
+  });
+
+  it('has no ratio when the window contains no weekend to compare against', async () => {
+    const res = await request(app).get('/api/insights/patterns?since=2026-06-01&until=2026-06-05').expect(200);
+    // Null rather than 0: the answer is "cannot say", not "nothing at weekends".
+    expect(forCurrency(res.body, 'PLN').weekendRatio).toBeNull();
+  });
+
+  it('divides by the days the window actually holds, not by 5 and 2', async () => {
+    // Ten days: Mon 2026-06-01 to Wed 2026-06-10, so Mon/Tue/Wed occur twice.
+    const res = await request(app).get('/api/insights/patterns?since=2026-06-01&until=2026-06-10').expect(200);
+    const pln = forCurrency(res.body, 'PLN');
+
+    expect(res.body.days).toBe(10);
+    expect(pln.byWeekday.map((d: any) => d.days)).toEqual([1, 2, 2, 2, 1, 1, 1]);
+
+    // Only the first week has spending: 500 across 8 weekday-slots, 200 across 2.
+    expect(pln.weekdayPerDay).toBe(62.5);
+    expect(pln.weekendPerDay).toBe(100);
+    expect(pln.weekendRatio).toBe(1.6);
+    // Monday's own average halves, because the window holds two Mondays.
+    expect(pln.byWeekday[1]).toMatchObject({ days: 2, total: 100, count: 1, perDay: 50 });
+  });
+
+  it('keeps currencies apart and rounds each to its own minor unit', async () => {
+    const res = await request(app).get('/api/insights/patterns?since=2026-06-01&until=2026-06-07').expect(200);
+    expect(res.body.byCurrency.map((c: any) => c.currency)).toEqual(['BTC', 'PLN']);
+
+    const btc = forCurrency(res.body, 'BTC');
+    expect(btc.weekendPerDay).toBe(0.001);
+    // Nothing on weekdays, so there is nothing to divide by — null, not Infinity.
+    expect(btc.weekdayPerDay).toBe(0);
+    expect(btc.weekendRatio).toBeNull();
+  });
+
+  it('filters to a single currency on request', async () => {
+    const res = await request(app)
+      .get('/api/insights/patterns?since=2026-06-01&until=2026-06-07&currency=PLN')
+      .expect(200);
+    expect(res.body.byCurrency).toHaveLength(1);
+    expect(res.body.byCurrency[0].currency).toBe('PLN');
+  });
+
+  it('defaults the window to the last twelve months', () => {
+    // Fixed today, so the assertion cannot rot.
+    const result = insightsModel.getPatterns({ today: '2026-06-30' });
+    expect(result).toMatchObject({ since: '2025-06-30', until: '2026-06-30', days: 366 });
+    expect(result.byCurrency.map(c => c.currency)).toEqual(['BTC', 'PLN']);
+  });
+
+  it('counts weekdays the same way a brute-force walk would', () => {
+    // The closed-form count is the load-bearing part of this endpoint, so it is
+    // checked against the obvious implementation over a batch of odd windows.
+    const bruteForce = (start: string, end: string): number[] => {
+      const counts = [0, 0, 0, 0, 0, 0, 0];
+      for (let ms = Date.parse(`${start}T00:00:00Z`); ms <= Date.parse(`${end}T00:00:00Z`); ms += 86_400_000) {
+        counts[new Date(ms).getUTCDay()]++;
+      }
+      return counts;
+    };
+
+    const windows: Array<[string, string]> = [
+      ['2026-06-01', '2026-06-01'], // one day
+      ['2026-06-01', '2026-06-03'], // three days
+      ['2026-06-01', '2026-06-07'], // a whole week
+      ['2026-06-01', '2026-06-10'], // a week and a bit
+      ['2026-02-01', '2026-03-15'], // spans a month boundary
+      ['2024-02-01', '2024-03-01'], // spans a leap day
+      ['2025-06-30', '2026-06-30']  // the default window
+    ];
+
+    for (const [since, until] of windows) {
+      // A row inside the window, so there is a currency bucket to read the day
+      // counts off; removed again below so the rest of the suite is untouched.
+      expenseModel.create({ amount: 1, date: since, description: 'weekday probe', category: 'other', currency: 'PLN' });
+
+      const expected = bruteForce(since, until);
+      const result = insightsModel.getPatterns({ since, until, currency: 'PLN' });
+
+      expect(result.byCurrency[0].byWeekday.map(d => d.days)).toEqual(expected);
+      expect(result.days).toBe(expected.reduce((sum, n) => sum + n, 0));
+
+      db.exec(`DELETE FROM expenses WHERE description = 'weekday probe'`);
+    }
+  });
+
+  it('rejects unknown parameter values', async () => {
+    await request(app).get('/api/insights/patterns?since=nope').expect(400);
+    await request(app).get('/api/insights/patterns?until=2026-13-01').expect(400);
+    await request(app).get('/api/insights/patterns?since=2026-08-01&until=2026-07-01').expect(400);
+    // Years below 1000 land in the 20th century via Date.UTC, which would count
+    // the wrong weekdays — refused rather than answered wrongly, like `anchor`.
+    await request(app).get('/api/insights/patterns?since=0999-01-01').expect(400);
+    const res = await request(app).get('/api/insights/patterns?currency=ZZZ').expect(400);
+    expect(res.body.error).toBe('Validation failed');
+  });
+});
+
 describe('Insights with an empty ledger', () => {
   beforeAll(() => {
     reset();
@@ -507,5 +844,17 @@ describe('Insights with an empty ledger', () => {
   it('returns an empty recurring list rather than failing', async () => {
     const res = await request(app).get('/api/insights/recurring').expect(200);
     expect(res.body.recurring).toEqual([]);
+  });
+
+  it('returns an empty merchant list rather than failing', async () => {
+    const res = await request(app).get('/api/insights/merchants').expect(200);
+    expect(res.body.merchants).toEqual([]);
+    expect(res.body.truncated).toBe(false);
+  });
+
+  it('returns no patterns rather than a division by zero', async () => {
+    const res = await request(app).get('/api/insights/patterns?since=2026-06-01&until=2026-06-07').expect(200);
+    expect(res.body.byCurrency).toEqual([]);
+    expect(res.body.days).toBe(7);
   });
 });

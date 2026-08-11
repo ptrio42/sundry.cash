@@ -114,6 +114,7 @@ export function initializeDatabase(): void {
       currency TEXT NOT NULL DEFAULT 'USD',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       receipt_image TEXT,
+      merchant TEXT,
       FOREIGN KEY(category) REFERENCES categories(slug),
       FOREIGN KEY(currency) REFERENCES currencies(code)
     )
@@ -321,6 +322,24 @@ export function initializeDatabase(): void {
   // one — they land in different releases, and a database can arrive needing
   // either, both, or neither.
   migrateCurrencyEnumToTable();
+
+  // Migration: the merchant a receipt scan detected, kept beside the
+  // description the user is free to rewrite. Nullable, never backfilled and
+  // never an input field — `models/insights.ts` falls back to the description
+  // when it is NULL, so every manual and historical row still groups. See
+  // docs/insights-spec.md.
+  //
+  // Placed after both enum migrations rather than beside `receipt_image`:
+  // those recreate `expenses` from an explicit column list, so a column added
+  // before them would be dropped on the one start that migrates.
+  try {
+    db.exec(`ALTER TABLE expenses ADD COLUMN merchant TEXT`);
+    console.log('Added merchant column to expenses table');
+  } catch (error: any) {
+    if (!error.message.includes('duplicate column name')) {
+      console.error('merchant migration failed:', error.message);
+    }
+  }
 
   // Last: needs `expenses` and `budgets` to exist, and needs the migration
   // above to have finished rebuilding them.

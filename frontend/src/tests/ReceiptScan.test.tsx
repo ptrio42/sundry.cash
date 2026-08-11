@@ -8,7 +8,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ReceiptScan from '../components/ReceiptScan';
 import { TEST_CATEGORIES } from './categories.fixture';
 import { TEST_CURRENCIES } from './currencies.fixture';
-import { scanReceipt } from '../services/api';
+import { scanReceipt, createReceiptExpense } from '../services/api';
 import { AppSettings } from '../types/expense.types';
 
 const TEST_SETTINGS: AppSettings = { defaultCurrency: 'PLN', defaultCategory: 'groceries', defaultBtcUnit: 'BTC', primaryCurrency: 'PLN' };
@@ -72,6 +72,62 @@ describe('ReceiptScan', () => {
     expect((screen.getByLabelText(/description/i) as HTMLInputElement).value).toBe('Biedronka');
     expect((screen.getByLabelText(/category/i) as HTMLSelectElement).value).toBe('groceries');
     expect((screen.getByLabelText(/currency/i) as HTMLSelectElement).value).toBe('PLN');
+  });
+
+  it('saves the detected merchant even when the description is rewritten', async () => {
+    (scanReceipt as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      amount: 11.18,
+      date: '2024-01-15',
+      merchant: 'Żabka',
+      currency: 'PLN',
+      category: 'groceries',
+      rawText: 'ŻABKA',
+      confidence: 0.9,
+      warnings: [],
+    });
+    (createReceiptExpense as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 1, amount: 11.18, date: '2024-01-15', description: "beer for Ada's party",
+      category: 'groceries', currency: 'PLN',
+    });
+
+    render(<ReceiptScan onExpenseAdded={vi.fn()} settings={TEST_SETTINGS} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} />);
+    selectFile();
+    fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /save expense/i })).toBeInTheDocument());
+
+    // The shop is never an input — there is exactly one text box here, and it
+    // is the description the user is free to overwrite.
+    expect(screen.queryByLabelText(/merchant/i)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/description/i), { target: { value: "beer for Ada's party" } });
+    fireEvent.click(screen.getByRole('button', { name: /save expense/i }));
+
+    // Which shop it was survives the rewrite, so insights can still group it.
+    await waitFor(() => expect(createReceiptExpense).toHaveBeenCalled());
+    expect((createReceiptExpense as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({
+      description: "beer for Ada's party",
+      merchant: 'Żabka',
+    });
+  });
+
+  it('sends no merchant when the scan did not find one', async () => {
+    (scanReceipt as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      amount: 5, date: '2024-01-15', merchant: null, currency: 'PLN',
+      category: 'other', rawText: '', confidence: 0.4, warnings: [],
+    });
+    (createReceiptExpense as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 2, amount: 5, date: '2024-01-15', description: 'Corner shop', category: 'other', currency: 'PLN',
+    });
+
+    render(<ReceiptScan onExpenseAdded={vi.fn()} settings={TEST_SETTINGS} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} />);
+    selectFile();
+    fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /save expense/i })).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText(/description/i), { target: { value: 'Corner shop' } });
+    fireEvent.click(screen.getByRole('button', { name: /save expense/i }));
+
+    await waitFor(() => expect(createReceiptExpense).toHaveBeenCalled());
+    expect((createReceiptExpense as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].merchant).toBeNull();
   });
 
   it('surfaces warnings from the OCR result', async () => {
