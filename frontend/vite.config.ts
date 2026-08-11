@@ -8,12 +8,16 @@ export default defineConfig({
     // Bind to 0.0.0.0 so other devices on the LAN (e.g. a phone testing receipt
     // capture) can reach the dev server at http://<lan-ip>:5173.
     host: true,
-    port: 5173,
+    // Both are overridable so a second instance can run beside the first — a
+    // demo database on its own ports, without stopping the one you are using.
+    // The defaults are the previous hardcoded values, so a plain `npm run dev`
+    // is unchanged.
+    port: Number(process.env.VITE_DEV_PORT) || 5173,
     open: true,
     // Proxy API calls to the backend in dev so the frontend can use the same
     // relative "/api" base URL it uses in production (behind nginx).
     proxy: {
-      '/api': 'http://localhost:5000'
+      '/api': process.env.VITE_API_TARGET || 'http://localhost:5000'
     }
   },
   test: {
