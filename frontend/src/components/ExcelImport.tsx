@@ -22,7 +22,19 @@ interface ImportResults {
   errors: Array<{ row: number; error: string; data: unknown }>;
 }
 
-export default function ExcelImport({ settings, currencies }: { settings: AppSettings; currencies: CurrencyInfo[] }) {
+interface ExcelImportProps {
+  settings: AppSettings;
+  currencies: CurrencyInfo[];
+  /**
+   * Rows landed in the ledger. Optional because the importer does not care who
+   * is watching — but a caller that renders the ledger beside it does: Home's
+   * Start card is the empty state, and without this it would still say "nothing
+   * recorded yet" after 600 rows arrived.
+   */
+  onImported?: () => void;
+}
+
+export default function ExcelImport({ settings, currencies, onImported }: ExcelImportProps) {
   const [file, setFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [dateColumn, setDateColumn] = useState<string>('');
@@ -113,6 +125,10 @@ export default function ExcelImport({ settings, currencies }: { settings: AppSet
       });
       setImportResults(results.results);
       setPreviewData(null); // Clear preview after successful import
+      // Only when something actually landed: a file where every row failed
+      // leaves the ledger exactly as it was, and re-reading it would be a
+      // request that cannot change anything.
+      if (results.results.success > 0) onImported?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to import file');
     } finally {

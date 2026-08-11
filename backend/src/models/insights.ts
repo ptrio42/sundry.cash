@@ -762,6 +762,12 @@ export interface SummaryResult {
   /** 'primary' (everything converted) or the currency code that was asked for. */
   scope: string;
   currency: Currency;
+  /**
+   * Days of the current window that have elapsed — the number every per-day
+   * figure divides by, and the one the frontend prints in a sentence. Equal to
+   * the window's length for `rolling`, shorter for a calendar period in
+   * progress; see `measuredEnd` in `getSummary`.
+   */
   windowDays: number;
   findings: Finding[];
 }
@@ -791,9 +797,16 @@ function convert(amount: number, from: Currency, to: Currency, rates: Record<str
  * The one question that decides everything: what changed, and does it matter
  * relative to what this person actually spends?
  *
- * Composes the four analyses above over a single window — a rolling month
- * ending at `anchor` — so that every finding is scored against the same
+ * Composes the four analyses above over a single window — by default a rolling
+ * month ending at `anchor` — so that every finding is scored against the same
  * denominator, and returns at most `limit` of them.
+ *
+ * `period` and `window` are `getComparison`'s own pair, forwarded verbatim: the
+ * caller decides how long the window is, and everything here (the merchant and
+ * weekday passes included) measures over whatever the comparison came back
+ * with. That keeps `materiality` honest — it divides by spend *in the window*,
+ * so a year of coffees scored against a month of spending would clear every
+ * threshold on arithmetic alone.
  *
  * Fewer than `limit`, or none at all, is a correct answer. A quiet month should
  * say nothing rather than pad itself out with noise.
@@ -804,6 +817,9 @@ export function getSummary(params: {
   limit?: number;
   /** Both the end of the window and the summary's notion of "now". */
   anchor?: string;
+  /** How long the scored window is — as on /comparison, default a rolling month. */
+  period?: ComparisonPeriod;
+  window?: ComparisonWindow;
 } = {}): SummaryResult {
   const scope = params.scope ?? 'primary';
   const limit = Math.min(Math.max(Math.trunc(params.limit ?? DEFAULT_SUMMARY_LIMIT), 1), MAX_SUMMARY_LIMIT);
@@ -829,10 +845,30 @@ export function getSummary(params: {
     return converted === null ? null : snap(converted);
   };
 
-  const comparison = getComparison({ anchor, currency: nativeFilter });
-  const days = diffDays(comparison.current.start, comparison.current.end) + 1;
+  const comparison = getComparison({
+    window: params.window,
+    period: params.period,
+    anchor,
+    currency: nativeFilter
+  });
+
+  /**
+   * The part of the current window that has actually happened.
+   *
+   * A rolling window ends at the anchor, so this is the whole of it. A calendar
+   * one runs to the end of its period: on the 11th of August, twenty of its
+   * thirty-one days have not occurred. Every per-day figure and every `days`
+   * below is measured over the elapsed part, because the spend they divide only
+   * covers that — otherwise a weekend habit would be reported at a third of its
+   * real rate under a sentence stating a window three times too long. That is
+   * F10's defect, and it arrives through the back door the moment `window`
+   * becomes a parameter.
+   */
+  const measuredEnd = comparison.current.end < anchor ? comparison.current.end : anchor;
+  const days = diffDays(comparison.current.start, measuredEnd) + 1;
   // Measured rather than assumed equal: only `rolling` guarantees two windows of
   // the same length, and a sentence should not state a number nobody looked at.
+  // The previous window is always complete, so it is not clamped.
   const previousDays = diffDays(comparison.previous.start, comparison.previous.end) + 1;
 
   // One entry per category in the display currency. `isNew` is re-derived from
@@ -971,7 +1007,7 @@ export function getSummary(params: {
   // year of coffees measured against a month of spending would score above 1
   // every time. The per-currency limit is raised to its maximum because only
   // the top merchant can win a slot anyway, and the cut is by total.
-  const merchantWindow = { since: comparison.current.start, until: comparison.current.end };
+  const merchantWindow = { since: comparison.current.start, until: measuredEnd };
   const merchants = getMerchants({ ...merchantWindow, currency: nativeFilter, limit: MAX_MERCHANT_LIMIT });
 
   const byMerchant = new Map<string, { total: number; count: number }>();
@@ -1003,7 +1039,7 @@ export function getSummary(params: {
   // Per day on both sides, never totals: a week holds five weekdays and two
   // weekend days, so comparing totals would report the calendar as a habit.
   const patterns = getPatterns({ ...merchantWindow, currency: nativeFilter });
-  const dayCounts = weekdayCounts(comparison.current.start, comparison.current.end);
+  const dayCounts = weekdayCounts(comparison.current.start, measuredEnd);
   const weekendDays = WEEKEND_DOWS.reduce((sum, dow) => sum + dayCounts[dow], 0);
   const weekdayDays = dayCounts.reduce((sum, count) => sum + count, 0) - weekendDays;
 

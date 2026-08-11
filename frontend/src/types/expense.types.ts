@@ -300,12 +300,16 @@ export interface ExpenseTableProps {
   onUpdate: (id: number, updates: Partial<Expense>) => Promise<void>;
 }
 
-export interface DashboardProps {
+export interface HomeProps {
   expenses: Expense[];
   settings: AppSettings;
   categories: Category[];
   currencies: CurrencyInfo[];
   rates: FxRates;
+  /** The Start card's second action — Home is not a place you record from. */
+  onAddExpense: () => void;
+  /** The ledger changed under us, because the Start card imported a spreadsheet. */
+  onExpensesStale: () => void;
 }
 
 export interface BudgetsProps {

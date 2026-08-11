@@ -665,11 +665,17 @@ export async function getInsightsPatterns(params: {
  * USD one requires the conversion, so the scope has to go to the server —
  * switching currencies costs a round trip rather than a re-render, and buys one
  * implementation of the merge instead of two.
+ *
+ * `period` and `window` are the pair /comparison takes, with the same defaults:
+ * Home's page-window control moves the spending sections and the findings that
+ * head them together, so both requests have to be asked the same question.
  */
 export async function getInsightsSummary(params: {
   scope?: string;
   limit?: number;
   anchor?: string;
+  period?: ComparisonPeriod;
+  window?: ComparisonWindow;
 } = {}): Promise<SummaryResult> {
   const queryParams = new URLSearchParams();
 
@@ -681,6 +687,12 @@ export async function getInsightsSummary(params: {
   }
   if (params.anchor) {
     queryParams.append('anchor', params.anchor);
+  }
+  if (params.period) {
+    queryParams.append('period', params.period);
+  }
+  if (params.window) {
+    queryParams.append('window', params.window);
   }
 
   const response = await apiFetch(

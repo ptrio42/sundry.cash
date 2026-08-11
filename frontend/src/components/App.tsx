@@ -5,19 +5,19 @@
  * sheet (§2 of `docs/ux-review-findings.md`). It also owns the route table, the
  * per-screen status line and the application state every screen is fed from.
  *
- * The screens behind the destinations are, for now, the components that were
- * already there — "Home" renders today's Dashboard. Waves 2–4 rebuild them one
- * at a time, each inside a single screen, which is what this shell exists to
- * make possible. `Analytics`, `Insights`, `Fx`, `ExcelImport` and `ReceiptScan`
- * are not reachable in the meantime: they lose their nav entries here and are
- * re-entered from within their new homes, so they are deliberately not imported
- * rather than deleted.
+ * Home is the real thing as of wave 2: `Dashboard`, `Insights` and
+ * `InsightsStrip` merged into one screen that leads with what it found. Waves 3
+ * and 4 rebuild Expenses and Budgets the same way. `Analytics`, `Fx` and
+ * `ReceiptScan` are still not reachable: they lose their nav entries here and
+ * are re-entered from within their new homes, so they are deliberately not
+ * imported rather than deleted. `ExcelImport` is reachable again, but from
+ * inside Home's Start card rather than from a destination of its own.
  */
 
 import { useState, useEffect } from 'react';
 import ExpenseForm from './ExpenseForm';
 import ExpenseTable from './ExpenseTable';
-import Dashboard from './Dashboard';
+import Home from './Home';
 import Budgets from './Budgets';
 import Settings from './Settings';
 import EditExpenseModal from './EditExpenseModal';
@@ -58,12 +58,13 @@ const TITLES: Record<Destination, string> = {
 /**
  * Where a visitor goes when the app boots without a route.
  *
- * Still the Add form, on purpose: the report is explicit that opening on Home is
- * worthless until Home is worth opening, which is the end of wave 2. What
- * changes here is only that the URL now says so, and a reload comes back to
- * wherever you actually were.
+ * Home, as of wave 2 — change 2, and the last line of that wave rather than the
+ * first. The report is explicit that flipping this is worthless until Home is
+ * worth opening, and that it is the one change altering what every user sees
+ * first: a product that tells you things must not open on a blank form and ask
+ * you to work before it says anything.
  */
-const BOOT_DESTINATION: Destination = 'add';
+const BOOT_DESTINATION: Destination = 'home';
 
 /**
  * What to assume until `/api/config` answers — and what to keep assuming if it
@@ -340,12 +341,13 @@ export default function App() {
    * tagline (F18, change 16). "Track your spending, stay on budget" pitched a
    * budgeting app under every one of ten page titles and never carried a fact.
    *
-   * Home and Expenses state the window they actually have today, which is the
-   * whole ledger; wave 2 gives Home real per-section windows and this line
-   * follows them.
+   * Home is the one screen this line cannot state a window for, and says so:
+   * it carries two on purpose (ruling R2) and each of its sections prints its
+   * own. Expenses still states the window it actually has, which is the whole
+   * ledger, until wave 3 gives it a filter bar.
    */
   const STATUS: Record<Destination, string> = {
-    home: 'An overview of everything you have recorded.',
+    home: 'What stands out, and what you spent — every section states its own period.',
     expenses: 'Your whole ledger — filter, sort and export it.',
     budgets: `Limits and spending for ${monthLabel(currentMonthKey())}.`,
     settings: 'Defaults, currencies and categories for this install.',
@@ -457,7 +459,17 @@ export default function App() {
                   onUpdate={handleUpdateExpense}
                 />
               )}
-              {destination === 'home' && <Dashboard expenses={expenses} settings={settings} categories={categories} currencies={currencies} rates={fxRates} />}
+              {destination === 'home' && (
+                <Home
+                  expenses={expenses}
+                  settings={settings}
+                  categories={categories}
+                  currencies={currencies}
+                  rates={fxRates}
+                  onAddExpense={() => navigate('add')}
+                  onExpensesStale={refreshExpenses}
+                />
+              )}
               {destination === 'budgets' && <Budgets expenses={expenses} settings={settings} categories={categories} currencies={currencies} />}
               {destination === 'settings' && (
                 <Settings

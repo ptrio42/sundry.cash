@@ -46,9 +46,9 @@ export function hashFor(destination: Destination): string {
 /**
  * The current destination, and a way to go somewhere else.
  *
- * `fallback` is where an unrecognised URL lands — the boot destination. It stays
- * `add` in this wave on purpose: flipping the app to open on Home is worthless
- * until Home is worth opening, which is the end of wave 2.
+ * `fallback` is where an unrecognised URL lands — the boot destination, which is
+ * `home` from wave 2 onward (change 2). The caller decides; this file only has
+ * to know that something has to answer for a URL naming nothing.
  */
 export function useRoute(fallback: Destination): [Destination, (next: Destination) => void] {
   const [destination, setDestination] = useState<Destination>(
