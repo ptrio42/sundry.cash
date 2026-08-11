@@ -1,0 +1,40 @@
+# Front proxy for every Sundry instance on this host.
+#
+#   caddy run --config /srv/sundry/deploy/Caddyfile
+#   caddy reload --config /srv/sundry/deploy/Caddyfile   # after adding a block
+#
+# Caddy is here for one reason: it obtains and renews Let's Encrypt certificates
+# on its own, so adding a customer is a four-line block and a reload rather than
+# a certificate task. At this scale one block per instance is the whole control
+# plane; there is nothing to orchestrate.
+#
+# Each `reverse_proxy` port is the HTTP_PORT from that instance's env file
+# (deploy/*.env), and each of those instances should set BIND_ADDR=127.0.0.1 so
+# this is the only way in.
+#
+# Replace the addresses below with real hostnames before running it. DNS for
+# each name must already point at this host, or the certificate request fails.
+
+{
+	# Where Let's Encrypt sends expiry warnings. Required for a real certificate.
+	email you@example.com
+}
+
+# The landing page — static files, no app behind it.
+sundry.cash, www.sundry.cash {
+	encode gzip
+	root * /srv/sundry/landing
+	file_server
+}
+
+# The public demo. Wiped and re-seeded nightly by deploy/reset-demo.sh.
+demo.sundry.cash {
+	encode gzip
+	reverse_proxy 127.0.0.1:8848
+}
+
+# One block per customer. Copy, change the hostname and the port.
+acme.sundry.cash {
+	encode gzip
+	reverse_proxy 127.0.0.1:8849
+}

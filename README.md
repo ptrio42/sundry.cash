@@ -53,6 +53,10 @@ as a full-screen PWA, and **Scan Receipt** opens the camera directly.
 > read and delete your data. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and
 > [SECURITY.md](SECURITY.md).
 
+Running more than one instance on a host — a public demo, someone else's ledger — is an env file per
+instance and one front proxy: [deploy/README.md](deploy/README.md). Nothing about the app becomes
+multi-tenant; each instance stays one container pair with its own SQLite file.
+
 ## Features
 
 - **Expenses** — add, edit, delete; search across description/category/amount; filter by category, currency
@@ -131,6 +135,8 @@ environment or set them in `docker-compose.yml`. See [`backend/.env.example`](ba
 | `APP_PASSWORD` | *(unset — auth disabled)* | Enables the login gate |
 | `AUTH_SECRET` | falls back to `APP_PASSWORD` | HMAC signing key for bearer tokens |
 | `AUTH_RATE_LIMIT_MAX` | `10` | Failed logins allowed per IP per 15 minutes |
+| `DEMO_MODE` | `false` | Public demo: the UI banners that the data is fictional and resets |
+| `RECEIPTS_ENABLED` | `true` | `false` makes `/receipts` answer 403 and hides the tab |
 | `RECEIPT_OCR_PROVIDER` | `tesseract` | `tesseract` or `stub`. `claude` is a documented placeholder that throws |
 | `RECEIPT_OCR_LANGS` | `pol+eng` | Tesseract language packs |
 | `RECEIPTS_DIR` | `<dir of DB_PATH>/receipts` | Where receipt images are written |
@@ -141,7 +147,7 @@ The frontend reads one variable, baked in at build time: `VITE_API_BASE_URL` (de
 
 ## API
 
-Base URL `http://localhost:5000/api`. Everything except `/health` and `/auth/*` requires
+Base URL `http://localhost:5000/api`. Everything except `/health`, `/auth/*` and `/config` requires
 `Authorization: Bearer <token>` **when `APP_PASSWORD` is set** — otherwise all routes are open.
 
 | Method | Path | Purpose |
@@ -149,6 +155,7 @@ Base URL `http://localhost:5000/api`. Everything except `/health` and `/auth/*` 
 | `GET` | `/health` | Liveness check (public) |
 | `GET` | `/auth/status` | Whether a password is configured (public) |
 | `POST` | `/auth/login` | Exchange password for a 7-day token (public) |
+| `GET` | `/config` | What kind of instance this is: `demoMode`, `receiptsEnabled` (public, booleans only) |
 | `GET` | `/expenses` | List expenses; filter by `category`, `currency`, `startDate`, `endDate` |
 | `POST` | `/expenses` | Create one — `amount`, `date`, `description`, `category`, `currency` all required |
 | `GET` | `/expenses/:id` | Fetch one |

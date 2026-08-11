@@ -15,6 +15,10 @@ data/
 .env
 .env.local
 .env.*.local
+# One env file per hosted instance: real passwords, one per customer. Only
+# deploy/instance.env.example is tracked (it ends in .example, so it is not
+# matched here).
+deploy/*.env
 
 # IDE / agent tooling
 .vscode/

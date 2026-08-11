@@ -13,6 +13,7 @@ import {
   Budget,
   Category,
   CurrencyInfo,
+  InstanceConfig,
   ReceiptExtraction,
   ExpenseCategory,
   Currency,
@@ -106,6 +107,20 @@ export async function login(password: string): Promise<void> {
 /** Clear the stored token. */
 export function logout(): void {
   clearToken();
+}
+
+// --- Instance ------------------------------------------------------------
+
+/**
+ * What kind of instance this is: a public demo, and whether it offers receipts.
+ *
+ * Public like `/auth/status`, and for the same reason — the answer decides what
+ * the app renders before a token can exist. Two booleans is the whole contract;
+ * the backend will not put anything else in it.
+ */
+export async function getInstanceConfig(): Promise<InstanceConfig> {
+  const response = await apiFetch('/config');
+  return handleResponse<InstanceConfig>(response);
 }
 
 // --- Expenses ------------------------------------------------------------

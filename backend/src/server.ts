@@ -10,6 +10,7 @@ import expenseRoutes from './routes/expenses';
 import importRoutes from './routes/import';
 import receiptRoutes from './routes/receipts';
 import authRoutes from './routes/auth';
+import configRoutes from './routes/config';
 import budgetRoutes from './routes/budgets';
 import categoryRoutes from './routes/categories';
 import currencyRoutes from './routes/currencies';
@@ -17,6 +18,8 @@ import fxRoutes from './routes/fx';
 import settingsRoutes from './routes/settings';
 import insightsRoutes from './routes/insights';
 import { requireAuth } from './middleware/auth';
+import { receiptsEnabled } from './middleware/features';
+import { isDemoMode, isReceiptsEnabled } from './config/instance';
 import { closeDatabase } from './config/database';
 
 // Initialize Express app
@@ -44,11 +47,15 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
-// API Routes (auth routes are public; expenses/import require a token when enabled)
+// API Routes. `/api/auth` and `/api/config` are public — the frontend needs both
+// before a token can exist; everything else requires one when auth is enabled.
 app.use('/api/auth', authRoutes);
+app.use('/api/config', configRoutes);
 app.use('/api/expenses', requireAuth, expenseRoutes);
 app.use('/api/import', requireAuth, importRoutes);
-app.use('/api/receipts', requireAuth, receiptRoutes);
+// Receipts carry a second gate: OCR is CPU on this box, so a public instance can
+// switch it off (RECEIPTS_ENABLED=false) without switching the app off.
+app.use('/api/receipts', requireAuth, receiptsEnabled, receiptRoutes);
 app.use('/api/budgets', requireAuth, budgetRoutes);
 app.use('/api/categories', requireAuth, categoryRoutes);
 app.use('/api/currencies', requireAuth, currencyRoutes);
@@ -97,6 +104,10 @@ if (process.env.NODE_ENV !== 'test') {
   const server = app.listen(PORT, () => {
     console.log(`✅ Server is running on http://localhost:${PORT}`);
     console.log(`📊 API available at http://localhost:${PORT}/api/expenses`);
+    // Print what the flags actually resolved to, not what the env file meant to
+    // say: an unrecognised value falls back to the default (see config/instance.ts),
+    // and this line is where a typo becomes visible instead of silent.
+    console.log(`⚙️  Instance: demoMode=${isDemoMode()} receiptsEnabled=${isReceiptsEnabled()}`);
   });
 
   // Graceful shutdown
