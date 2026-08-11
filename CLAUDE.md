@@ -46,20 +46,21 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 - `src/server.ts` — app wiring, middleware, route mounts, graceful shutdown. Exports `app`; binds a
   port only when `NODE_ENV !== 'test'`.
 - `src/routes/` — Express routers: `expenses`, `import`, `budgets`, `fx`, `auth`, `settings`,
-  `receipts`. New endpoints go here.
-- `src/models/` — better-sqlite3 prepared statements (`expense`, `budget`, `fx`, `settings`). All SQL
-  lives here.
+  `receipts`, `insights`. New endpoints go here.
+- `src/models/` — better-sqlite3 prepared statements (`expense`, `budget`, `fx`, `settings`,
+  `insights`). All SQL lives here.
 - `src/config/` — `database.ts` (schema + idempotent migrations + FX seed), `auth.ts` (HMAC tokens),
   `money.ts` (minor-unit conversion).
 - `src/middleware/` — `auth` (`requireAuth`), `validation`.
 - `src/services/` — `categorize.ts` (keyword auto-categorization, EN + PL); `receipt/` (OCR factory — see gotchas).
-- `src/tests/` — Jest + supertest, 99 cases across 10 files (plus `env.ts` / `paths.ts` /
+- `src/tests/` — Jest + supertest, 131 cases across 11 files (plus `env.ts` / `paths.ts` /
   `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
 
 **frontend/** — React 18 + Vite, single-page tabbed UI (no router, no state library — plain hooks):
 - `src/main.tsx` -> `src/components/App.tsx`. Feature components: `Dashboard`, `Analytics`, `Budgets`,
   `Fx`, `ExpenseForm`, `ExpenseTable`, `ExcelImport`, `EditExpenseModal`, `Login`, `Settings`,
-  `ReceiptScan`.
+  `ReceiptScan`, `InsightsStrip` (three sentences at the top of `Dashboard` — insights are
+  deliberately not a tab).
 - `src/services/api.ts` — central `apiFetch` wrapper (base `/api`, bearer from localStorage key
   `sundry-token`, 401 -> `auth-expired` window event). Add API calls here.
 - `src/utils/` — `format.ts`, `export.ts` (client-side .xlsx). Charts: recharts. Styling: single
@@ -99,7 +100,7 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (99 backend + 95 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (131 backend + 112 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).

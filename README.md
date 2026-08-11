@@ -73,6 +73,9 @@ as a full-screen PWA, and **Scan Receipt** opens the camera directly.
   default; set a primary currency and the dashboard converts everything into it using your own rates.
 - **Analytics & dashboard** — category donut with a running total, stacked day/week/month trend, and a
   13-week daily-spend heatmap.
+- **Insights** — three sentences at the top of the dashboard answering "what changed?": the biggest
+  mover against the previous 30 days, anything you started spending on, and what your recurring
+  charges cost per month. No tab to visit, and nothing shown when there is nothing to say.
 - **Export** — the whole ledger as `.xlsx` from the server, or CSV generated in the browser.
 - **Optional login** — set `APP_PASSWORD` and the app gates behind a 7-day HMAC bearer token.
 - **Dark-first UI, mobile layout, installable PWA** — with a light theme toggle.
@@ -155,6 +158,8 @@ Base URL `http://localhost:5000/api`. Everything except `/health` and `/auth/*` 
 | `GET` | `/receipts/:filename` | Stream a stored receipt image |
 | `GET`, `PUT` | `/budgets` | List limits / upsert one for a category+currency pair |
 | `DELETE` | `/budgets/:category` | Remove a limit (`?currency=` required) |
+| `GET` | `/insights/comparison` | Spend per category vs the period before — `window`, `period`, `anchor`, `currency` |
+| `GET` | `/insights/recurring` | Repeating charges and what each costs per month — `since`, `minOccurrences` |
 | `GET`, `PUT` | `/fx` | Read / set manual exchange rates |
 | `GET`, `PUT` | `/settings` | Read / update preferences |
 
