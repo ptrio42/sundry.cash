@@ -194,7 +194,27 @@ new homes in waves 2–4. **Do not delete those components** — later waves mov
 Until wave 3 builds the Add sheet, "+ Add expense" opens `ExpenseForm` as it is today. Keep the
 placement final and the content temporary; do not invent an interim sheet that wave 3 throws away.
 
-## 1.2 Wipe Database leaves primary navigation (F15, change 15)
+## 1.2 The contrast failure change 24 actually meant (F14, change 24 — re-aimed)
+
+Wave 0 applied change 24 to `.btn-danger` and then discovered the class is **never rendered**:
+Wipe Database is guarded by two native `window.confirm` dialogs the browser draws itself. F14 named
+the wrong selector, so the fix landed on dead CSS.
+
+The same declaration — `color: #fff` on `--danger`, **2.77:1** — is live in two places that are
+actually on screen:
+
+- `.btn-bulk-delete` (`App.css:706`), the delete button in All Expenses once rows are selected
+- the button inside `.error-banner` (`App.css:362-363`)
+
+Give both a dark foreground. **This is not an addition to the list of 28** — it is change 24 aimed
+at the elements that have the defect. The intent was to fix a contrast failure, not to edit a
+particular selector.
+
+While you are here: whatever the Settings danger zone below renders is the first thing that will
+legitimately use `.btn-danger`. Either use it there or delete the rule; do not leave a styled class
+nothing renders.
+
+## 1.3 Wipe Database leaves primary navigation (F15, change 15)
 
 It sits in the sidebar footer in red, next to the theme toggle, and one row below "Light mode" on
 mobile. Move it to a danger zone at the bottom of Settings. Keep both confirmations.
@@ -202,7 +222,7 @@ mobile. Move it to a danger zone at the bottom of Settings. Keep both confirmati
 Red currently means three different things — "irreversible", "over budget", "spending rose". Taking
 the permanent one out is what lets the other two read as signal.
 
-## 1.3 The tagline becomes a status line (F18, change 16)
+## 1.4 The tagline becomes a status line (F18, change 16)
 
 `App.tsx:420` renders "Track your spending, stay on budget" under every page title, unconditionally,
 on all ten screens. It pitches a budgeting app; the product's thesis is noticing. It never carries
@@ -214,7 +234,7 @@ screen has no window yet, it states the scope it does have. Wave 2 fills in the 
 Delete card titles that echo the page title one line above ("All Expenses" / "All Expenses") —
 change 28's second half.
 
-## 1.4 Routing (F13, change 17)
+## 1.5 Routing (F13, change 17)
 
 There is no router: the URL never changes, reload always lands on the blank Add Expense form, back
 leaves the app, nothing is bookmarkable or shareable.
