@@ -14,9 +14,11 @@
   --border: #2a2f3a;
   --border-strong: #38404d;
 
+  /* Two text ranks, not three. `--text-dim` was a third at #6b7480, which
+     measured 3.36:1 on --surface-2 and 3.65:1 on --surface — below AA in all
+     nine roles that used it, so they all read --text-muted now. */
   --text: #e7e9ee;
   --text-muted: #9aa3b2;
-  --text-dim: #6b7480;
 
   --accent: #34d399;
   --accent-strong: #10b981;
@@ -57,8 +59,17 @@
   --border-strong: #d3dae3;
   --text: #1a1f2b;
   --text-muted: #5c6675;
-  --text-dim: #8a94a3;
-  --accent-contrast: #052018;
+
+  /* The semantic hues are chosen to sit on a dark surface; on white they are
+     decoration, not text. Leaving them out is why the active nav label rendered
+     at 1.92:1 here. Each is the same hue taken dark enough to clear AA on
+     --surface, --surface-2, --surface-3 and the soft tint built from it. */
+  --accent: #047857;
+  --danger: #b91c1c;
+  --warning: #92400e;
+  --info: #1d4ed8;
+  /* Follows --accent: near-black on a dark green would not read either. */
+  --accent-contrast: #ffffff;
   --accent-soft: rgba(16, 185, 129, 0.12);
   --shadow: 0 10px 30px rgba(20, 30, 50, 0.1);
   --shadow-sm: 0 2px 10px rgba(20, 30, 50, 0.06);
@@ -398,7 +409,7 @@ h3 { font-size: 1.05rem; }
   color: var(--text);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.form-group input::placeholder { color: var(--text-dim); }
+.form-group input::placeholder { color: var(--text-muted); }
 .form-group input:focus,
 .form-group select:focus,
 .filter-group input:focus,
@@ -486,7 +497,10 @@ button[type='submit']:disabled,
   font-weight: 700;
   color: var(--text);
 }
-.summary-card .subtitle { color: var(--text-dim); font-size: 0.82rem; margin-top: 4px; }
+.summary-card .subtitle { color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; }
+/* A tile that has nothing to report keeps its shape and says so quietly, rather
+   than computing a number against something that does not exist. */
+.summary-card .value-none { color: var(--text-muted); }
 .result-card.success .result-value { color: var(--accent); }
 .result-card.failed .result-value { color: var(--danger); }
 /* Skipped rows are neither a success nor an error — blank and summary lines the
@@ -720,7 +734,7 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .category-amount { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .category-bar-track { height: 10px; background: var(--surface-3); border-radius: 999px; overflow: hidden; }
 .category-bar-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
-.category-bar-stats { display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.78rem; color: var(--text-dim); }
+.category-bar-stats { display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.78rem; color: var(--text-muted); }
 
 /* ---------- Import ---------- */
 .file-name { margin-top: 8px; font-size: 0.85rem; color: var(--accent); }
@@ -736,12 +750,12 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 }
 .mapping-form h4, .preview-table-container h4, .error-details h4 { margin: 16px 0 12px; color: var(--text-muted); font-size: 0.9rem; }
 .preview-table th, .preview-table td { font-size: 0.82rem; white-space: nowrap; }
-.preview-table small { color: var(--text-dim); font-weight: 400; }
+.preview-table small { color: var(--text-muted); font-weight: 400; }
 .result-card.total .result-value { color: var(--text); }
 .error-details { margin-top: 20px; }
 .error-list { display: flex; flex-direction: column; gap: 8px; }
 .error-item { background: var(--danger-soft); border-left: 3px solid var(--danger); padding: 9px 12px; border-radius: var(--radius-xs); font-size: 0.85rem; }
-.more-errors { color: var(--text-dim); font-size: 0.82rem; margin-top: 4px; }
+.more-errors { color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; }
 
 /* ---------- Modal ---------- */
 .modal-backdrop {
@@ -812,8 +826,14 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .confirm-dialog { max-width: 420px; }
 .confirm-dialog p { color: var(--text-muted); margin-bottom: 20px; }
 .confirm-dialog .modal-actions { justify-content: flex-end; }
+/* White on --danger measured 2.77:1. This is the style a confirm button for a
+   destructive action takes; nothing renders it today, because Wipe Database is
+   still guarded by two `window.confirm`s the browser draws itself. Fixed here
+   rather than when something finally uses it: --bg is the one value that inverts
+   with the theme, so the label reads as near-black on the light red the dark
+   theme uses and as off-white on the dark red the light theme uses. */
 .btn-danger {
-  background: var(--danger); color: #fff; border: none;
+  background: var(--danger); color: var(--bg); border: none;
   padding: 11px 22px; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer;
 }
 .btn-danger:hover { filter: brightness(1.08); }
@@ -977,9 +997,9 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
   font: inherit;
   font-size: 0.9rem;
 }
-.category-slug { color: var(--text-dim); font-size: 0.78rem; flex: none; }
+.category-slug { color: var(--text-muted); font-size: 0.78rem; flex: none; }
 .category-builtin-badge {
-  color: var(--text-dim);
+  color: var(--text-muted);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1006,7 +1026,7 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 
 /* ---------- Receipt scanning ---------- */
 .receipt-intro { color: var(--text-muted); font-size: 0.9rem; margin: 4px 0 18px; max-width: 620px; }
-.field-hint { color: var(--text-dim); font-size: 0.8rem; margin-top: 6px; }
+.field-hint { color: var(--text-muted); font-size: 0.8rem; margin-top: 6px; }
 .receipt-capture { max-width: 620px; }
 
 .receipt-preview {
@@ -1134,7 +1154,7 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
   font-size: 0.88rem;
   font-variant-numeric: tabular-nums;
 }
-.pagination-count { color: var(--text-dim); }
+.pagination-count { color: var(--text-muted); }
 .pagination button[disabled] { opacity: 0.45; cursor: not-allowed; }
 
 /* ---------- Currency manager (Settings) ---------- */

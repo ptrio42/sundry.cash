@@ -92,10 +92,18 @@ function sentence(finding: Finding, categories: Category[], currency: Currency):
     }
 
     case 'weekend_skew': {
-      const { weekendPerDay, weekdayPerDay, ratio } = finding.data;
+      const { weekendPerDay, weekdayPerDay, ratio, days } = finding.data;
+      // The window belongs in the sentence, exactly as it does in the five
+      // templates above. The Insights tab makes this same claim over 12 months
+      // while `/insights/summary` scores over 30 days — deliberately, since
+      // `materiality` divides by spend *in the window* and a weekday needs more
+      // than four samples. Without the window the two read as the app
+      // contradicting itself (F10).
       return ratio > 1
-        ? `Weekends cost more — about ${fmt(weekendPerDay)} a day, against ${fmt(weekdayPerDay)} on weekdays.`
-        : `Weekdays cost more — about ${fmt(weekdayPerDay)} a day, against ${fmt(weekendPerDay)} at the weekend.`;
+        ? `Weekends cost more — about ${fmt(weekendPerDay)} a day over the last ${days} days, ` +
+          `against ${fmt(weekdayPerDay)} on weekdays.`
+        : `Weekdays cost more — about ${fmt(weekdayPerDay)} a day over the last ${days} days, ` +
+          `against ${fmt(weekendPerDay)} at the weekend.`;
     }
   }
 }

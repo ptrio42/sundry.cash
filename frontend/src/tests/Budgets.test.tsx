@@ -225,4 +225,45 @@ describe('Budgets', () => {
     // The rows still render, just without any limits attached.
     expect(row(/Groceries/)).not.toHaveTextContent('/');
   });
+
+  /**
+   * With no limits set, `remaining` was `0 - totalSpent`, coloured `--danger`.
+   * An empty install read "Remaining $0.00" in green and turned red the moment
+   * the first expense was saved — it fired on the first thing a new user does,
+   * against a budget they had never set (F4, and §9 of the review).
+   */
+  describe('with no limits set', () => {
+    beforeEach(() => mockGetBudgets.mockResolvedValue([]));
+
+    it('reports no remaining figure rather than a negative one', async () => {
+      await renderBudgets();
+
+      const remaining = card('Remaining');
+      // $150 of USD spend this month, and not a minus sign anywhere near it.
+      expect(card('Spent so far')).toHaveTextContent('$150.00');
+      expect(remaining).not.toHaveTextContent('-');
+      expect(remaining).not.toHaveTextContent('−');
+      expect(remaining).not.toHaveTextContent('150');
+      expect(remaining).toHaveTextContent('set a limit below');
+    });
+
+    it('leaves the placeholder neutral instead of colouring it as an alarm', async () => {
+      const { container } = await renderBudgets();
+
+      const value = card('Remaining').querySelector('.value') as HTMLElement;
+      expect(value).toHaveClass('value-none');
+      expect(value.style.color).toBe('');
+      // Nothing else on the screen claims an overspend either.
+      expect(container.querySelectorAll('.budget-row.over')).toHaveLength(0);
+    });
+
+    it('still states the remaining figure once a limit exists', async () => {
+      mockGetBudgets.mockResolvedValue([{ category: 'groceries', currency: 'USD', amount: 200 }]);
+      await renderBudgets();
+
+      // 200 budgeted against 150 spent across both USD categories.
+      expect(card('Remaining')).toHaveTextContent('$50.00');
+      expect(card('Remaining')).toHaveTextContent('75% used');
+    });
+  });
 });

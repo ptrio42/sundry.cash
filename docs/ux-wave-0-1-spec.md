@@ -126,6 +126,36 @@ across currencies requires converting before scoring, while the Insights tab sco
 because it only displays per-currency lists. Same control, same options, different mechanics — as
 today.
 
+## Follow-ups found while implementing wave 0 — *not* in this batch
+
+Recorded 2026-08-11, per the rule at the top of this file. **One of them corrects the report.**
+
+1. **`.btn-danger` is unreferenced CSS, and F14 describes it wrongly.** Wipe Database is guarded by
+   two native `window.confirm`s (`App.tsx`, `handleDeleteAll`) that the browser draws itself; no
+   component renders `.btn-danger` or `.confirm-dialog`. Change 24 was still applied to the rule, but
+   it fixed nothing on screen. **Wave 1 owns this**: change 15 moves Wipe into a Settings danger zone,
+   and whatever that zone renders is the first thing to actually use the rule.
+2. **Two rendered buttons still carry the 2.77:1 failure.** `.btn-bulk-delete` (All Expenses, once
+   rows are selected) and `.error-banner button` are both `color: #fff` on `--danger` — the same
+   declaration change 24 named, in the two places that are actually on screen. One word each.
+3. **The Analytics window vanishes when it is most needed.** The "Total Spent" subtitle prints either
+   the day count *or* "converted to X", never both, so a mixed-currency result loses its window
+   entirely. Change 1's territory.
+4. **`${daysInPeriod} days` does not pluralise** — a one-day range reads "1 days".
+5. **Three tokens are declared and never used**: `--violet`, `--accent-strong`, `--danger-strong`.
+   `--violet` got no light-theme value for exactly this reason (0.5 says "if it carries text"). Either
+   delete them or give them light values when something uses them.
+6. **`Fx` and `ExpenseTable` were left out of `CurrencyScope` on purpose.** Fx's is a *base* picker
+   ("Base: PLN"), not a scope, and change 13 folds the whole screen into Settings; ExpenseTable's is a
+   `<select>` inside the filter bar that change 4 rebuilds. Forcing either into the shared component
+   today would only have preserved a difference both waves delete.
+7. **No CSS-level contrast suite.** The spec allows it ("if the suite already has a pattern for
+   that") and there is none: asserting on `App.css` needs to read the file, `frontend` has no
+   `@types/node`, and vitest stubs CSS imports — so it would cost a dependency. Verified in the
+   browser instead, numbers in the wave 0 PR.
+8. **The root `package-lock.json` is out of sync with `package.json`** (missing the `engines` field);
+   any `npm install` rewrites it. Reverted here to keep this diff to wave 0 — it wants its own commit.
+
 ---
 
 # Wave 1 — the navigation shell

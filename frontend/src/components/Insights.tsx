@@ -40,6 +40,7 @@ import {
 import { formatCurrency, formatDate } from '../utils/format';
 import { categoryLabel } from '../utils/categories';
 import { relevantCurrencies } from '../utils/currencies';
+import CurrencyScope from './CurrencyScope';
 import {
   Scope,
   displayCurrency,
@@ -190,22 +191,17 @@ export default function Insights({ expenses, settings, categories, currencies, r
     <div className="insights">
       <div className="dashboard-head">
         <div className="dashboard-head-controls">
-          <div className="currency-buttons">
-            <button
-              className={view === 'primary' ? 'active' : ''}
-              onClick={() => setView('primary')}
-              title="All currencies converted to your primary currency"
-            >
-              All → {primary}
-            </button>
-            {relevantCurrencies(currencies, presentCurrencies)
-              .filter(c => presentCurrencies.includes(c.code))
-              .map(c => (
-                <button key={c.code} className={view === c.code ? 'active' : ''} onClick={() => setView(c.code)}>
-                  {c.code} ({c.symbol})
-                </button>
-              ))}
-          </div>
+          <CurrencyScope
+            currencies={relevantCurrencies(currencies, presentCurrencies)
+              .filter(c => presentCurrencies.includes(c.code))}
+            value={view}
+            onChange={setView}
+            combined={{
+              value: 'primary',
+              label: `All → ${primary}`,
+              title: 'All currencies converted to your primary currency'
+            }}
+          />
           {view === 'primary' && (
             <p className="dashboard-note muted-text">
               Converted from all currencies using your FX rates (editable under Currencies).

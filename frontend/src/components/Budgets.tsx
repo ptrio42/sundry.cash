@@ -10,6 +10,7 @@ import { BudgetsProps, Budget, ExpenseCategory, Currency } from '../types/expens
 import { getBudgets, setBudget as apiSetBudget, deleteBudget as apiDeleteBudget } from '../services/api';
 import { formatCurrency, currencySymbol } from '../utils/format';
 import { relevantCurrencies } from '../utils/currencies';
+import CurrencyScope from './CurrencyScope';
 
 function currentMonthKey(): string {
   const d = new Date();
@@ -139,13 +140,14 @@ export default function Budgets({ expenses, settings, categories, currencies }: 
           <h2>Monthly Budgets</h2>
           <p className="muted-text">{monthLabel} · spending vs. limits</p>
         </div>
-        <div className="currency-buttons">
-          {relevantCurrencies(currencies, [...expenses.map(e => e.currency), ...budgets.map(b => b.currency)]).map(c => (
-            <button key={c.code} className={currency === c.code ? 'active' : ''} onClick={() => changeCurrency(c.code)}>
-              {c.code} ({c.symbol})
-            </button>
-          ))}
-        </div>
+        {/* No combined option here, as today: this screen is silently
+            single-currency and giving it an "All" that cannot be edited is the
+            job of the wave that rebuilds it. */}
+        <CurrencyScope
+          currencies={relevantCurrencies(currencies, [...expenses.map(e => e.currency), ...budgets.map(b => b.currency)])}
+          value={currency}
+          onChange={changeCurrency}
+        />
       </div>
 
       {error && <div className="error-message">{error}</div>}
@@ -165,14 +167,25 @@ export default function Budgets({ expenses, settings, categories, currencies }: 
               <p className="value">{formatCurrency(totalSpent, currency)}</p>
               <p className="subtitle">{monthLabel}</p>
             </div>
+            {/* With no limits set there is nothing to be remaining from, and
+                nothing to be over. Subtracting spend from a budget of zero put a
+                large red negative on screen the moment a new user saved their
+                first expense — F4 and §9 of docs/ux-review-findings.md. */}
             <div className="summary-card">
               <h3>Remaining</h3>
-              <p className="value" style={{ color: remaining < 0 ? 'var(--danger)' : 'var(--accent)' }}>
-                {formatCurrency(remaining, currency)}
-              </p>
-              <p className="subtitle">
-                {totalBudget > 0 ? `${Math.round((totalSpent / totalBudget) * 100)}% used` : 'set a limit below'}
-              </p>
+              {totalBudget > 0 ? (
+                <>
+                  <p className="value" style={{ color: remaining < 0 ? 'var(--danger)' : 'var(--accent)' }}>
+                    {formatCurrency(remaining, currency)}
+                  </p>
+                  <p className="subtitle">{Math.round((totalSpent / totalBudget) * 100)}% used</p>
+                </>
+              ) : (
+                <>
+                  <p className="value value-none">—</p>
+                  <p className="subtitle">set a limit below</p>
+                </>
+              )}
             </div>
           </div>
 
