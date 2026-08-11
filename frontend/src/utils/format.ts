@@ -92,6 +92,29 @@ export function formatCurrency(amount: number, currency: Currency): string {
   }).format(amount);
 }
 
+/** The month we are in, as `YYYY-MM` — the key Budgets filters and sums by. */
+export function currentMonthKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * A `YYYY-MM` key as a reader sees it ("August 2026").
+ *
+ * Shared because two screens print the same month for the same reason: Budgets
+ * labels the spend it is comparing against a limit, and the shell's status line
+ * states the window that screen is showing. One month, one spelling.
+ */
+export function monthLabel(monthKey: string): string {
+  const d = new Date(`${monthKey}-01T00:00:00Z`);
+  if (isNaN(d.getTime())) return monthKey;
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(d);
+}
+
 /** Format an ISO `YYYY-MM-DD` string for display (parsed as UTC to avoid off-by-one). */
 export function formatDate(iso: string, locale?: string): string {
   const d = new Date(`${iso}T00:00:00Z`);

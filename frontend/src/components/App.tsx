@@ -1,29 +1,69 @@
 /**
  * Main App Component
- * Manages application state and navigation between views
+ *
+ * The navigation shell: four destinations, one persistent action, no overflow
+ * sheet (§2 of `docs/ux-review-findings.md`). It also owns the route table, the
+ * per-screen status line and the application state every screen is fed from.
+ *
+ * The screens behind the destinations are, for now, the components that were
+ * already there — "Home" renders today's Dashboard. Waves 2–4 rebuild them one
+ * at a time, each inside a single screen, which is what this shell exists to
+ * make possible. `Analytics`, `Insights`, `Fx`, `ExcelImport` and `ReceiptScan`
+ * are not reachable in the meantime: they lose their nav entries here and are
+ * re-entered from within their new homes, so they are deliberately not imported
+ * rather than deleted.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import ExpenseForm from './ExpenseForm';
-import ReceiptScan from './ReceiptScan';
 import ExpenseTable from './ExpenseTable';
 import Dashboard from './Dashboard';
-import ExcelImport from './ExcelImport';
-import Analytics from './Analytics';
-import Insights from './Insights';
 import Budgets from './Budgets';
-import Fx from './Fx';
 import Settings from './Settings';
 import EditExpenseModal from './EditExpenseModal';
 import Login from './Login';
 import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getInstanceConfig, getToken, logout, getSettings, getFxRates, getCategories, getCurrencies } from '../services/api';
 import { Expense, AppSettings, Category, CurrencyInfo, FxRates, InstanceConfig } from '../types/expense.types';
-import { setCurrencyRegistry } from '../utils/format';
+import { setCurrencyRegistry, currentMonthKey, monthLabel } from '../utils/format';
+import { Destination, useRoute } from '../utils/route';
 import '../App.css';
 
-type View = 'form' | 'receipt' | 'table' | 'dashboard' | 'import' | 'analytics' | 'insights' | 'budgets' | 'fx' | 'settings';
+type NavItem = { key: Destination; label: string; icon: string };
 
-type NavItem = { key: View; label: string; icon: string; short?: string };
+/**
+ * Four destinations. No "More": five slots hold five things, and the overflow
+ * sheet only ever existed because ten items did not fit into them.
+ *
+ * The labels are also the page titles (see `TITLES`) — four of them used to
+ * disagree with the nav entry that opened them (F12).
+ */
+const NAV: NavItem[] = [
+  { key: 'home', label: 'Home', icon: '🏠' },
+  { key: 'expenses', label: 'Expenses', icon: '📋' },
+  { key: 'budgets', label: 'Budgets', icon: '🎯' },
+  { key: 'settings', label: 'Settings', icon: '⚙️' },
+];
+
+/** The persistent action. Not a destination: it is reachable from every one of them. */
+const ADD_LABEL = 'Add expense';
+
+const TITLES: Record<Destination, string> = {
+  home: 'Home',
+  expenses: 'Expenses',
+  budgets: 'Budgets',
+  settings: 'Settings',
+  add: ADD_LABEL,
+};
+
+/**
+ * Where a visitor goes when the app boots without a route.
+ *
+ * Still the Add form, on purpose: the report is explicit that opening on Home is
+ * worthless until Home is worth opening, which is the end of wave 2. What
+ * changes here is only that the URL now says so, and a reload comes back to
+ * wherever you actually were.
+ */
+const BOOT_DESTINATION: Destination = 'add';
 
 /**
  * What to assume until `/api/config` answers — and what to keep assuming if it
@@ -34,6 +74,10 @@ type NavItem = { key: View; label: string; icon: string; short?: string };
  * a tab from someone's own install. The banner is the opposite case and stays
  * off by default: it is a claim about the data, and we only make it when the
  * server said so.
+ *
+ * `receiptsEnabled` has no consumer in this wave — scanning is not reachable
+ * from anywhere until wave 3 puts it behind the Add sheet, which is where the
+ * flag will gate it again.
  */
 const DEFAULT_INSTANCE: InstanceConfig = { demoMode: false, receiptsEnabled: true };
 
@@ -79,7 +123,7 @@ export default function App() {
   const [fxRates, setFxRates] = useState<FxRates>(DEFAULT_FX_RATES);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
-  const [currentView, setCurrentView] = useState<View>('form');
+  const [destination, navigate] = useRoute(BOOT_DESTINATION);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [authChecked, setAuthChecked] = useState<boolean>(false);
   const [authRequired, setAuthRequired] = useState<boolean>(false);
@@ -88,24 +132,8 @@ export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() =>
     (typeof localStorage !== 'undefined' && localStorage.getItem('theme') === 'light') ? 'light' : 'dark'
   );
-  // Mobile "More" sheet (holds the secondary nav + settings on small screens)
-  const [moreOpen, setMoreOpen] = useState<boolean>(false);
-  const moreButtonRef = useRef<HTMLButtonElement>(null);
-  const moreSheetRef = useRef<HTMLDivElement>(null);
 
-  const closeMore = () => {
-    setMoreOpen(false);
-    moreButtonRef.current?.focus();
-  };
-
-  // Close the mobile "More" sheet on Escape and move focus into it when it opens.
-  useEffect(() => {
-    if (!moreOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMore(); };
-    document.addEventListener('keydown', onKey);
-    moreSheetRef.current?.focus();
-    return () => document.removeEventListener('keydown', onKey);
-  }, [moreOpen]);
+  const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'));
 
   // Apply and persist the theme (dark-first: dark is the default)
   useEffect(() => {
@@ -118,11 +146,11 @@ export default function App() {
    * session expiry.
    *
    * Both calls are public and both decide the first paint — whether to show the
-   * login screen, whether to show a demo banner, whether the Scan Receipt tab
-   * exists at all — so they go out together, before any token could exist.
-   * Neither is fatal: each falls back independently, so a missing `/api/config`
-   * (an older backend, a proxy hiccup) leaves the app fully usable rather than
-   * quietly hiding a feature that works.
+   * login screen, whether to show a demo banner — so they go out together,
+   * before any token could exist. Neither is fatal: each falls back
+   * independently, so a missing `/api/config` (an older backend, a proxy
+   * hiccup) leaves the app fully usable rather than quietly hiding a feature
+   * that works.
    */
   useEffect(() => {
     (async () => {
@@ -189,8 +217,9 @@ export default function App() {
    */
   const handleExpenseAdded = (newExpense: Expense) => {
     setExpenses(prev => [newExpense, ...prev]);
-    // Switch to table view to see the new expense
-    setCurrentView('table');
+    // Straight to the ledger, as today. Change 11 — staying where you were, with
+    // an inline confirmation — arrives with the Add sheet in wave 3.
+    navigate('expenses');
   };
 
   /**
@@ -230,6 +259,10 @@ export default function App() {
 
   /**
    * Handle delete all expenses
+   *
+   * Lives here because App owns the ledger, and is handed to the Settings danger
+   * zone — the only place it is offered from since it left primary navigation
+   * (F15). Both confirmations stay: it is the one irreversible action in the app.
    */
   const handleDeleteAll = async () => {
     const confirmMessage = `Are you sure you want to delete ALL ${expenses.length} expenses?\n\nThis action cannot be undone!`;
@@ -302,56 +335,30 @@ export default function App() {
     return <Login onSuccess={() => setAuthed(true)} />;
   }
 
-  // `short` is the label the mobile bottom bar uses: five tabs share 375px, so
-  // the full sidebar wording does not fit. The full label stays as the button's
-  // accessible name, and each short form is a prefix of it (WCAG label-in-name).
-  const ALL_NAV: NavItem[] = [
-    { key: 'form', label: 'Add Expense', icon: '➕', short: 'Add' },
-    { key: 'receipt', label: 'Scan Receipt', icon: '🧾', short: 'Scan' },
-    { key: 'import', label: 'Import Excel', icon: '📥' },
-    { key: 'table', label: 'All Expenses', icon: '📋', short: 'Expenses' },
-    { key: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { key: 'analytics', label: 'Analytics', icon: '📈' },
-    { key: 'insights', label: 'Insights', icon: '💡' },
-    { key: 'budgets', label: 'Budgets', icon: '🎯' },
-    { key: 'fx', label: 'Currencies', icon: '💱' },
-    { key: 'settings', label: 'Settings', icon: '⚙️' }
-  ];
-
-  // An instance with receipts switched off has no Scan Receipt tab — the same
-  // progressive disclosure the dashboard uses for currencies that are absent
-  // from the data. Rendering a tab whose only possible outcome is a 403 would
-  // be worse than not offering it.
-  const NAV = ALL_NAV.filter(item => item.key !== 'receipt' || instance.receiptsEnabled);
-
-  const VIEW_TITLES: Record<View, string> = {
-    form: 'Add Expense',
-    receipt: 'Scan Receipt',
-    import: 'Import from Excel',
-    table: 'All Expenses',
-    dashboard: 'Dashboard',
-    analytics: 'Analytics',
-    insights: 'Insights',
-    budgets: 'Monthly Budgets',
-    fx: 'Currency Conversion',
-    settings: 'Preferences'
+  /**
+   * What you are looking at, and over what period — the line that replaced the
+   * tagline (F18, change 16). "Track your spending, stay on budget" pitched a
+   * budgeting app under every one of ten page titles and never carried a fact.
+   *
+   * Home and Expenses state the window they actually have today, which is the
+   * whole ledger; wave 2 gives Home real per-section windows and this line
+   * follows them.
+   */
+  const STATUS: Record<Destination, string> = {
+    home: 'An overview of everything you have recorded.',
+    expenses: 'Your whole ledger — filter, sort and export it.',
+    budgets: `Limits and spending for ${monthLabel(currentMonthKey())}.`,
+    settings: 'Defaults, currencies and categories for this install.',
+    add: 'One expense. It opens in the ledger once saved.',
   };
 
-  // Mobile bottom bar: a handful of primary tabs; the rest live behind "More".
-  // Mapped over PRIMARY_KEYS rather than filtered out of NAV because the order
-  // differs on purpose — Scan sits first on a phone. Keys that NAV no longer
-  // holds (receipts off) simply drop out, leaving three tabs and "More".
-  const PRIMARY_KEYS: View[] = ['receipt', 'form', 'table', 'dashboard'];
-  const primaryItems = PRIMARY_KEYS
-    .map(k => NAV.find(n => n.key === k))
-    .filter((n): n is NavItem => n !== undefined);
-  const secondaryItems = NAV.filter(n => !PRIMARY_KEYS.includes(n.key));
-  const secondaryActive = secondaryItems.some(n => n.key === currentView);
-
-  const goTo = (view: View) => {
-    setCurrentView(view);
-    setMoreOpen(false);
-  };
+  /**
+   * The mobile bar is `[ Home ] [ Expenses ] ( + ) [ Budgets ] [ Settings ]`:
+   * the action sits in the middle as a raised button rather than a fifth tab, so
+   * the destinations are split around it instead of mapped in one pass.
+   */
+  const leftTabs = NAV.slice(0, 2);
+  const rightTabs = NAV.slice(2);
 
   return (
     <div className="shell">
@@ -382,13 +389,24 @@ export default function App() {
           <span>Sundry</span>
         </div>
 
+        {/* Above the destinations and styled unlike them, because it is not a
+            place you can be — it is the thing you do from wherever you are. */}
+        <button
+          className="btn-add-expense"
+          onClick={() => navigate('add')}
+          aria-current={destination === 'add' ? 'page' : undefined}
+        >
+          <span className="nav-icon" aria-hidden="true">＋</span>
+          {ADD_LABEL}
+        </button>
+
         <nav className="sidebar-nav" aria-label="Main">
           {NAV.map(item => (
             <button
               key={item.key}
-              className={currentView === item.key ? 'active' : ''}
-              onClick={() => setCurrentView(item.key)}
-              aria-current={currentView === item.key ? 'page' : undefined}
+              className={destination === item.key ? 'active' : ''}
+              onClick={() => navigate(item.key)}
+              aria-current={destination === item.key ? 'page' : undefined}
             >
               <span className="nav-icon" aria-hidden="true">{item.icon}</span>
               {item.label}
@@ -397,13 +415,9 @@ export default function App() {
         </nav>
 
         <div className="sidebar-footer">
-          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} title="Toggle light/dark theme">
+          <button onClick={toggleTheme} title="Toggle light/dark theme">
             <span className="nav-icon" aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span>
             {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          </button>
-          <button className="danger-button" onClick={handleDeleteAll} title="Delete all expenses from database">
-            <span className="nav-icon" aria-hidden="true">🗑️</span>
-            Wipe Database
           </button>
           {authRequired && (
             <button onClick={handleLogout} title="Sign out">
@@ -416,8 +430,8 @@ export default function App() {
 
       <div className="content">
         <header className="topbar">
-          <h1>{VIEW_TITLES[currentView]}</h1>
-          <p className="tagline">Track your spending, stay on budget</p>
+          <h1>{TITLES[destination]}</h1>
+          <p className="status-line">{STATUS[destination]}</p>
         </header>
 
         <main className="content-main">
@@ -432,10 +446,8 @@ export default function App() {
             <div className="loading">Loading expenses…</div>
           ) : (
             <>
-              {currentView === 'form' && <ExpenseForm onExpenseAdded={handleExpenseAdded} settings={settings} categories={categories} currencies={currencies} />}
-              {currentView === 'receipt' && <ReceiptScan onExpenseAdded={handleExpenseAdded} settings={settings} categories={categories} currencies={currencies} />}
-              {currentView === 'import' && <ExcelImport settings={settings} currencies={currencies} />}
-              {currentView === 'table' && (
+              {destination === 'add' && <ExpenseForm onExpenseAdded={handleExpenseAdded} settings={settings} categories={categories} currencies={currencies} />}
+              {destination === 'expenses' && (
                 <ExpenseTable
                   expenses={expenses}
                   categories={categories}
@@ -445,20 +457,22 @@ export default function App() {
                   onUpdate={handleUpdateExpense}
                 />
               )}
-              {currentView === 'dashboard' && <Dashboard expenses={expenses} settings={settings} categories={categories} currencies={currencies} rates={fxRates} />}
-              {currentView === 'analytics' && <Analytics settings={settings} categories={categories} currencies={currencies} rates={fxRates} />}
-              {currentView === 'insights' && <Insights expenses={expenses} settings={settings} categories={categories} currencies={currencies} rates={fxRates} />}
-              {currentView === 'budgets' && <Budgets expenses={expenses} settings={settings} categories={categories} currencies={currencies} />}
-              {currentView === 'fx' && <Fx expenses={expenses} settings={settings} currencies={currencies} rates={fxRates} onRatesChanged={setFxRates} />}
-              {currentView === 'settings' && (
+              {destination === 'home' && <Dashboard expenses={expenses} settings={settings} categories={categories} currencies={currencies} rates={fxRates} />}
+              {destination === 'budgets' && <Budgets expenses={expenses} settings={settings} categories={categories} currencies={currencies} />}
+              {destination === 'settings' && (
                 <Settings
                   settings={settings}
                   categories={categories}
                   currencies={currencies}
+                  theme={theme}
+                  authRequired={authRequired}
                   onSaved={handleSettingsSaved}
                   onCurrenciesChanged={applyCurrencies}
                   onCategoriesChanged={setCategories}
                   onExpensesStale={refreshExpenses}
+                  onToggleTheme={toggleTheme}
+                  onLogout={handleLogout}
+                  onWipeDatabase={handleDeleteAll}
                 />
               )}
             </>
@@ -466,81 +480,46 @@ export default function App() {
         </main>
       </div>
 
-      {/* Mobile bottom navigation (hidden on desktop via CSS) */}
+      {/* Mobile bottom navigation (hidden on desktop via CSS).
+          Every button here takes its accessible name from its own content — the
+          four tabs from the word they show, the action from a visually hidden
+          one, because a raised "+" is a glyph by design. That is one naming
+          strategy; the bar used to run two, with four `aria-label`s spelling out
+          a longer name than the tab rendered (report R6). */}
       <nav className="bottom-nav" aria-label="Primary">
-        {primaryItems.map(item => (
+        {leftTabs.map(item => (
           <button
             key={item.key}
-            className={currentView === item.key ? 'active' : ''}
-            onClick={() => goTo(item.key)}
-            aria-current={currentView === item.key ? 'page' : undefined}
-            aria-label={item.label}
+            className={destination === item.key ? 'active' : ''}
+            onClick={() => navigate(item.key)}
+            aria-current={destination === item.key ? 'page' : undefined}
           >
             <span className="nav-icon" aria-hidden="true">{item.icon}</span>
-            <span className="bottom-nav-label">{item.short ?? item.label}</span>
+            <span className="bottom-nav-label">{item.label}</span>
           </button>
         ))}
-        <button
-          ref={moreButtonRef}
-          className={moreOpen || secondaryActive ? 'active' : ''}
-          onClick={() => setMoreOpen(o => !o)}
-          aria-expanded={moreOpen}
-          aria-haspopup="dialog"
-        >
-          <span className="nav-icon" aria-hidden="true">☰</span>
-          <span className="bottom-nav-label">More</span>
-        </button>
-      </nav>
 
-      {/* "More" sheet: secondary views + settings, on mobile */}
-      {moreOpen && (
-        // Escape closes the sheet and focus is moved into it, so this click
-        // handler is additive rather than the only way out.
-        <div
-          className="more-sheet-overlay"
-          role="presentation"
-          onClick={e => { if (e.target === e.currentTarget) closeMore(); }}
+        <button
+          className={`bottom-nav-add${destination === 'add' ? ' active' : ''}`}
+          onClick={() => navigate('add')}
+          aria-current={destination === 'add' ? 'page' : undefined}
         >
-          <div
-            ref={moreSheetRef}
-            className="more-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label="More"
-            tabIndex={-1}
+          <span className="nav-icon" aria-hidden="true">＋</span>
+          <span className="sr-only">{ADD_LABEL}</span>
+        </button>
+
+        {rightTabs.map(item => (
+          <button
+            key={item.key}
+            className={destination === item.key ? 'active' : ''}
+            onClick={() => navigate(item.key)}
+            aria-current={destination === item.key ? 'page' : undefined}
           >
-            <div className="more-sheet-handle" aria-hidden="true" />
-            <div className="more-sheet-grid">
-              {secondaryItems.map(item => (
-                <button
-                  key={item.key}
-                  className={currentView === item.key ? 'active' : ''}
-                  onClick={() => goTo(item.key)}
-                >
-                  <span className="nav-icon" aria-hidden="true">{item.icon}</span>
-                  {item.label}
-                </button>
-              ))}
-            </div>
-            <div className="more-sheet-actions">
-              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-                <span className="nav-icon" aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span>
-                {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-              </button>
-              <button className="danger-button" onClick={() => { setMoreOpen(false); handleDeleteAll(); }}>
-                <span className="nav-icon" aria-hidden="true">🗑️</span>
-                Wipe Database
-              </button>
-              {authRequired && (
-                <button onClick={() => { setMoreOpen(false); handleLogout(); }}>
-                  <span className="nav-icon" aria-hidden="true">🔓</span>
-                  Logout
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+            <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+            <span className="bottom-nav-label">{item.label}</span>
+          </button>
+        ))}
+      </nav>
 
       <EditExpenseModal
         expense={editingExpense}

@@ -130,6 +130,28 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
 }
 .sidebar-brand .logo { width: 26px; height: 26px; border-radius: 6px; display: block; }
 
+/* The one persistent action. Filled rather than listed, because it is not a
+   place you can be: it is the thing you do from wherever you are. */
+.btn-add-expense {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 11px 13px;
+  margin-bottom: 14px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.94rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+  transition: filter 0.15s ease;
+}
+.btn-add-expense:hover { filter: brightness(1.06); }
+.btn-add-expense .nav-icon { width: 20px; text-align: center; }
+
 .sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -173,8 +195,9 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
   flex-direction: column;
   gap: 4px;
 }
-.sidebar-footer .danger-button { color: var(--danger); }
-.sidebar-footer .danger-button:hover { background: var(--danger-soft); color: var(--danger); }
+/* Nothing here is destructive any more: Wipe Database left for the Settings
+   danger zone, so the red `.danger-button` rule that used to live here went
+   with it. */
 
 .content { display: flex; flex-direction: column; min-width: 0; }
 
@@ -183,7 +206,9 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
   border-bottom: 1px solid var(--border);
 }
 .topbar h1 { font-size: 1.5rem; font-weight: 700; }
-.topbar .tagline { color: var(--text-muted); font-size: 0.92rem; margin-top: 3px; }
+/* Was `.tagline`, which said the same sentence about a budgeting app under all
+   ten page titles. This states what you are looking at and over what period. */
+.topbar .status-line { color: var(--text-muted); font-size: 0.92rem; margin-top: 3px; }
 
 .content-main {
   padding: 26px 34px 48px;
@@ -233,10 +258,9 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
 }
 
 /* ---------- Mobile bottom navigation (hidden on desktop) ---------- */
+/* Five slots for five things, so there is no "More" sheet any more: the overflow
+   only existed because ten nav items did not fit into a phone's bottom bar. */
 .bottom-nav { display: none; }
-.more-sheet-overlay { display: none; }
-@keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .more-sheet, .more-sheet-overlay { animation: none; } }
 
 @media (max-width: 680px) {
   /* The sidebar is replaced by a fixed bottom tab bar on phones. */
@@ -288,48 +312,28 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
     white-space: nowrap;
   }
 
-  /* "More" sheet */
-  .more-sheet-overlay {
-    display: block;
-    position: fixed; inset: 0;
-    background: rgba(5, 7, 10, 0.55);
-    z-index: 95;
-    animation: fade 0.15s ease;
+  /* The action, raised out of the bar rather than sharing its row: a tab you can
+     be on and an action you take are different things, and the shape says so
+     before the label does. The desktop sidebar makes the same distinction with a
+     filled button above the destinations. */
+  .bottom-nav-add {
+    flex: 0 0 auto;
+    align-self: flex-start;
+    width: 54px;
+    height: 54px;
+    margin: -20px 6px 0;
+    padding: 0;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    /* Matches the bar, so the button reads as sitting in front of it. */
+    border: 3px solid var(--bg-elevated);
+    box-shadow: var(--shadow-sm);
   }
-  .more-sheet {
-    position: fixed;
-    left: 0; right: 0; bottom: 0;
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    border-radius: var(--radius) var(--radius) 0 0;
-    padding: 10px 16px calc(20px + env(safe-area-inset-bottom, 0px));
-    box-shadow: var(--shadow);
-    max-height: 80vh; overflow-y: auto;
-    animation: slideUp 0.2s ease;
-  }
-  .more-sheet-handle {
-    width: 40px; height: 4px; border-radius: 999px;
-    background: var(--border-strong);
-    margin: 4px auto 14px;
-  }
-  .more-sheet-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .more-sheet-grid button,
-  .more-sheet-actions button {
-    display: flex; align-items: center; gap: 10px;
-    width: 100%;
-    padding: 14px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text);
-    font-size: 0.92rem; font-weight: 500;
-    text-align: left; cursor: pointer;
-  }
-  .more-sheet-grid button.active { border-color: var(--accent); color: var(--accent); }
-  .more-sheet-grid .nav-icon,
-  .more-sheet-actions .nav-icon { width: 20px; text-align: center; }
-  .more-sheet-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-  .more-sheet-actions .danger-button { color: var(--danger); }
+  .bottom-nav-add .nav-icon { font-size: 1.6rem; }
+  /* The four tabs turn accent-coloured when active; this one already is, so it
+     takes the ring instead. */
+  .bottom-nav-add.active { box-shadow: 0 0 0 3px var(--accent), var(--shadow-sm); }
 
   /* Comfortable touch targets + no iOS zoom-on-focus (needs >=16px inputs) */
   input, select, textarea { font-size: 16px; }
@@ -358,9 +362,13 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
   align-items: center;
   gap: 12px;
 }
+/* White on --danger measured 2.77:1 — the failure F14 named on `.btn-danger`,
+   in one of the two places that actually render it. `--bg` is the one value that
+   inverts with the theme, so the label reads near-black on the light red the
+   dark theme uses and off-white on the dark red the light theme uses. */
 .error-banner button {
   background: var(--danger);
-  color: #fff;
+  color: var(--bg);
   border: none;
   padding: 7px 14px;
   border-radius: var(--radius-xs);
@@ -703,7 +711,8 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
   padding: 8px 14px; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface-3); color: var(--text);
 }
 .btn-bulk-assign:hover { border-color: var(--accent); color: var(--accent); }
-.btn-bulk-delete { border-color: transparent; background: var(--danger); color: #fff; }
+/* The other live 2.77:1 failure — see the note on `.error-banner button`. */
+.btn-bulk-delete { border-color: transparent; background: var(--danger); color: var(--bg); }
 .btn-bulk-delete:hover { filter: brightness(1.08); }
 .btn-bulk-cancel:hover { background: var(--surface-2); }
 
@@ -826,12 +835,11 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .confirm-dialog { max-width: 420px; }
 .confirm-dialog p { color: var(--text-muted); margin-bottom: 20px; }
 .confirm-dialog .modal-actions { justify-content: flex-end; }
-/* White on --danger measured 2.77:1. This is the style a confirm button for a
-   destructive action takes; nothing renders it today, because Wipe Database is
-   still guarded by two `window.confirm`s the browser draws itself. Fixed here
-   rather than when something finally uses it: --bg is the one value that inverts
+/* The Settings danger zone's Wipe database button — the first thing to actually
+   render this rule. Its foreground comes from --bg, the one value that inverts
    with the theme, so the label reads as near-black on the light red the dark
-   theme uses and as off-white on the dark red the light theme uses. */
+   theme uses and as off-white on the dark red the light theme uses. White on
+   --danger, which this used to be, measured 2.77:1. */
 .btn-danger {
   background: var(--danger); color: var(--bg); border: none;
   padding: 11px 22px; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer;
@@ -839,7 +847,9 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .btn-danger:hover { filter: brightness(1.08); }
 
 /* ---------- Budgets ---------- */
-.budgets-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+/* Same as `.table-toolbar`: the heading and the month line that sat on the left
+   are now the page title and the status line above it. */
+.budgets-head { display: flex; justify-content: flex-end; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
 .muted-text { color: var(--text-muted); font-size: 0.9rem; margin-top: 3px; }
 .budget-list { display: flex; flex-direction: column; gap: 14px; }
 .budget-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
@@ -927,8 +937,9 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .heatmap-legend { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 0.76rem; color: var(--text-muted); }
 
 /* ---------- Table toolbar / export ---------- */
-.table-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-.table-toolbar h2 { margin-bottom: 0; }
+/* Right-aligned: the heading that used to hold the left of this row was the page
+   title said twice, and went with change 28. */
+.table-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .export-buttons { display: flex; gap: 8px; }
 .export-buttons button { padding: 8px 14px; font-size: 0.85rem; }
 
@@ -944,9 +955,10 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .settings-actions { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
 .settings-saved { color: var(--accent); font-size: 0.88rem; font-weight: 600; }
 
-/* Present to a screen reader, absent on screen — the "move expenses to" select
-   is captioned by the sentence above it, which a screen reader will not tie to
-   the control on its own. */
+/* Present to a screen reader, absent on screen. Two callers: the "move expenses
+   to" select, captioned by the sentence above it that a screen reader will not
+   tie to the control on its own; and the mobile bar's raised "+", whose name has
+   to come from its content like the four tabs beside it. */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -961,6 +973,14 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 
 .settings-section { margin-top: 34px; border-top: 1px solid var(--border); padding-top: 22px; max-width: 620px; }
 .settings-section h3 { margin-bottom: 4px; }
+
+.settings-device-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* The only irreversible action in the app, and the reason it is down here rather
+   than in the sidebar (F15): red that is always on screen trains the eye to
+   discount the red that means "over budget". */
+.danger-zone { border-top-color: var(--danger); }
+.danger-zone h3 { color: var(--danger); }
 
 .category-manager { list-style: none; display: flex; flex-direction: column; gap: 8px; margin: 0 0 16px; padding: 0; }
 .category-manager-row {

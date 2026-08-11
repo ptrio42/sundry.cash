@@ -6,6 +6,18 @@
  *
  * Categories live here rather than behind their own tab: they are configuration
  * you touch a handful of times, not a place you go to look at your money.
+ *
+ * Two blocks arrived with the navigation shell, both because the mobile "More"
+ * sheet that used to hold them is gone (§2 of `docs/ux-review-findings.md`):
+ *
+ * - **This device** — theme, and signing out where there is a session. The
+ *   desktop sidebar still offers both as shortcuts; on a phone this is the only
+ *   route to either, and deleting the sheet without rehoming them would have
+ *   removed a working control rather than a redundant one.
+ * - **Danger zone** — Wipe Database, out of primary navigation (F15, change 15).
+ *   Red meant three things in this product — "irreversible", "over budget",
+ *   "spending rose"; taking the permanent one out of the sidebar is what lets
+ *   the other two read as signal.
  */
 
 import { useState, FormEvent } from 'react';
@@ -41,6 +53,10 @@ interface SettingsProps {
   settings: AppSettings;
   categories: Category[];
   currencies: CurrencyInfo[];
+  /** For the theme control below — the shell owns the state and persists it. */
+  theme: 'dark' | 'light';
+  /** Whether this instance has a password, i.e. whether there is a session to end. */
+  authRequired: boolean;
   onSaved: (settings: AppSettings) => void;
   /** Hand the fresh catalogue back to App, which also feeds the formatter. */
   onCurrenciesChanged: (currencies: CurrencyInfo[]) => void;
@@ -48,16 +64,25 @@ interface SettingsProps {
   onCategoriesChanged: (categories: Category[]) => void;
   /** Deleting with a reassignment target rewrites expense rows server-side. */
   onExpensesStale: () => void;
+  onToggleTheme: () => void;
+  onLogout: () => void;
+  /** App owns the ledger, and keeps both confirmations. */
+  onWipeDatabase: () => void;
 }
 
 export default function Settings({
   settings,
   categories,
   currencies,
+  theme,
+  authRequired,
   onSaved,
   onCurrenciesChanged,
   onCategoriesChanged,
   onExpensesStale,
+  onToggleTheme,
+  onLogout,
+  onWipeDatabase,
 }: SettingsProps) {
   const [defaultCurrency, setDefaultCurrency] = useState<Currency>(settings.defaultCurrency);
   const [defaultCategory, setDefaultCategory] = useState<ExpenseCategory>(settings.defaultCategory);
@@ -393,6 +418,38 @@ export default function Settings({
             )}
           </div>
         </form>
+      </section>
+
+      <section className="settings-section" aria-labelledby="device-heading">
+        <h3 id="device-heading">This device</h3>
+        <p className="settings-intro">
+          Kept in this browser rather than on the server, so it does not follow you to
+          another device.
+        </p>
+
+        <div className="settings-device-actions">
+          <button type="button" className="btn-secondary" onClick={onToggleTheme}>
+            {theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          </button>
+          {authRequired && (
+            <button type="button" className="btn-secondary" onClick={onLogout}>
+              Sign out
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section className="settings-section danger-zone" aria-labelledby="danger-heading">
+        <h3 id="danger-heading">Danger zone</h3>
+        <p className="settings-intro">
+          Wiping the database deletes every expense, and every receipt image stored with
+          one, permanently. Budgets, categories and preferences stay. There is no undo —
+          export from the ledger first if you want a copy.
+        </p>
+
+        <button type="button" className="btn-danger" onClick={onWipeDatabase}>
+          Wipe database
+        </button>
       </section>
     </div>
   );

@@ -277,8 +277,9 @@ export default function ExpenseTable({ expenses, categories, currencies, onEdit,
 
   return (
     <div className="expense-table">
+      {/* No heading: the page title one line above already says "Expenses", and
+          saying it twice at two ranks is change 28's second half. */}
       <div className="table-toolbar">
-        <h2>All Expenses</h2>
         <div className="export-buttons">
           <button type="button" className="btn-secondary" onClick={() => exportExpensesCsv(filteredAndSortedExpenses)}>
             ⬇ CSV
