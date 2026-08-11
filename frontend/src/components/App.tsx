@@ -384,8 +384,8 @@ export default function App() {
               )}
               {currentView === 'dashboard' && <Dashboard expenses={expenses} settings={settings} categories={categories} currencies={currencies} rates={fxRates} />}
               {currentView === 'analytics' && <Analytics settings={settings} categories={categories} currencies={currencies} rates={fxRates} />}
-              {currentView === 'budgets' && <Budgets expenses={expenses} categories={categories} currencies={currencies} />}
-              {currentView === 'fx' && <Fx expenses={expenses} currencies={currencies} rates={fxRates} onRatesChanged={setFxRates} />}
+              {currentView === 'budgets' && <Budgets expenses={expenses} settings={settings} categories={categories} currencies={currencies} />}
+              {currentView === 'fx' && <Fx expenses={expenses} settings={settings} currencies={currencies} rates={fxRates} onRatesChanged={setFxRates} />}
               {currentView === 'settings' && (
                 <Settings
                   settings={settings}
