@@ -14,7 +14,11 @@ import {
   ReceiptExtraction,
   ExpenseCategory,
   Currency,
-  AppSettings
+  AppSettings,
+  ComparisonWindow,
+  ComparisonPeriod,
+  ComparisonResult,
+  RecurringCharge
 } from '../types/expense.types';
 import { downloadBlob } from '../utils/export';
 
@@ -429,6 +433,65 @@ export async function getAnalytics(params: {
 
   const response = await apiFetch(
     `/expenses/stats/analytics${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+  );
+  return handleResponse(response);
+}
+
+// --- Insights ------------------------------------------------------------
+
+/**
+ * Spend per category for a period against the one before it.
+ *
+ * Every parameter is optional: with none, the backend answers for a rolling
+ * month anchored on today, which is what the dashboard strip wants. Rows keep
+ * the currency dimension unless `currency` narrows the request.
+ */
+export async function getInsightsComparison(params: {
+  window?: ComparisonWindow;
+  period?: ComparisonPeriod;
+  anchor?: string;
+  currency?: Currency;
+} = {}): Promise<ComparisonResult> {
+  const queryParams = new URLSearchParams();
+
+  if (params.window) {
+    queryParams.append('window', params.window);
+  }
+  if (params.period) {
+    queryParams.append('period', params.period);
+  }
+  if (params.anchor) {
+    queryParams.append('anchor', params.anchor);
+  }
+  if (params.currency) {
+    queryParams.append('currency', params.currency);
+  }
+
+  const response = await apiFetch(
+    `/insights/comparison${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+  );
+  return handleResponse(response);
+}
+
+/**
+ * Repeating charges and what each one costs per month.
+ * Defaults to the last 12 months and at least 3 occurrences.
+ */
+export async function getInsightsRecurring(params: {
+  since?: string;
+  minOccurrences?: number;
+} = {}): Promise<{ recurring: RecurringCharge[] }> {
+  const queryParams = new URLSearchParams();
+
+  if (params.since) {
+    queryParams.append('since', params.since);
+  }
+  if (params.minOccurrences !== undefined) {
+    queryParams.append('minOccurrences', String(params.minOccurrences));
+  }
+
+  const response = await apiFetch(
+    `/insights/recurring${queryParams.toString() ? '?' + queryParams.toString() : ''}`
   );
   return handleResponse(response);
 }
