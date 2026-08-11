@@ -45,6 +45,18 @@ export interface AppSettings {
   primaryCurrency: Currency;   // currency that combined totals are converted to
 }
 
+// What kind of instance the frontend is talking to.
+//
+// Fetched from the public GET /api/config before login, because it decides what
+// the first paint looks like. Booleans only, deliberately: the endpoint is
+// unauthenticated, so the backend refuses to put anything else in it (see
+// backend/src/routes/config.ts) and this type is the frontend half of that
+// promise.
+export interface InstanceConfig {
+  demoMode: boolean;       // public demo: say so, loudly, above the app
+  receiptsEnabled: boolean; // false hides the Scan Receipt tab; the API 403s
+}
+
 // Manual FX rates: value of 1 unit of each currency in the USD base (USD = 1)
 export type FxRates = Record<Currency, number>;
 

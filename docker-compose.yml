@@ -1,19 +1,51 @@
+# Sundry — one instance = one user = one SQLite file.
+#
+# Every knob below has a default, so a plain `docker compose up --build` still
+# does exactly what it did before this file learned about instances: containers
+# named sundry-backend / sundry-frontend, data in ./data, the app on :8847.
+#
+# To run a second instance on the same host, give it its own project name, its
+# own container-name prefix, its own port and its own data directory — all four,
+# because `container_name` and a published port are absolute and would collide
+# otherwise. That is what deploy/instance.env.example is for:
+#
+#   COMPOSE_PROJECT_NAME=acme docker compose --env-file deploy/acme.env up -d
+#
+# See deploy/README.md for the whole pattern, including the front proxy.
+
 services:
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: sundry-backend
+    container_name: ${INSTANCE:-sundry}-backend
     restart: unless-stopped
     volumes:
       # Persist the SQLite database and receipt images. Plain bind mount on
       # purpose: Docker creates ./data if it is missing, whereas a named volume
       # with `driver_opts: {type: none, o: bind}` fails on a fresh clone because
       # ./data is gitignored and therefore absent.
-      - ./data:/app/data
+      - ${DATA_DIR:-./data}:/app/data
     environment:
       - NODE_ENV=production
       - PORT=5000
+      # Explicit rather than left to the app's `<cwd>/data/expenses.db` default,
+      # which resolves to the same file: the nightly demo reset deletes this
+      # path and re-seeds it, and a script guessing where the database lives is
+      # how you delete the wrong one.
+      - DB_PATH=${DB_PATH:-/app/data/expenses.db}
+      # Unset means auth stays off — right for localhost, wrong for anything
+      # with a public hostname. The empty default keeps that behaviour when no
+      # env file is used; an instance file sets a real password.
+      - APP_PASSWORD=${APP_PASSWORD:-}
+      # Falls back to APP_PASSWORD when empty. Set it per instance so a leaked
+      # token is not also an oracle for the password itself.
+      - AUTH_SECRET=${AUTH_SECRET:-}
+      # Instance flags, reported publicly by GET /api/config. Orthogonal on
+      # purpose: a demo is not automatically read-only, and an instance with
+      # uploads off is not automatically a demo.
+      - DEMO_MODE=${DEMO_MODE:-false}
+      - RECEIPTS_ENABLED=${RECEIPTS_ENABLED:-true}
     networks:
       - expense-network
     # NOTE: the previous `dns: 0.0.0.0` "no internet" hack was removed — it also
@@ -34,11 +66,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: sundry-frontend
+    container_name: ${INSTANCE:-sundry}-frontend
     restart: unless-stopped
     ports:
-      # Expose only to LAN (bind to all interfaces for LAN access)
-      - "8847:80"
+      # Published on all interfaces by default, which is what a home-LAN install
+      # wants. An instance sitting behind the front proxy sets BIND_ADDR=127.0.0.1
+      # so the only way in is through Caddy and its certificate — otherwise every
+      # customer instance is also reachable on a bare port over plain HTTP.
+      - "${BIND_ADDR:-0.0.0.0}:${HTTP_PORT:-8847}:80"
     depends_on:
       - backend
     networks:
@@ -60,3 +95,4 @@ networks:
     internal: false  # allow LAN access to the published frontend port
     # No `ipam` subnet on purpose: nothing here needs fixed addressing, and a
     # hardcoded 172.28.0.0/16 can collide with a VPN or another Compose stack.
+    # The network is named per project, so two instances never share one.

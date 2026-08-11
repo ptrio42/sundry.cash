@@ -1,0 +1,21 @@
+# The public demo, as an overlay on the normal stack:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml \
+#     --env-file deploy/demo.env up -d
+#
+# Two changes, and they are the two that make an instance safe to hand to the
+# internet: say what the data is, and do not offer strangers an OCR endpoint
+# that runs Tesseract on this machine's CPU.
+#
+# These live in a compose file rather than in the application's defaults on
+# purpose — the code couples nothing, so a customer instance can turn uploads
+# off without pretending to be a demo, and a demo on a laptop can leave them on.
+#
+# Everything else (project name, port, data directory, password) belongs to
+# deploy/demo.env. See deploy/README.md.
+
+services:
+  backend:
+    environment:
+      - DEMO_MODE=true
+      - RECEIPTS_ENABLED=false

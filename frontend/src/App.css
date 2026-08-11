@@ -179,6 +179,48 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
   flex: 1;
 }
 
+/* ---------- Demo instance banner ---------- */
+/* Spans every column of the shell grid, so it forms a row above the sidebar and
+   the content instead of sitting inside one of them: on a public demo the
+   disclosure is the first thing that should be read. The sidebar keeps its
+   100vh sticky height, which on this one kind of instance leaves the page a
+   banner-height taller than the viewport — a few dozen pixels of scroll, not
+   worth a :has() rule that every other install would also pay for. */
+.demo-banner {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 11px 22px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.demo-banner-tag {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-radius: var(--radius-xs);
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.demo-banner a {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 680px) {
+  .demo-banner { padding: 10px 16px; font-size: 0.85rem; }
+  /* Nothing pins to the right edge on a phone: the link wraps under the text. */
+  .demo-banner a { margin-left: 0; }
+}
+
 /* ---------- Mobile bottom navigation (hidden on desktop) ---------- */
 .bottom-nav { display: none; }
 .more-sheet-overlay { display: none; }

@@ -16,12 +16,29 @@ import Fx from './Fx';
 import Settings from './Settings';
 import EditExpenseModal from './EditExpenseModal';
 import Login from './Login';
-import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getToken, logout, getSettings, getFxRates, getCategories, getCurrencies } from '../services/api';
-import { Expense, AppSettings, Category, CurrencyInfo, FxRates } from '../types/expense.types';
+import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getInstanceConfig, getToken, logout, getSettings, getFxRates, getCategories, getCurrencies } from '../services/api';
+import { Expense, AppSettings, Category, CurrencyInfo, FxRates, InstanceConfig } from '../types/expense.types';
 import { setCurrencyRegistry } from '../utils/format';
 import '../App.css';
 
 type View = 'form' | 'receipt' | 'table' | 'dashboard' | 'import' | 'analytics' | 'insights' | 'budgets' | 'fx' | 'settings';
+
+type NavItem = { key: View; label: string; icon: string; short?: string };
+
+/**
+ * What to assume until `/api/config` answers — and what to keep assuming if it
+ * never does.
+ *
+ * A private instance with every feature on: the same failure posture the auth
+ * check already takes, because an unreachable config endpoint must not remove
+ * a tab from someone's own install. The banner is the opposite case and stays
+ * off by default: it is a claim about the data, and we only make it when the
+ * server said so.
+ */
+const DEFAULT_INSTANCE: InstanceConfig = { demoMode: false, receiptsEnabled: true };
+
+/** Where a visitor goes to see what this is. The banner's only link. */
+const PRODUCT_URL = 'https://sundry.cash';
 
 const DEFAULT_SETTINGS: AppSettings = {
   defaultCurrency: 'USD',
@@ -67,6 +84,7 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState<boolean>(false);
   const [authRequired, setAuthRequired] = useState<boolean>(false);
   const [authed, setAuthed] = useState<boolean>(false);
+  const [instance, setInstance] = useState<InstanceConfig>(DEFAULT_INSTANCE);
   const [theme, setTheme] = useState<'dark' | 'light'>(() =>
     (typeof localStorage !== 'undefined' && localStorage.getItem('theme') === 'light') ? 'light' : 'dark'
   );
@@ -96,18 +114,27 @@ export default function App() {
   }, [theme]);
 
   /**
-   * Check whether the backend requires a password, and listen for session expiry
+   * Ask the backend what it is before rendering anything, and listen for
+   * session expiry.
+   *
+   * Both calls are public and both decide the first paint — whether to show the
+   * login screen, whether to show a demo banner, whether the Scan Receipt tab
+   * exists at all — so they go out together, before any token could exist.
+   * Neither is fatal: each falls back independently, so a missing `/api/config`
+   * (an older backend, a proxy hiccup) leaves the app fully usable rather than
+   * quietly hiding a feature that works.
    */
   useEffect(() => {
     (async () => {
       try {
-        const status = await getAuthStatus();
+        const [status, config] = await Promise.all([
+          // If the status check fails, fail open so local usage isn't blocked
+          getAuthStatus().catch(() => ({ authRequired: false })),
+          getInstanceConfig().catch(() => DEFAULT_INSTANCE),
+        ]);
         setAuthRequired(status.authRequired);
         setAuthed(!status.authRequired || !!getToken());
-      } catch {
-        // If the status check fails, fail open so local usage isn't blocked
-        setAuthRequired(false);
-        setAuthed(true);
+        setInstance(config);
       } finally {
         setAuthChecked(true);
       }
@@ -278,7 +305,7 @@ export default function App() {
   // `short` is the label the mobile bottom bar uses: five tabs share 375px, so
   // the full sidebar wording does not fit. The full label stays as the button's
   // accessible name, and each short form is a prefix of it (WCAG label-in-name).
-  const NAV: { key: View; label: string; icon: string; short?: string }[] = [
+  const ALL_NAV: NavItem[] = [
     { key: 'form', label: 'Add Expense', icon: '➕', short: 'Add' },
     { key: 'receipt', label: 'Scan Receipt', icon: '🧾', short: 'Scan' },
     { key: 'import', label: 'Import Excel', icon: '📥' },
@@ -290,6 +317,13 @@ export default function App() {
     { key: 'fx', label: 'Currencies', icon: '💱' },
     { key: 'settings', label: 'Settings', icon: '⚙️' }
   ];
+
+  // An instance with receipts switched off has no Scan Receipt tab — the same
+  // progressive disclosure the dashboard uses for currencies that are absent
+  // from the data. Rendering a tab whose only possible outcome is a 403 would
+  // be worse than not offering it.
+  const NAV = ALL_NAV.filter(item => item.key !== 'receipt' || instance.receiptsEnabled);
+
   const VIEW_TITLES: Record<View, string> = {
     form: 'Add Expense',
     receipt: 'Scan Receipt',
@@ -304,8 +338,13 @@ export default function App() {
   };
 
   // Mobile bottom bar: a handful of primary tabs; the rest live behind "More".
+  // Mapped over PRIMARY_KEYS rather than filtered out of NAV because the order
+  // differs on purpose — Scan sits first on a phone. Keys that NAV no longer
+  // holds (receipts off) simply drop out, leaving three tabs and "More".
   const PRIMARY_KEYS: View[] = ['receipt', 'form', 'table', 'dashboard'];
-  const primaryItems = PRIMARY_KEYS.map(k => NAV.find(n => n.key === k)!);
+  const primaryItems = PRIMARY_KEYS
+    .map(k => NAV.find(n => n.key === k))
+    .filter((n): n is NavItem => n !== undefined);
   const secondaryItems = NAV.filter(n => !PRIMARY_KEYS.includes(n.key));
   const secondaryActive = secondaryItems.some(n => n.key === currentView);
 
@@ -316,6 +355,27 @@ export default function App() {
 
   return (
     <div className="shell">
+      {/*
+        The banner is what makes the demo honest — not distorted data. The seed
+        uses believable amounts and real shop names on purpose, so the
+        disclosure has to live in the UI, above the sidebar and the content
+        rather than beside them, where it cannot be mistaken for part of
+        someone's finances.
+      */}
+      {instance.demoMode && (
+        <div className="demo-banner">
+          <span className="demo-banner-tag">Demo</span>
+          <span>
+            Everything here is fictional sample data, and the ledger is wiped and
+            re-seeded every night. Nothing you add is kept, and nothing here belongs
+            to a real person.
+          </span>
+          <a href={PRODUCT_URL} target="_blank" rel="noopener noreferrer">
+            What Sundry is →
+          </a>
+        </div>
+      )}
+
       <aside className="sidebar">
         <div className="sidebar-brand">
           <img className="logo" src="/icons/icon-192.png" alt="" aria-hidden="true" />
