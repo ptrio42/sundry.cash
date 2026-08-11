@@ -317,6 +317,8 @@ export interface BudgetsProps {
   settings: AppSettings;
   categories: Category[];
   currencies: CurrencyInfo[];
+  /** Budgets gained an "All → primary" scope in wave 3, and combining converts. */
+  rates: FxRates;
 }
 
 export interface FxProps {

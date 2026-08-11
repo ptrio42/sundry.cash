@@ -182,3 +182,17 @@ click in order to read.
   falls back to the host OS locale — "11 sie 2025" renders in an English UI. Confirmed on the demo
   preview after wave 2. Not one of the 28, but it belongs in wave 4: it lands in every screenshot,
   and the gallery is regenerated right after.
+- **F19 again, and it is now a heading.** `monthLabel` has the same `Intl.DateTimeFormat(undefined)`
+  call, so 3c's month stepper renders "sierpień 2026" in an English UI — the largest instance of the
+  bug in the product, since it is a control rather than a table cell. Same fix, same wave; noted so
+  nobody reads the stepper as the cause. *(3c)*
+- **A NUL byte is committed inside `Home.tsx`.** Byte 22159, line 559: the React key
+  `'\x00everything-else'` in the "Where it went" list. Harmless at runtime and it survives `tsc`, but
+  `file(1)` calls the source "data" and **`grep -I` skips the file entirely** — searching the codebase
+  for a string in Home silently returns nothing. Found while looking for Home's budget section from
+  the 3c worktree. Home is nobody's file in wave 3. *(3c)*
+- **The chart's Y axis rounds satoshis to zero.** `tickFormatter={v => symbol + Math.round(v)}` in
+  `Budgets.tsx` predates this wave and survives it, so a BTC-scoped chart labels every gridline "₿0".
+  It wants the currency's own decimals — the same question `formatCurrency` already answers from
+  `minorUnits` — and it is a display nit rather than a wrong number, so it is parked rather than
+  built. *(3c)*

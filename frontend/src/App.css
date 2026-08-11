@@ -30,6 +30,7 @@
   --danger-strong: #ef4444;
   --danger-soft: rgba(248, 113, 113, 0.12);
   --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.12);
   --info: #60a5fa;
 
   /* Category hues used to live here, one custom property per slug. They are
@@ -67,6 +68,7 @@
   --accent: #047857;
   --danger: #b91c1c;
   --warning: #92400e;
+  --warning-soft: rgba(251, 191, 36, 0.22);
   --info: #1d4ed8;
   /* Follows --accent: near-black on a dark green would not read either. */
   --accent-contrast: #ffffff;
@@ -465,7 +467,11 @@ button[type='submit']:disabled,
   cursor: pointer;
   transition: background 0.15s ease;
 }
-.btn-secondary:hover { background: var(--surface-3); }
+.btn-secondary:hover:not(:disabled) { background: var(--surface-3); }
+/* A button that cannot be pressed has to look like one: Budgets disables "Edit
+   limits" under a combined currency scope, and the sentence beside it is the
+   explanation, not the only signal. */
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .button-group, .modal-actions { display: flex; gap: 12px; margin-top: 8px; }
 
@@ -836,19 +842,85 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .btn-danger:hover { filter: brightness(1.08); }
 
 /* ---------- Budgets ---------- */
-/* Same as `.table-toolbar`: the heading and the month line that sat on the left
-   are now the page title and the status line above it. */
-.budgets-head { display: flex; justify-content: flex-end; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+/* The verdict is the screen (F4, change 6): the answer at the top in the same
+   type Home gives a finding, the exceptions listed under it, and the categories
+   that behaved collapsed to a count. Reading and editing are two states of the
+   list rather than one widget, which is what stops a stray keystroke deleting a
+   limit (F11, change 9). */
+.budgets-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
 .muted-text { color: var(--text-muted); font-size: 0.9rem; margin-top: 3px; }
-.budget-list { display: flex; flex-direction: column; gap: 14px; }
+
+.month-stepper { display: flex; align-items: center; gap: 4px; }
+.month-stepper button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  font-size: 1rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.month-stepper button:hover:not(:disabled) { color: var(--text); border-color: var(--border-strong); }
+/* The month we are in is as far forward as this goes: there is no spending to
+   show and no limit that would mean anything against it. */
+.month-stepper button:disabled { opacity: 0.4; cursor: not-allowed; }
+.month-current { font-weight: 600; min-width: 148px; text-align: center; }
+
+/* Not a footnote. A past month is measured against limits that carry no month
+   of their own, and the sentence saying so is the price of the stepper. */
+.budgets-caveat {
+  background: var(--surface-2);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  padding: 9px 13px;
+  margin-bottom: 18px;
+}
+
+.budget-verdict { margin-bottom: 26px; }
+.verdict-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.verdict-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.verdict-name { font-weight: 600; }
+.verdict-figures { font-variant-numeric: tabular-nums; font-size: 0.95rem; }
+.verdict-figures .muted-text { display: inline; font-size: inherit; margin: 0; }
+.verdict-row.on-track .verdict-name { font-weight: 400; }
+.budget-pace { margin-top: 16px; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.budget-pace .muted-text { display: inline; font-size: inherit; margin: 0; }
+
+.budget-list-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.budget-list-head h2 { font-size: 1rem; color: var(--text-muted); margin-bottom: 0; }
+.budget-edit-hint { margin: -4px 0 12px; }
+
+.close-badge {
+  margin-left: 8px;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: var(--warning);
+  background: var(--warning-soft);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.budget-list { list-style: none; display: flex; flex-direction: column; gap: 14px; }
 .budget-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
 .budget-row.over { border-color: rgba(248, 113, 113, 0.5); }
+/* One line for however many categories carry no limit. Six of them used to hold
+   a full-height card each, around an empty box. */
+.budget-nolimit { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.budget-nolimit .muted-text { margin-top: 0; }
 .budget-row-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
 .budget-cat { font-weight: 600; }
 .budget-figures { font-variant-numeric: tabular-nums; font-size: 0.95rem; }
 .over-badge { margin-left: 8px; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: var(--danger); background: var(--danger-soft); padding: 2px 7px; border-radius: 999px; }
-.budget-bar-track { height: 10px; background: var(--surface-3); border-radius: 999px; overflow: hidden; margin-bottom: 12px; }
+.budget-bar-track { position: relative; height: 10px; background: var(--surface-3); border-radius: 999px; overflow: hidden; margin-bottom: 12px; }
 .budget-bar-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+/* Where the calendar is, so "43% used" can be read against the month without
+   arithmetic (change 8). One pixel: it is a reference, not a second bar. */
+.budget-bar-pace { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--text); opacity: 0.55; }
 .budget-row-actions { display: flex; align-items: center; gap: 12px; }
 .budget-input { display: flex; align-items: center; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding-left: 11px; }
 .budget-input:focus-within { border-color: var(--accent); box-shadow: var(--ring); }

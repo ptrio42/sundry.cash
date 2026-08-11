@@ -214,12 +214,19 @@ describe('App — the status line', () => {
     expect(seen.size).toBe(5);
   });
 
-  it('states the window a screen actually has — the month, on Budgets', async () => {
+  /**
+   * The status line used to name the month for Budgets. Wave 3 gave that screen
+   * a stepper, so the shell stopped: a line reading "January 2026" above a
+   * screen showing December is the contradiction F10 was about. The month is
+   * stated once, by the control that can change it.
+   */
+  it('leaves the month to Budgets, which now carries the stepper', async () => {
     await renderApp();
     goTo('Budgets');
 
     await screen.findByRole('heading', { level: 1, name: 'Budgets' });
-    expect(statusLine()).toHaveTextContent(monthLabel(currentMonthKey()));
+    expect(statusLine()).not.toHaveTextContent(monthLabel(currentMonthKey()));
+    expect(await screen.findByText(monthLabel(currentMonthKey()))).toHaveClass('month-current');
   });
 });
 

@@ -1,21 +1,26 @@
 /**
  * Tests for the Budgets component. The API layer is mocked.
  *
- * Budgets are stored per (category, currency); the current-month spend is
- * computed client-side from the `expenses` prop. The behaviour worth pinning
- * down is therefore the scoping: only expenses in the selected currency and in
- * the current month count towards a limit, and every write (set / clear) has to
- * carry the selected currency, not a hardcoded one — starting with which
- * currency the tab opens on.
+ * The screen states a verdict now (wave 3c), so what is worth pinning down has
+ * moved with it: that the counts in the headline describe the rows underneath,
+ * that a clean month is an answer rather than an absence, that the month stepper
+ * carries its caveat, and that reading a limit can no longer delete it.
+ *
+ * The old suite's subjects survive underneath: budgets are stored per (category,
+ * currency), the spend is computed client-side from the `expenses` prop, and
+ * every write has to carry the scope's currency rather than a hardcoded one.
+ *
+ * The clock is fixed at **11 January 2026** — a 31-day month, so "day 11 of 31"
+ * is the report's own pace example and not an accident of when the suite runs.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import Budgets from '../components/Budgets';
 import { TEST_CATEGORIES } from './categories.fixture';
 import { TEST_CURRENCIES } from './currencies.fixture';
 import { getBudgets, setBudget, deleteBudget } from '../services/api';
-import { AppSettings, Budget, Expense } from '../types/expense.types';
+import { AppSettings, Budget, Expense, FxRates } from '../types/expense.types';
 
 vi.mock('../services/api', () => ({
   getBudgets: vi.fn(),
@@ -27,181 +32,291 @@ const mockGetBudgets = getBudgets as unknown as ReturnType<typeof vi.fn>;
 const mockSetBudget = setBudget as unknown as ReturnType<typeof vi.fn>;
 const mockDeleteBudget = deleteBudget as unknown as ReturnType<typeof vi.fn>;
 
-// The component only counts the *current* month, so the fixtures have to move
-// with the clock rather than being hardcoded dates.
-const now = new Date();
-const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-const thisMonth = (day: number): string => `${monthKey}-${String(day).padStart(2, '0')}`;
-const lastMonth = (day: number): string => {
-  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, day));
-  return d.toISOString().slice(0, 10);
-};
+/** Noon local, so the date the component derives cannot slip a day on a TZ. */
+const setToday = (iso: string) => vi.setSystemTime(new Date(`${iso}T12:00:00`));
 
-const expense = (e: Partial<Expense> & Pick<Expense, 'id'>): Expense => ({
-  amount: 0,
-  date: thisMonth(5),
+const rates: FxRates = { USD: 1, PLN: 0.25, BTC: 65000 };
+
+const settings = (primaryCurrency: string): AppSettings => ({
+  defaultCurrency: 'USD',
+  defaultCategory: 'groceries',
+  defaultBtcUnit: 'BTC',
+  primaryCurrency,
+});
+
+const expense = (e: Partial<Expense> & Pick<Expense, 'id' | 'amount'>): Expense => ({
+  date: '2026-01-05',
   description: 'x',
   category: 'groceries',
   currency: 'USD',
   ...e,
 });
 
+/**
+ * One currency, so the scope control is not rendered and the screen is
+ * editable — the single-currency install the old fixtures described.
+ */
 const expenses: Expense[] = [
-  expense({ id: 1, amount: 120, category: 'groceries', currency: 'USD' }),
-  expense({ id: 2, amount: 30, category: 'transport', currency: 'USD', date: thisMonth(6) }),
-  expense({ id: 3, amount: 400, category: 'groceries', currency: 'PLN', date: thisMonth(7) }),
-  // Same category and currency as #1 but last month — must be ignored.
-  expense({ id: 4, amount: 999, category: 'groceries', currency: 'USD', date: lastMonth(3) }),
+  expense({ id: 1, amount: 120, category: 'groceries' }),
+  expense({ id: 2, amount: 30, category: 'transport', date: '2026-01-06' }),
+  expense({ id: 3, amount: 95, category: 'entertainment', date: '2026-01-07' }),
+  // Spend in a category nobody limited: it must not reach the pace figure.
+  expense({ id: 4, amount: 45, category: 'media', date: '2026-01-08' }),
+  // Same category and currency as #1 but last month — a different window.
+  expense({ id: 5, amount: 999, category: 'groceries', date: '2025-12-03' }),
 ];
-
-const settings = (defaultCurrency: AppSettings['defaultCurrency']): AppSettings => ({
-  defaultCurrency,
-  defaultCategory: 'groceries',
-  defaultBtcUnit: 'BTC',
-  primaryCurrency: 'USD',
-});
 
 const budgets: Budget[] = [
-  { category: 'groceries', currency: 'USD', amount: 200 },
-  { category: 'transport', currency: 'USD', amount: 20 },
-  { category: 'groceries', currency: 'PLN', amount: 1000 },
+  { category: 'groceries', currency: 'USD', amount: 200 },     // 120 — on track
+  { category: 'transport', currency: 'USD', amount: 20 },      // 30  — over
+  { category: 'entertainment', currency: 'USD', amount: 100 }, // 95  — close
 ];
 
-/** The `.budget-row` for a category, found by its (emoji-prefixed) label. */
-const row = (label: RegExp): HTMLElement => {
-  const el = screen.getByText(label).closest('.budget-row');
-  if (!el) throw new Error(`no budget row for ${label}`);
-  return el as HTMLElement;
-};
-
-/** The `.summary-card` whose heading is `heading`. */
-const card = (heading: string): HTMLElement => {
-  const el = screen.getByText(heading).closest('.summary-card');
-  if (!el) throw new Error(`no summary card titled "${heading}"`);
-  return el as HTMLElement;
-};
-
-const renderBudgets = async (defaultCurrency = 'USD') => {
+const renderBudgets = async (props: Partial<Parameters<typeof Budgets>[0]> = {}) => {
   const result = render(
     <Budgets
       expenses={expenses}
-      settings={settings(defaultCurrency)}
+      settings={settings('USD')}
       categories={TEST_CATEGORIES}
       currencies={TEST_CURRENCIES}
+      rates={rates}
+      {...props}
     />
   );
   await waitFor(() => expect(screen.queryByText(/loading budgets/i)).not.toBeInTheDocument());
   return result;
 };
 
+/**
+ * The `.budget-row` for a category, found by its exact label.
+ *
+ * Scoped to the list, because an exception is named twice on purpose now: once
+ * in the verdict at the top, and once by the row that proves it.
+ */
+const row = (label: string): HTMLElement => {
+  const list = document.querySelector('.budget-list') as HTMLElement;
+  const el = within(list).getByText(label).closest('.budget-row');
+  if (!el) throw new Error(`no budget row for ${label}`);
+  return el as HTMLElement;
+};
+
+const verdict = (): HTMLElement => document.querySelector('.budget-verdict') as HTMLElement;
+const pace = (): HTMLElement => document.querySelector('.budget-pace') as HTMLElement;
+const month = (): string => (document.querySelector('.month-current') as HTMLElement).textContent ?? '';
+const edit = () => screen.getByRole('button', { name: /edit limits|^done$/i });
+
 beforeEach(() => {
   vi.clearAllMocks();
+  // Only Date: testing-library's waitFor needs real timers to poll.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  setToday('2026-01-11');
   mockGetBudgets.mockResolvedValue(budgets);
   mockSetBudget.mockResolvedValue(undefined);
   mockDeleteBudget.mockResolvedValue(undefined);
 });
 
-describe('Budgets', () => {
-  it('shows this month\'s spend against each stored limit', async () => {
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('Budgets — the verdict', () => {
+  it('states counts that describe the rows it lists', async () => {
     await renderBudgets();
 
-    // 120 of a 200 limit — the 999 from last month must not be included.
-    expect(within(row(/Groceries/)).getByText(/\$120\.00/)).toBeInTheDocument();
-    expect(row(/Groceries/)).toHaveTextContent('/ $200.00');
-    expect(row(/Groceries/)).not.toHaveTextContent('999');
-    expect(row(/Groceries/)).not.toHaveTextContent(/over/i);
+    expect(within(verdict()).getByText('1 over · 1 close · 1 on track.')).toBeInTheDocument();
 
-    // Totals cover only the two USD expenses of this month.
-    expect(card('Budgeted')).toHaveTextContent('$220.00');
-    expect(card('Spent so far')).toHaveTextContent('$150.00');
-    expect(card('Remaining')).toHaveTextContent('$70.00');
+    // Every count is spelled out by a row, and the third by a single line.
+    const listed = verdict().querySelectorAll('.verdict-row');
+    expect(listed).toHaveLength(3);
+    expect(listed[0]).toHaveTextContent('Transport');
+    expect(listed[0]).toHaveTextContent('50% over');
+    expect(listed[1]).toHaveTextContent('Entertainment');
+    expect(listed[1]).toHaveTextContent('95% used');
+    expect(listed[2]).toHaveTextContent('1 on track');
+
+    // …and by the same category rows underneath.
+    expect(row('Transport')).toHaveTextContent('$30.00');
+    expect(row('Transport')).toHaveTextContent('/ $20.00');
+    expect(within(row('Transport')).getByText('over')).toBeInTheDocument();
+    expect(within(row('Entertainment')).getByText('close')).toBeInTheDocument();
+    expect(row('Groceries')).toHaveTextContent('$120.00');
+    // Last month's 999 belongs to a different window.
+    expect(row('Groceries')).not.toHaveTextContent('999');
   });
 
-  it('flags a category whose spend exceeds its limit', async () => {
+  it('says "on track" for a clean month instead of saying nothing', async () => {
+    mockGetBudgets.mockResolvedValue([{ category: 'groceries', currency: 'USD', amount: 200 }]);
     await renderBudgets();
 
-    const transport = row(/Transport/);
-    expect(transport).toHaveTextContent('$30.00');
-    expect(transport).toHaveTextContent('/ $20.00');
-    expect(within(transport).getByText(/^over$/i)).toBeInTheDocument();
-    expect(transport.className).toMatch(/\bover\b/);
+    expect(within(verdict()).getByText('Nothing over · 1 on track.')).toBeInTheDocument();
+    expect(document.querySelectorAll('.budget-row.over')).toHaveLength(0);
   });
 
-  it('shows a category with no budget as unlimited and offers no Clear action', async () => {
+  /**
+   * With no limits, `remaining` used to be `0 - totalSpent` coloured `--danger`:
+   * an empty install turned red the moment the first expense was saved, against
+   * a budget nobody had set (F4, and §9 of docs/ux-review-findings.md).
+   */
+  it('reports no verdict at all when nothing carries a limit, and no negative', async () => {
+    mockGetBudgets.mockResolvedValue([]);
+    const { container } = await renderBudgets();
+
+    expect(screen.getByText(/No limits set in USD/)).toBeInTheDocument();
+    expect(container.querySelector('.budget-verdict')).toBeNull();
+    expect(container.querySelector('.budget-pace')).toBeNull();
+    expect(container.querySelectorAll('.budget-row.over')).toHaveLength(0);
+    expect(container.textContent).not.toMatch(/-\s?\$/);
+  });
+});
+
+describe('Budgets — pace', () => {
+  // 430 spent against 1000 of limits: 43% used, the report's own example.
+  const paceBudgets: Budget[] = [{ category: 'groceries', currency: 'USD', amount: 1000 }];
+  const paceExpenses: Expense[] = [expense({ id: 1, amount: 430, date: '2026-01-02' })];
+
+  const renderPace = async () => {
+    mockGetBudgets.mockResolvedValue(paceBudgets);
+    return renderBudgets({ expenses: paceExpenses });
+  };
+
+  it('reads 43% on day 11 of 31 as on pace', async () => {
+    await renderPace();
+
+    expect(pace()).toHaveTextContent('43% used');
+    expect(pace()).toHaveTextContent('day 11 of 31');
+    expect(pace()).toHaveTextContent('on pace');
+    expect(pace()).toHaveTextContent('$430.00 of $1,000.00 across 1 limit');
+  });
+
+  it('does not read the same 43% on day 3 as on pace', async () => {
+    setToday('2026-01-03');
+    await renderPace();
+
+    expect(pace()).toHaveTextContent('43% used');
+    expect(pace()).toHaveTextContent('day 3 of 31');
+    expect(pace()).toHaveTextContent('ahead of pace');
+    expect(pace()).not.toHaveTextContent('on pace');
+  });
+
+  it('measures the percentage against the limits, not against everything spent', async () => {
     await renderBudgets();
 
-    const media = row(/Media/);
-    expect(media).toHaveTextContent('$0.00');
-    expect(media).not.toHaveTextContent('/');
-    expect(within(media).queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
-    expect((within(media).getByLabelText(/monthly limit for media/i) as HTMLInputElement).value).toBe('');
-    // With no limit anywhere the summary would prompt instead of showing a %.
-    expect(card('Remaining')).toHaveTextContent('68% used');
+    // 245 of 320 across the three limits — the 45 spent on unlimited Media is
+    // not part of any budget and cannot push the figure over 100%.
+    expect(pace()).toHaveTextContent('77% used');
+    expect(pace()).toHaveTextContent('$245.00 of $320.00 across 3 limits');
   });
 
-  it('rescopes spend, limits and totals to the selected currency', async () => {
+  it('marks where the calendar is on every bar that has a limit', async () => {
     await renderBudgets();
 
-    fireEvent.click(screen.getByRole('button', { name: /^PLN/ }));
-
-    // The PLN budget and the PLN expense replace the USD ones entirely.
-    expect(row(/Groceries/)).toHaveTextContent(/400,00\s*zł/);
-    expect(row(/Groceries/)).toHaveTextContent(/1\s*000,00\s*zł/);
-    expect(row(/Transport/)).not.toHaveTextContent('30');
-    expect(card('Budgeted')).toHaveTextContent(/1\s*000,00\s*zł/);
-    expect(card('Spent so far')).toHaveTextContent(/400,00\s*zł/);
+    const tick = within(row('Groceries')).getByTitle('Day 11 of 31');
+    expect(tick).toHaveStyle({ left: `${(11 / 31) * 100}%` });
+    // Nothing to pace a limitless category against.
+    expect(document.querySelectorAll('.budget-bar-pace')).toHaveLength(3);
   });
+});
 
-  it('opens on the default currency from settings, with no click needed', async () => {
-    await renderBudgets('PLN');
-
-    expect(screen.getByRole('button', { name: /^PLN/ }).className).toMatch(/\bactive\b/);
-    expect(card('Budgeted')).toHaveTextContent(/1\s*000,00\s*zł/);
-    expect(card('Spent so far')).toHaveTextContent(/400,00\s*zł/);
-    // Not the "$0.00 budgeted, no limits" a hardcoded USD used to show a
-    // PLN-only ledger.
-    expect(card('Budgeted')).not.toHaveTextContent('$0.00');
-    expect(row(/Groceries/)).toHaveTextContent(/1\s*000,00\s*zł/);
-  });
-
-  it('saves a typed limit for the selected currency and shows it once reloaded', async () => {
+describe('Budgets — the month stepper', () => {
+  it('opens on this month and refuses to go past it', async () => {
     await renderBudgets();
 
-    fireEvent.click(screen.getByRole('button', { name: /^PLN/ }));
-    mockGetBudgets.mockResolvedValue([...budgets, { category: 'media', currency: 'PLN', amount: 250 }]);
+    expect(month()).toBe('January 2026');
+    expect(screen.getByRole('button', { name: /next month/i })).toBeDisabled();
+    expect(screen.queryByText(/compared with your current limits/)).not.toBeInTheDocument();
+  });
 
-    const input = within(row(/Media/)).getByLabelText(/monthly limit for media/i);
+  it('moves the spending window back, with the standing-limits caveat', async () => {
+    await renderBudgets();
+
+    fireEvent.click(screen.getByRole('button', { name: /previous month/i }));
+
+    expect(month()).toBe('December 2025');
+    // Budgets have no month dimension: December is measured against today's
+    // limits, and the screen has to say so.
+    expect(screen.getByText(/compared with your current limits/)).toBeInTheDocument();
+    expect(row('Groceries')).toHaveTextContent('$999.00');
+    expect(within(row('Groceries')).getByText('over')).toBeInTheDocument();
+    // A finished month has no pace left to keep.
+    expect(pace()).toHaveTextContent('the whole of December 2025');
+    expect(pace()).not.toHaveTextContent('day');
+    expect(document.querySelectorAll('.budget-bar-pace')).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: /next month/i }));
+    expect(month()).toBe('January 2026');
+    expect(screen.queryByText(/compared with your current limits/)).not.toBeInTheDocument();
+  });
+});
+
+describe('Budgets — reading and editing are two states', () => {
+  it('renders no input until Edit limits is pressed', async () => {
+    const { container } = await renderBudgets();
+
+    expect(container.querySelectorAll('input')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
+
+    fireEvent.click(edit());
+
+    expect(screen.getByLabelText('Monthly limit for Groceries')).toHaveValue(200);
+    expect(container.querySelectorAll('input')).toHaveLength(TEST_CATEGORIES.length);
+
+    fireEvent.click(edit());
+    expect(container.querySelectorAll('input')).toHaveLength(0);
+  });
+
+  it('collapses the categories with no limit into one line, and expands them to edit', async () => {
+    const { container } = await renderBudgets();
+
+    const collapsed = container.querySelector('.budget-nolimit') as HTMLElement;
+    expect(collapsed).toHaveTextContent('4 with no limit');
+    expect(collapsed).toHaveTextContent('Media · Utilities · Maintenance · Other');
+    // Three limits, one collapsed line — not seven cards.
+    expect(container.querySelectorAll('.budget-list > li')).toHaveLength(4);
+
+    fireEvent.click(edit());
+    expect(container.querySelector('.budget-nolimit')).toBeNull();
+    expect(container.querySelectorAll('.budget-list > li')).toHaveLength(TEST_CATEGORIES.length);
+  });
+
+  it('saves a typed limit for the scope\'s currency and shows it once reloaded', async () => {
+    await renderBudgets();
+    fireEvent.click(edit());
+
+    mockGetBudgets.mockResolvedValue([...budgets, { category: 'media', currency: 'USD', amount: 250 }]);
+    const input = screen.getByLabelText('Monthly limit for Media');
     fireEvent.change(input, { target: { value: '250' } });
     fireEvent.blur(input);
 
-    await waitFor(() => expect(mockSetBudget).toHaveBeenCalledWith('media', 'PLN', 250));
+    await waitFor(() => expect(mockSetBudget).toHaveBeenCalledWith('media', 'USD', 250));
     expect(mockDeleteBudget).not.toHaveBeenCalled();
-    await waitFor(() => expect(row(/Media/)).toHaveTextContent(/250,00\s*zł/));
+    await waitFor(() => expect(row('Media')).toHaveTextContent('/ $250.00'));
   });
 
   it('clears a limit via the Clear button and drops it from the row', async () => {
     await renderBudgets();
+    fireEvent.click(edit());
 
     mockGetBudgets.mockResolvedValue(budgets.filter(b => b.category !== 'transport'));
-    fireEvent.click(within(row(/Transport/)).getByRole('button', { name: /clear/i }));
+    fireEvent.click(within(row('Transport')).getByRole('button', { name: /clear/i }));
 
     await waitFor(() => expect(mockDeleteBudget).toHaveBeenCalledWith('transport', 'USD'));
-    await waitFor(() => expect(row(/Transport/)).not.toHaveTextContent('$20.00'));
-    expect(within(row(/Transport/)).queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(row('Transport')).not.toHaveTextContent('/ $20.00'));
+    expect(within(row('Transport')).queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
     expect(mockSetBudget).not.toHaveBeenCalled();
   });
 
-  it('deletes the budget when its input is emptied, but writes nothing for an untouched category', async () => {
+  it('deletes on an emptied box, but writes nothing for an untouched category', async () => {
     await renderBudgets();
+    fireEvent.click(edit());
 
-    const grocerySpy = within(row(/Groceries/)).getByLabelText(/monthly limit for groceries/i);
-    fireEvent.change(grocerySpy, { target: { value: '' } });
-    fireEvent.blur(grocerySpy);
+    const groceries = screen.getByLabelText('Monthly limit for Groceries');
+    fireEvent.change(groceries, { target: { value: '' } });
+    fireEvent.blur(groceries);
     await waitFor(() => expect(mockDeleteBudget).toHaveBeenCalledWith('groceries', 'USD'));
 
     // A category that never had a limit and is left blank must not hit the API.
     mockDeleteBudget.mockClear();
-    const utilities = within(row(/Utilities/)).getByLabelText(/monthly limit for utilities/i);
+    const utilities = screen.getByLabelText('Monthly limit for Utilities');
     fireEvent.change(utilities, { target: { value: '40' } });
     fireEvent.change(utilities, { target: { value: '' } });
     fireEvent.blur(utilities);
@@ -212,58 +327,77 @@ describe('Budgets', () => {
 
   it('surfaces a load failure instead of an empty budget list', async () => {
     mockGetBudgets.mockRejectedValue(new Error('budgets unavailable'));
-    render(
-      <Budgets
-        expenses={expenses}
-        settings={settings('USD')}
-        categories={TEST_CATEGORIES}
-        currencies={TEST_CURRENCIES}
-      />
-    );
+    await renderBudgets();
 
     expect(await screen.findByText('budgets unavailable')).toBeInTheDocument();
-    // The rows still render, just without any limits attached.
-    expect(row(/Groceries/)).not.toHaveTextContent('/');
+    // The categories are still listed, just without any limit attached.
+    expect(screen.getByText(/7 with no limit/)).toBeInTheDocument();
+  });
+});
+
+describe('Budgets — currency scope', () => {
+  const mixed: Expense[] = [
+    ...expenses,
+    expense({ id: 6, amount: 400, category: 'groceries', currency: 'PLN', date: '2026-01-07' }),
+  ];
+  const mixedBudgets: Budget[] = [...budgets, { category: 'groceries', currency: 'PLN', amount: 1000 }];
+
+  const renderMixed = async () => {
+    mockGetBudgets.mockResolvedValue(mixedBudgets);
+    return renderBudgets({ expenses: mixed });
+  };
+
+  it('offers no scope control at all while the ledger holds one currency', async () => {
+    await renderBudgets();
+    expect(document.querySelector('.currency-buttons')).toBeNull();
   });
 
-  /**
-   * With no limits set, `remaining` was `0 - totalSpent`, coloured `--danger`.
-   * An empty install read "Remaining $0.00" in green and turned red the moment
-   * the first expense was saved — it fired on the first thing a new user does,
-   * against a budget they had never set (F4, and §9 of the review).
-   */
-  describe('with no limits set', () => {
-    beforeEach(() => mockGetBudgets.mockResolvedValue([]));
+  it('opens combined, converting both currencies into the primary one', async () => {
+    await renderMixed();
 
-    it('reports no remaining figure rather than a negative one', async () => {
-      await renderBudgets();
+    expect(screen.getByRole('button', { name: 'All → USD' }).className).toMatch(/\bactive\b/);
+    // 120 USD + 400 PLN at 0.25 = 220, against 200 + 1000 PLN = 450.
+    expect(row('Groceries')).toHaveTextContent('$220.00');
+    expect(row('Groceries')).toHaveTextContent('/ $450.00');
+  });
 
-      const remaining = card('Remaining');
-      // $150 of USD spend this month, and not a minus sign anywhere near it.
-      expect(card('Spent so far')).toHaveTextContent('$150.00');
-      expect(remaining).not.toHaveTextContent('-');
-      expect(remaining).not.toHaveTextContent('−');
-      expect(remaining).not.toHaveTextContent('150');
-      expect(remaining).toHaveTextContent('set a limit below');
-    });
+  it('is read-only while combined, and says which currency to pick', async () => {
+    const { container } = await renderMixed();
 
-    it('leaves the placeholder neutral instead of colouring it as an alarm', async () => {
-      const { container } = await renderBudgets();
+    expect(edit()).toBeDisabled();
+    expect(screen.getByText(/A limit is held in its own currency/)).toHaveTextContent(/USD, PLN/);
+    expect(container.querySelectorAll('input')).toHaveLength(0);
+  });
 
-      const value = card('Remaining').querySelector('.value') as HTMLElement;
-      expect(value).toHaveClass('value-none');
-      expect(value.style.color).toBe('');
-      // Nothing else on the screen claims an overspend either.
-      expect(container.querySelectorAll('.budget-row.over')).toHaveLength(0);
-    });
+  it('rescopes to a native currency, which is then editable', async () => {
+    await renderMixed();
 
-    it('still states the remaining figure once a limit exists', async () => {
-      mockGetBudgets.mockResolvedValue([{ category: 'groceries', currency: 'USD', amount: 200 }]);
-      await renderBudgets();
+    fireEvent.click(screen.getByRole('button', { name: /^PLN/ }));
 
-      // 200 budgeted against 150 spent across both USD categories.
-      expect(card('Remaining')).toHaveTextContent('$50.00');
-      expect(card('Remaining')).toHaveTextContent('75% used');
-    });
+    expect(row('Groceries')).toHaveTextContent(/400,00\s*zł/);
+    expect(row('Groceries')).toHaveTextContent(/1\s*000,00\s*zł/);
+    // No PLN limit, so Transport is inside the collapsed line rather than a row.
+    expect(document.querySelector('.budget-nolimit')).toHaveTextContent('Transport');
+    expect(edit()).not.toBeDisabled();
+
+    fireEvent.click(edit());
+    const input = screen.getByLabelText('Monthly limit for Groceries');
+    expect(input).toHaveValue(1000); // the stored PLN figure, not a converted one
+
+    fireEvent.change(input, { target: { value: '1200' } });
+    fireEvent.blur(input);
+    await waitFor(() => expect(mockSetBudget).toHaveBeenCalledWith('groceries', 'PLN', 1200));
+  });
+
+  it('closes the editor when the scope goes back to combined', async () => {
+    const { container } = await renderMixed();
+
+    fireEvent.click(screen.getByRole('button', { name: /^PLN/ }));
+    fireEvent.click(edit());
+    expect(container.querySelectorAll('input').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'All → USD' }));
+    expect(container.querySelectorAll('input')).toHaveLength(0);
+    expect(edit()).toBeDisabled();
   });
 });
