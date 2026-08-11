@@ -63,7 +63,11 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 - `src/tests/` — Jest + supertest, 260 cases across 15 files (plus `env.ts` / `paths.ts` /
   `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
 
-**frontend/** — React 18 + Vite, single-page tabbed UI (no router, no state library — plain hooks):
+**frontend/** — React 18 + Vite, single-page UI (no state library — plain hooks). Four destinations
+(Home / Expenses / Budgets / Settings) plus a persistent Add, addressed by `utils/route.ts`: a hash
+router in ~80 lines with **no routing dependency**. Hash rather than `pushState` on purpose — the
+latter needs every path answered with `index.html`, and nothing promises a self-hoster's static
+server does, so `/expenses` would 404 on reload:
 - `src/main.tsx` -> `src/components/App.tsx`. Feature components: `Dashboard`, `Analytics`, `Budgets`,
   `Fx`, `ExpenseForm`, `ExpenseTable`, `ExcelImport`, `EditExpenseModal`, `Login`, `Settings`,
   `ReceiptScan`, `InsightsStrip` (three sentences at the top of `Dashboard` — it renders what
@@ -140,7 +144,7 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (260 backend + 223 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (260 backend + 248 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).
