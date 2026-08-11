@@ -9,10 +9,15 @@
  * visible output of that choice, so they are what these tests pin down.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Dashboard from '../components/Dashboard';
 import { AppSettings, Expense, FxRates } from '../types/expense.types';
+
+// The dashboard renders the insights strip above everything else, and that
+// strip fetches on mount. It has its own suite; stubbing it here keeps these
+// tests about the charts and free of network doubles.
+vi.mock('../components/InsightsStrip', () => ({ default: () => null }));
 
 // Value of one unit in USD: 1 PLN = 0.25 USD (so 1 USD = 4 PLN), 1 BTC = 65000 USD.
 const rates: FxRates = { USD: 1, PLN: 0.25, BTC: 65000 };

@@ -9,6 +9,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis
 import { DashboardProps, Currency, ExpenseCategory } from '../types/expense.types';
 import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
 import { convertAmount } from '../utils/fx';
+import InsightsStrip from './InsightsStrip';
 
 const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
@@ -149,6 +150,10 @@ export default function Dashboard({ expenses, settings, rates }: DashboardProps)
 
   return (
     <div className="dashboard">
+      {/* Reads the currency scope chosen below it, and hides itself when the
+          data has nothing to say. */}
+      <InsightsStrip view={view} primary={primary} rates={rates} />
+
       <div className="dashboard-head">
         <div className="dashboard-head-controls">
           <div className="currency-buttons">

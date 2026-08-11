@@ -31,6 +31,18 @@ db.pragma('foreign_keys = ON');
 // never just `expenses.db`. See docs/DEPLOYMENT.md.
 db.pragma('journal_mode = WAL');
 
+// Unicode-aware lowercase, because SQLite's built-in LOWER() only folds ASCII:
+// LOWER('ŻABKA') and LOWER('Żabka') both give 'Żabka', but 'żabka' stays
+// distinct — enough to split one merchant into two groups. That silently breaks
+// `models/insights.ts`, where a subscription grouped under two spellings can
+// fall below the occurrence threshold on both and vanish from the report.
+// JS toLowerCase() handles the full character set; SQLite gains ICU only when
+// compiled with it, which the prebuilt better-sqlite3 binaries are not.
+// Marked deterministic so SQLite may use it in GROUP BY without re-evaluating.
+db.function('lower_unicode', { deterministic: true }, (value: unknown) =>
+  typeof value === 'string' ? value.toLowerCase() : value as null
+);
+
 /**
  * Initialize database schema
  * Creates the expenses table if it doesn't exist
