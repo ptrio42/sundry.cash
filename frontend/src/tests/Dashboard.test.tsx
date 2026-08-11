@@ -151,6 +151,17 @@ describe('Dashboard', () => {
     expect(card('Total Spent')).toHaveTextContent('$200.00');
   });
 
+  it('labels the donut with its own legend, one entry per category present', () => {
+    // The legend is plain markup rather than recharts' <Legend> precisely so it
+    // can wrap: recharts sizes that box up front, so on a 375px phone the
+    // categories overflowed it and pushed the page sideways.
+    const { container } = render(<Dashboard expenses={usdOnly} settings={settings('PLN')} rates={rates} />);
+
+    const entries = [...container.querySelectorAll('.chart-legend li')].map(li => li.textContent);
+    expect(entries).toEqual(['Groceries', 'Transport', 'Media']); // largest first
+    expect(container.querySelectorAll('.chart-legend-swatch')).toHaveLength(3);
+  });
+
   it('renders the combined empty state when there are no expenses at all', () => {
     render(<Dashboard expenses={[]} settings={settings('PLN')} rates={rates} />);
 
