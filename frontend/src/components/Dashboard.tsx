@@ -5,7 +5,7 @@
  */
 
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { DashboardProps, Currency, ExpenseCategory } from '../types/expense.types';
 import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
 import { convertAmount } from '../utils/fx';
@@ -210,8 +210,10 @@ export default function Dashboard({ expenses, settings, rates }: DashboardProps)
             {/* Donut */}
             <div className="chart-box">
               <h3>By Category</h3>
+              {/* 264 = the 300px box minus the 36px recharts' own <Legend> used to
+                  reserve, so the donut (and .donut-center, pinned at 132px) stay put. */}
               <div className="donut-wrap">
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={264}>
                   <PieChart>
                     <Pie
                       data={categoryStats}
@@ -228,7 +230,6 @@ export default function Dashboard({ expenses, settings, rates }: DashboardProps)
                       ))}
                     </Pie>
                     <Tooltip formatter={(value: number) => fmt(value)} />
-                    <Legend verticalAlign="bottom" height={36} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="donut-center">
@@ -236,6 +237,18 @@ export default function Dashboard({ expenses, settings, rates }: DashboardProps)
                   <span className="donut-label">total</span>
                 </div>
               </div>
+              {/* The legend is ours rather than recharts' <Legend>: that one renders
+                  into an absolutely-positioned box whose height recharts fixes up
+                  front, so on a phone the seven categories wrapped to three rows and
+                  spilled out of the card. Plain flow content just grows instead. */}
+              <ul className="chart-legend">
+                {categoryStats.map(entry => (
+                  <li key={entry.category} style={{ color: COLORS[entry.category] }}>
+                    <span className="chart-legend-swatch" style={{ background: COLORS[entry.category] }} />
+                    {entry.name}
+                  </li>
+                ))}
+              </ul>
             </div>
 
             {/* Stacked trend */}

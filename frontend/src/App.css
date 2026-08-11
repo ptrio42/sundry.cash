@@ -220,7 +220,10 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
     align-items: stretch;
   }
   .bottom-nav button {
+    /* min-width:0 is what makes `flex: 1 1 0` real: without it a button cannot
+       shrink below its own text and five tabs push the bar past the viewport. */
     flex: 1 1 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -236,7 +239,13 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
   }
   .bottom-nav button.active { color: var(--accent); }
   .bottom-nav .nav-icon { width: auto; font-size: 1.3rem; line-height: 1; }
-  .bottom-nav-label { font-size: 0.66rem; font-weight: 600; letter-spacing: 0.01em; }
+  .bottom-nav-label {
+    font-size: 0.66rem; font-weight: 600; letter-spacing: 0.01em;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   /* "More" sheet */
   .more-sheet-overlay {
@@ -462,6 +471,9 @@ button[type='submit']:disabled,
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
+  /* Grid items default to min-width:auto, which lets chart content push the
+     track — and the whole page — wider than the viewport. */
+  min-width: 0;
 }
 .chart-box h3 { margin-bottom: 14px; }
 .chart-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
@@ -489,6 +501,24 @@ button[type='submit']:disabled,
   border-color: var(--accent);
   color: var(--accent);
 }
+/* Chart legend (ours, not recharts' — see Dashboard.tsx). Wraps to as many rows
+   as it needs inside the card instead of overflowing a fixed-size box. */
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px 12px;
+  /* 8 + 28 = the 36px recharts' <Legend height={36}> reserved, so a legend that
+     fits on one row leaves the desktop card exactly the height it always had. */
+  margin-top: 8px;
+  min-height: 28px;
+  list-style: none;
+  font-size: 0.86rem;
+}
+.chart-legend li { display: flex; align-items: center; gap: 5px; }
+.chart-legend-swatch { width: 12px; height: 12px; border-radius: 2px; flex: none; }
+
 .recharts-cartesian-grid line { stroke: var(--border); }
 .recharts-text { fill: var(--text-muted); }
 .recharts-default-tooltip {

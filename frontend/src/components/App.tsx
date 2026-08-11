@@ -213,11 +213,14 @@ export default function App() {
     return <Login onSuccess={() => setAuthed(true)} />;
   }
 
-  const NAV: { key: View; label: string; icon: string }[] = [
-    { key: 'form', label: 'Add Expense', icon: '➕' },
-    { key: 'receipt', label: 'Scan Receipt', icon: '🧾' },
+  // `short` is the label the mobile bottom bar uses: five tabs share 375px, so
+  // the full sidebar wording does not fit. The full label stays as the button's
+  // accessible name, and each short form is a prefix of it (WCAG label-in-name).
+  const NAV: { key: View; label: string; icon: string; short?: string }[] = [
+    { key: 'form', label: 'Add Expense', icon: '➕', short: 'Add' },
+    { key: 'receipt', label: 'Scan Receipt', icon: '🧾', short: 'Scan' },
     { key: 'import', label: 'Import Excel', icon: '📥' },
-    { key: 'table', label: 'All Expenses', icon: '📋' },
+    { key: 'table', label: 'All Expenses', icon: '📋', short: 'Expenses' },
     { key: 'dashboard', label: 'Dashboard', icon: '📊' },
     { key: 'analytics', label: 'Analytics', icon: '📈' },
     { key: 'budgets', label: 'Budgets', icon: '🎯' },
@@ -334,9 +337,10 @@ export default function App() {
             className={currentView === item.key ? 'active' : ''}
             onClick={() => goTo(item.key)}
             aria-current={currentView === item.key ? 'page' : undefined}
+            aria-label={item.label}
           >
             <span className="nav-icon" aria-hidden="true">{item.icon}</span>
-            <span className="bottom-nav-label">{item.label}</span>
+            <span className="bottom-nav-label">{item.short ?? item.label}</span>
           </button>
         ))}
         <button
