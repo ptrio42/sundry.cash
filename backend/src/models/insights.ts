@@ -7,6 +7,10 @@
  *   - `getMerchants`   where the money actually goes, small purchases included
  *   - `getPatterns`    when you spend, weekend against weekday
  *
+ * ...and `getSummary`, which composes all four, scores every candidate finding
+ * on one scale and returns the few worth a sentence. It is the only one that
+ * combines currencies, and only because the caller asked it to.
+ *
  * Currency discipline follows the rest of the model layer: aggregates always keep
  * the `currency` dimension, because minor units differ per currency (cents vs
  * satoshis) and summing across them produces a number that means nothing.
@@ -14,8 +18,10 @@
  */
 
 import { db } from '../config/database';
-import { toMajorUnits } from '../config/money';
+import { toMajorUnits, toMinorUnits } from '../config/money';
 import { Currency, ExpenseCategory } from '../types/expense.types';
+import * as FxModel from './fx';
+import * as SettingsModel from './settings';
 
 export type ComparisonWindow = 'rolling' | 'calendar';
 export type ComparisonPeriod = 'week' | 'month' | 'year';
@@ -661,4 +667,401 @@ export function getPatterns(params: {
   patterns.sort((a, b) => a.currency.localeCompare(b.currency));
 
   return { since, until, days: totalDays, byCurrency: patterns };
+}
+
+// ---------------------------------------------------------------------------
+// Summary — the four analyses, ranked against each other
+// ---------------------------------------------------------------------------
+
+/**
+ * Every number the ranking depends on, in one block, because tuning it later
+ * has to be a one-file edit rather than an archaeology exercise.
+ *
+ * The thresholds were never calibrated against a real ledger — which is exactly
+ * why nothing here is an absolute amount. A finding is scored against the
+ * *user's own* spend in the window, so "up 400" ranks itself without anyone
+ * having to decide what 400 means, and a 30% jump on a trivial category
+ * eliminates itself. The starting values come from what the strip has been
+ * doing on the real ledger since slice 1; they are a prior, not a measurement.
+ */
+export const SCORING = {
+  MIN_SEVERITY: 0.05,      // below this a finding is not worth a slot; fewer sentences beats filler
+  MIN_MATERIALITY: 0.02,   // under 2% of window spend, drop regardless of how surprising
+  SURPRISE_PCT_FULL: 50,   // a 50% move scores full surprise; larger does not score more
+  RECURRING_BASE: 0.4,     // subscriptions are steady by nature — real money, low novelty
+  DRIP_COUNT_FULL: 15,     // visits at one merchant for full "this adds up" weight
+  SKEW_FULL: 0.8,          // weekend/weekday ratio 1.8 (or 0.2) is as skewed as it scores
+  MIN_DRIP_COUNT: 5        // fewer visits than this is not a pattern
+};
+
+export type FindingKind =
+  | 'category_moved'     // comparison: biggest mover present in both windows
+  | 'category_new'       // comparison: spend where there was none
+  | 'recurring_total'    // recurring: what the active subscriptions cost per month
+  | 'recurring_stopped'  // recurring: likelyCancelled — money that stopped
+  | 'merchant_drip'      // merchants: many small purchases adding up
+  | 'weekend_skew';      // patterns: weekendRatio far from 1
+
+/**
+ * A finding carries numbers and identifiers, never prose. The frontend writes
+ * the sentence: PL/EN is the next roadmap item, and an API that emitted English
+ * would have to be rebuilt to get there.
+ */
+interface FindingShape<K extends FindingKind, D> {
+  kind: K;
+  /** 0..1, for ranking only — never rendered. */
+  severity: number;
+  /** The scope's display currency; every amount in `data` is denominated in it. */
+  currency: Currency;
+  data: D;
+}
+
+export type Finding =
+  | FindingShape<'category_moved', {
+    category: ExpenseCategory;
+    current: number;
+    previous: number;
+    delta: number;
+    deltaPct: number;
+    days: number;
+    previousDays: number;
+  }>
+  | FindingShape<'category_new', {
+    category: ExpenseCategory;
+    current: number;
+    days: number;
+    previousDays: number;
+  }>
+  | FindingShape<'recurring_total', {
+    count: number;
+    monthlyCost: number;
+    totalPaid: number;
+  }>
+  | FindingShape<'recurring_stopped', {
+    label: string;
+    cadence: Cadence;
+    monthlyCost: number;
+    totalPaid: number;
+    lastSeen: string;
+  }>
+  | FindingShape<'merchant_drip', {
+    key: string;
+    total: number;
+    count: number;
+    average: number;
+    days: number;
+  }>
+  | FindingShape<'weekend_skew', {
+    weekendPerDay: number;
+    weekdayPerDay: number;
+    ratio: number;
+    days: number;
+  }>;
+
+export interface SummaryResult {
+  /** 'primary' (everything converted) or the currency code that was asked for. */
+  scope: string;
+  currency: Currency;
+  windowDays: number;
+  findings: Finding[];
+}
+
+export const DEFAULT_SUMMARY_LIMIT = 3;
+export const MAX_SUMMARY_LIMIT = 10;
+
+/**
+ * `amount` expressed in `to`, given rates against the USD base (rate = value of
+ * one unit in USD, USD = 1).
+ *
+ * Mirrors frontend `utils/fx.ts` apart from what a missing rate means. There, 0
+ * keeps a table cell from rendering NaN. Here it would be a lie: an amount
+ * counted as nothing still sits in the denominator every ratio is measured
+ * against, quietly shrinking every other finding. Null instead, and the caller
+ * drops the row from both sides of the comparison.
+ */
+function convert(amount: number, from: Currency, to: Currency, rates: Record<string, number>): number | null {
+  if (from === to) return amount;
+  const rateFrom = rates[from];
+  const rateTo = rates[to];
+  if (!rateFrom || !rateTo) return null;
+  return (amount * rateFrom) / rateTo;
+}
+
+/**
+ * The one question that decides everything: what changed, and does it matter
+ * relative to what this person actually spends?
+ *
+ * Composes the four analyses above over a single window — a rolling month
+ * ending at `anchor` — so that every finding is scored against the same
+ * denominator, and returns at most `limit` of them.
+ *
+ * Fewer than `limit`, or none at all, is a correct answer. A quiet month should
+ * say nothing rather than pad itself out with noise.
+ */
+export function getSummary(params: {
+  /** 'primary' converts everything into the primary currency; a code stays native. */
+  scope?: string;
+  limit?: number;
+  /** Both the end of the window and the summary's notion of "now". */
+  anchor?: string;
+} = {}): SummaryResult {
+  const scope = params.scope ?? 'primary';
+  const limit = Math.min(Math.max(Math.trunc(params.limit ?? DEFAULT_SUMMARY_LIMIT), 1), MAX_SUMMARY_LIMIT);
+  const anchor = params.anchor ?? todayISO();
+  const combining = scope === 'primary';
+  const display = combining ? SettingsModel.getSettings().primaryCurrency : scope;
+
+  // Only fetched when something will be converted: a native-currency summary
+  // has no use for rates, and reading them would tie it to the FX table.
+  const rates = combining ? FxModel.getRates() : {};
+  const nativeFilter = combining ? undefined : scope;
+
+  /** Snap a converted amount to the display currency's own precision. */
+  const snap = (value: number): number => toMajorUnits(toMinorUnits(value, display), display);
+
+  /**
+   * `value` in the display currency, or null when it does not belong in this
+   * summary at all — out of scope, or in a currency with no usable rate.
+   */
+  const into = (value: number, from: Currency): number | null => {
+    if (!combining) return from === scope ? value : null;
+    const converted = convert(value, from, display, rates);
+    return converted === null ? null : snap(converted);
+  };
+
+  const comparison = getComparison({ anchor, currency: nativeFilter });
+  const days = diffDays(comparison.current.start, comparison.current.end) + 1;
+  // Measured rather than assumed equal: only `rolling` guarantees two windows of
+  // the same length, and a sentence should not state a number nobody looked at.
+  const previousDays = diffDays(comparison.previous.start, comparison.previous.end) + 1;
+
+  // One entry per category in the display currency. `isNew` is re-derived from
+  // these totals rather than carried over from the rows: a category new in one
+  // currency need not be new once the currencies are combined.
+  const totals = new Map<ExpenseCategory, { current: number; previous: number }>();
+  for (const entry of comparison.byCategory) {
+    const current = into(entry.current, entry.currency);
+    const previous = into(entry.previous, entry.currency);
+    if (current === null || previous === null) continue;
+    const accumulated = totals.get(entry.category) ?? { current: 0, previous: 0 };
+    totals.set(entry.category, {
+      current: accumulated.current + current,
+      previous: accumulated.previous + previous
+    });
+  }
+
+  const totalSpend = Array.from(totals.values()).reduce((sum, value) => sum + value.current, 0);
+
+  // Nothing spent in the window means no denominator, and nothing to say. Every
+  // score below divides by this, so it is checked once here rather than six times.
+  if (totalSpend <= 0) {
+    return { scope, currency: display, windowDays: days, findings: [] };
+  }
+
+  /**
+   * The single scoring formula, applied to every kind so the scores are
+   * comparable at all.
+   *
+   * The geometric mean is the point: something huge but unsurprising, and
+   * something startling but trivial, both have to rank below something that is
+   * *both*. An arithmetic mean would let either term carry a finding on its own.
+   */
+  const severityOf = (moneyAtStake: number, surprise: number): number | null => {
+    const materiality = Math.min(1, Math.abs(moneyAtStake) / totalSpend);
+    if (materiality < SCORING.MIN_MATERIALITY) return null;
+    const severity = Math.sqrt(materiality * Math.min(1, Math.max(0, surprise)));
+    return severity < SCORING.MIN_SEVERITY ? null : severity;
+  };
+
+  // `tiebreak` only decides the order of two findings that scored identically,
+  // so the output is stable rather than dependent on Map iteration order.
+  const candidates: Array<{ finding: Finding; tiebreak: string }> = [];
+
+  // --- comparison: the biggest mover, and what is new ---------------------
+  for (const [category, value] of totals) {
+    if (value.previous > 0) {
+      const delta = value.current - value.previous;
+      const deltaPct = round((delta / value.previous) * 100, 1);
+      const severity = severityOf(delta, Math.abs(deltaPct) / SCORING.SURPRISE_PCT_FULL);
+      if (severity !== null) {
+        candidates.push({
+          finding: {
+            kind: 'category_moved',
+            severity,
+            currency: display,
+            data: { category, current: value.current, previous: value.previous, delta, deltaPct, days, previousDays }
+          },
+          tiebreak: category
+        });
+      }
+      continue;
+    }
+
+    // Spend where there was none. Categorically new, so surprise is 1 and
+    // materiality alone decides whether it is worth a sentence.
+    if (value.current > 0) {
+      const severity = severityOf(value.current, 1);
+      if (severity !== null) {
+        candidates.push({
+          finding: {
+            kind: 'category_new',
+            severity,
+            currency: display,
+            data: { category, current: value.current, days, previousDays }
+          },
+          tiebreak: category
+        });
+      }
+    }
+  }
+
+  // --- recurring: what repeats, and what stopped --------------------------
+  const charges = getRecurring({ today: anchor });
+  let activeCount = 0;
+  let activeMonthly = 0;
+  let activePaid = 0;
+
+  for (const charge of charges) {
+    const monthlyCost = into(charge.monthlyCost, charge.currency);
+    const totalPaid = into(charge.totalPaid, charge.currency);
+    if (monthlyCost === null || totalPaid === null) continue;
+
+    // A charge that stopped is not what anything costs you now, so it is kept
+    // out of the monthly figure and reported as its own kind of news.
+    if (charge.likelyCancelled) {
+      const severity = severityOf(monthlyCost, 1);
+      if (severity !== null) {
+        candidates.push({
+          finding: {
+            kind: 'recurring_stopped',
+            severity,
+            currency: display,
+            data: { label: charge.label, cadence: charge.cadence, monthlyCost, totalPaid, lastSeen: charge.lastSeen }
+          },
+          tiebreak: charge.label
+        });
+      }
+      continue;
+    }
+
+    activeCount++;
+    activeMonthly += monthlyCost;
+    activePaid += totalPaid;
+  }
+
+  if (activeCount > 0) {
+    const severity = severityOf(activeMonthly, SCORING.RECURRING_BASE);
+    if (severity !== null) {
+      candidates.push({
+        finding: {
+          kind: 'recurring_total',
+          severity,
+          currency: display,
+          data: { count: activeCount, monthlyCost: activeMonthly, totalPaid: activePaid }
+        },
+        tiebreak: ''
+      });
+    }
+  }
+
+  // --- merchants: the spend that hides in small purchases -----------------
+  //
+  // Over the comparison's own window, not the merchants endpoint's twelve-month
+  // default: `materiality` divides by what was spent in *this* window, so a
+  // year of coffees measured against a month of spending would score above 1
+  // every time. The per-currency limit is raised to its maximum because only
+  // the top merchant can win a slot anyway, and the cut is by total.
+  const merchantWindow = { since: comparison.current.start, until: comparison.current.end };
+  const merchants = getMerchants({ ...merchantWindow, currency: nativeFilter, limit: MAX_MERCHANT_LIMIT });
+
+  const byMerchant = new Map<string, { total: number; count: number }>();
+  for (const merchant of merchants.merchants) {
+    const total = into(merchant.total, merchant.currency);
+    if (total === null) continue;
+    const accumulated = byMerchant.get(merchant.key) ?? { total: 0, count: 0 };
+    byMerchant.set(merchant.key, { total: accumulated.total + total, count: accumulated.count + merchant.count });
+  }
+
+  for (const [key, merchant] of byMerchant) {
+    if (merchant.count < SCORING.MIN_DRIP_COUNT) continue;
+    const severity = severityOf(merchant.total, merchant.count / SCORING.DRIP_COUNT_FULL);
+    if (severity !== null) {
+      candidates.push({
+        finding: {
+          kind: 'merchant_drip',
+          severity,
+          currency: display,
+          data: { key, total: merchant.total, count: merchant.count, average: snap(merchant.total / merchant.count), days }
+        },
+        tiebreak: key
+      });
+    }
+  }
+
+  // --- patterns: weekend against weekday ----------------------------------
+  //
+  // Per day on both sides, never totals: a week holds five weekdays and two
+  // weekend days, so comparing totals would report the calendar as a habit.
+  const patterns = getPatterns({ ...merchantWindow, currency: nativeFilter });
+  const dayCounts = weekdayCounts(comparison.current.start, comparison.current.end);
+  const weekendDays = WEEKEND_DOWS.reduce((sum, dow) => sum + dayCounts[dow], 0);
+  const weekdayDays = dayCounts.reduce((sum, count) => sum + count, 0) - weekendDays;
+
+  let weekendTotal = 0;
+  let weekdayTotal = 0;
+  for (const pattern of patterns.byCurrency) {
+    for (const bucket of pattern.byWeekday) {
+      const total = into(bucket.total, pattern.currency);
+      if (total === null) continue;
+      if (WEEKEND_DOWS.includes(bucket.dow)) weekendTotal += total;
+      else weekdayTotal += total;
+    }
+  }
+
+  if (weekendDays > 0 && weekdayDays > 0) {
+    const weekendPerDay = snap(weekendTotal / weekendDays);
+    const weekdayPerDay = snap(weekdayTotal / weekdayDays);
+    // Both sides need something to compare, not just a day to divide by. A
+    // window with spending on one side only produces a ratio of 0 (or none at
+    // all), which is a fact about how sparse the ledger is rather than about
+    // when this person spends — the same "cannot say" `getPatterns` returns
+    // null for when a side has no days in it.
+    if (weekdayPerDay > 0 && weekendPerDay > 0) {
+      const ratio = round(weekendPerDay / weekdayPerDay, 2);
+      const severity = severityOf(
+        Math.abs(weekendPerDay - weekdayPerDay) * weekendDays,
+        Math.abs(ratio - 1) / SCORING.SKEW_FULL
+      );
+      if (severity !== null) {
+        candidates.push({
+          finding: {
+            kind: 'weekend_skew',
+            severity,
+            currency: display,
+            data: { weekendPerDay, weekdayPerDay, ratio, days },
+          },
+          tiebreak: ''
+        });
+      }
+    }
+  }
+
+  candidates.sort((a, b) =>
+    b.finding.severity - a.finding.severity ||
+    a.finding.kind.localeCompare(b.finding.kind) ||
+    a.tiebreak.localeCompare(b.tiebreak)
+  );
+
+  // One finding per kind: the strip has never listed every category that moved,
+  // and three sentences about three different things beat three about one.
+  const seen = new Set<FindingKind>();
+  const findings: Finding[] = [];
+  for (const candidate of candidates) {
+    if (findings.length === limit) break;
+    if (seen.has(candidate.finding.kind)) continue;
+    seen.add(candidate.finding.kind);
+    findings.push(candidate.finding);
+  }
+
+  return { scope, currency: display, windowDays: days, findings };
 }

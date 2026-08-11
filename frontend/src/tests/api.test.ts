@@ -18,6 +18,7 @@ import {
   getToken,
   getInsightsComparison,
   getInsightsRecurring,
+  getInsightsSummary,
   createReceiptExpense,
   getCategories,
   createCategory,
@@ -283,6 +284,38 @@ describe('insights', () => {
 
     await getInsightsRecurring({ since: '2025-01-01', minOccurrences: 2 });
     expect(requestedUrl(1)).toBe('/api/insights/recurring?since=2025-01-01&minOccurrences=2');
+  });
+
+  it('requests the summary with the scope the dashboard is showing', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ findings: [] }));
+
+    await getInsightsSummary();
+    expect(requestedUrl()).toBe('/api/insights/summary');
+
+    await getInsightsSummary({ scope: 'primary' });
+    expect(requestedUrl(1)).toBe('/api/insights/summary?scope=primary');
+
+    await getInsightsSummary({ scope: 'PLN', limit: 5, anchor: '2026-08-10' });
+    expect(requestedUrl(2)).toBe('/api/insights/summary?scope=PLN&limit=5&anchor=2026-08-10');
+  });
+
+  it('returns the parsed summary payload', async () => {
+    const payload = {
+      scope: 'primary',
+      currency: 'USD',
+      windowDays: 30,
+      findings: [
+        {
+          kind: 'category_moved',
+          severity: 0.4,
+          currency: 'USD',
+          data: { category: 'groceries', current: 150, previous: 75, delta: 75, deltaPct: 100, days: 30, previousDays: 30 }
+        }
+      ]
+    };
+    fetchMock.mockResolvedValue(jsonResponse(payload));
+
+    await expect(getInsightsSummary({ scope: 'primary' })).resolves.toEqual(payload);
   });
 
   it('surfaces a rejected insight request as an error', async () => {

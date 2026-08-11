@@ -4,6 +4,7 @@
  *   GET /recurring   repeating charges, with what each one costs per month
  *   GET /merchants   where the money goes, small frequent purchases included
  *   GET /patterns    when it goes — weekend against weekday, per day
+ *   GET /summary     all four, scored against each other, top findings only
  *
  * Read-only: nothing here writes, so there is no POST/PUT counterpart.
  */
@@ -61,6 +62,17 @@ function currencyErrors(currency: unknown): string[] {
 }
 
 /**
+ * Years below 1000 are refused rather than answered wrongly: `Date.UTC` maps
+ * years 0-99 onto 1900-1999, so window arithmetic there silently lands in the
+ * 20th century. No ledger has entries that far back either.
+ */
+function anchorErrors(anchor: unknown): string[] {
+  if (anchor === undefined) return [];
+  if (typeof anchor === 'string' && isValidDate(anchor) && anchor >= '1000-01-01') return [];
+  return ['Anchor must be a valid ISO date (YYYY-MM-DD) from year 1000 onward'];
+}
+
+/**
  * GET /api/insights/comparison
  * Query params: window (rolling|calendar), period (week|month|year), anchor (YYYY-MM-DD), currency
  *
@@ -81,14 +93,7 @@ router.get('/comparison', (req: Request, res: Response) => {
       errors.push(`Period must be one of: ${VALID_PERIODS.join(', ')}`);
     }
 
-    // Years below 1000 are refused rather than answered wrongly: `Date.UTC` maps
-    // years 0-99 onto 1900-1999, so window arithmetic there silently lands in the
-    // 20th century. No ledger has entries that far back either.
-    if (anchor !== undefined && (typeof anchor !== 'string' || !isValidDate(anchor) || anchor < '1000-01-01')) {
-      errors.push('Anchor must be a valid ISO date (YYYY-MM-DD) from year 1000 onward');
-    }
-
-    errors.push(...currencyErrors(currency));
+    errors.push(...anchorErrors(anchor), ...currencyErrors(currency));
 
     if (errors.length > 0) {
       res.status(400).json({ error: 'Validation failed', details: errors });
@@ -210,6 +215,54 @@ router.get('/patterns', (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error building patterns insight:', error);
     res.status(500).json({ error: 'Failed to build spending patterns' });
+  }
+});
+
+/**
+ * GET /api/insights/summary
+ * Query params: scope (primary|<code>), limit (1..10, default 3), anchor (YYYY-MM-DD)
+ *
+ * The only endpoint that ranks findings against each other, and therefore the
+ * only one that has to know the currency scope: comparing a PLN finding with a
+ * USD one means converting first, and the backend already owns both the rates
+ * and the primary currency. `anchor` exists for the same reason it does on
+ * /comparison — an "as of" answer that a test can pin down.
+ */
+router.get('/summary', (req: Request, res: Response) => {
+  try {
+    const { scope, limit, anchor } = req.query;
+    const errors: string[] = [...anchorErrors(anchor)];
+
+    // `exists` rather than `isEnabled`, like every other currency check here:
+    // a summary of history recorded in a since-disabled currency is still a
+    // summary someone can ask for.
+    if (scope !== undefined && scope !== 'primary' && !CurrencyModel.exists(scope)) {
+      errors.push(`Scope must be 'primary' or one of: ${CurrencyModel.getAll().map(c => c.code).join(', ')}`);
+    }
+
+    // Refused rather than clamped, as on /merchants: quietly answering a
+    // different question than the one asked is worse than saying no.
+    let rowLimit: number | undefined;
+    if (limit !== undefined) {
+      rowLimit = Number(limit);
+      if (!Number.isInteger(rowLimit) || rowLimit < 1 || rowLimit > insightsModel.MAX_SUMMARY_LIMIT) {
+        errors.push(`limit must be an integer between 1 and ${insightsModel.MAX_SUMMARY_LIMIT}`);
+      }
+    }
+
+    if (errors.length > 0) {
+      res.status(400).json({ error: 'Validation failed', details: errors });
+      return;
+    }
+
+    res.json(insightsModel.getSummary({
+      scope: scope as string | undefined,
+      limit: rowLimit,
+      anchor: anchor as string | undefined
+    }));
+  } catch (error) {
+    console.error('Error building insight summary:', error);
+    res.status(500).json({ error: 'Failed to build summary' });
   }
 });
 

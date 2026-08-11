@@ -7,26 +7,25 @@
  * disclosure as the currency buttons below it — when there is nothing worth
  * saying, the strip renders nothing at all.
  *
- * It follows the dashboard's own currency scope: a single native currency, or
- * everything converted into the primary currency through the user's FX rates.
- * Amounts from different currencies are only ever added together in the latter,
- * where the conversion is explicit and the caveat is already on screen.
+ * It used to pick the sentences itself, merging two payloads and converting
+ * currencies client-side. It no longer chooses anything: `/insights/summary`
+ * scores every candidate finding against the user's own spending and returns
+ * the few that survive. What is left here is the half that has to be here —
+ * turning numbers and identifiers into English, which is where PL/EN will
+ * eventually branch, and where the API deliberately refuses to go.
  */
 
-import { useEffect, useMemo, useState } from 'react';
-import { getInsightsComparison, getInsightsRecurring } from '../services/api';
-import { Category, Currency, Expense, ExpenseCategory, FxRates, ComparisonResult, RecurringCharge } from '../types/expense.types';
-import { formatCurrency } from '../utils/format';
+import { useEffect, useState } from 'react';
+import { getInsightsSummary } from '../services/api';
+import { Category, Currency, Expense, Finding, SummaryResult } from '../types/expense.types';
+import { formatCurrency, formatDate } from '../utils/format';
 import { categoryLabel } from '../utils/categories';
-import { convertAmount } from '../utils/fx';
 
 interface InsightsStripProps {
   /** The currency the dashboard is showing, or 'primary' for the combined view. */
   view: Currency | 'primary';
-  primary: Currency;
   /** Names the sentences use — the API answers in slugs. */
   categories: Category[];
-  rates: FxRates;
   /**
    * The ledger the dashboard is drawing. Only its length and identity are read:
    * App replaces the array on every add, edit and delete, so a new reference
@@ -40,41 +39,85 @@ interface InsightsStripProps {
   expenses: Expense[];
 }
 
-/** Inclusive length of a window in days, e.g. 2026-07-12..2026-08-10 -> 30. */
-function windowDays(start: string, end: string): number {
-  const from = Date.parse(`${start}T00:00:00Z`);
-  const to = Date.parse(`${end}T00:00:00Z`);
-  if (isNaN(from) || isNaN(to)) return 0;
-  return Math.round((to - from) / 86_400_000) + 1;
+/**
+ * A merchant key is a fold of what was typed or scanned ('żabka'), not a name,
+ * so it is capitalised for the sentence rather than shown as stored.
+ */
+function asName(key: string): string {
+  return key.charAt(0).toLocaleUpperCase() + key.slice(1);
 }
 
-export default function InsightsStrip({ view, primary, categories, rates, expenses }: InsightsStripProps) {
-  const [comparison, setComparison] = useState<ComparisonResult | null>(null);
-  const [recurring, setRecurring] = useState<RecurringCharge[]>([]);
+/** One finding, as a sentence. The only place in the app that writes prose about money. */
+function sentence(finding: Finding, categories: Category[], currency: Currency): string {
+  const fmt = (value: number) => formatCurrency(value, currency);
+  const label = (slug: string) => categoryLabel(categories, slug);
 
-  // Fetched unfiltered, once per version of the ledger: switching the currency
-  // buttons re-scopes the same rows in the memo below rather than making another
-  // round trip, but changing the expenses themselves invalidates the answer.
+  switch (finding.kind) {
+    case 'category_moved': {
+      const { category, current, previous, deltaPct, days } = finding.data;
+      // Rounded here, not by the API: the payload keeps a decimal so a future
+      // view can be more precise than a sentence wants to be.
+      return `${label(category)} is ${deltaPct > 0 ? 'up' : 'down'} ${Math.abs(Math.round(deltaPct))}% ` +
+        `over the last ${days} days — ${fmt(current)}, against ${fmt(previous)} before.`;
+    }
+
+    case 'category_new': {
+      const { category, current, days, previousDays } = finding.data;
+      return `${label(category)} is new — ${fmt(current)} in the last ${days} days, ` +
+        `nothing in the ${previousDays} before that.`;
+    }
+
+    case 'recurring_total': {
+      const { count, monthlyCost, totalPaid } = finding.data;
+      return count === 1
+        ? `1 recurring charge costs about ${fmt(monthlyCost)} a month — ${fmt(totalPaid)} so far.`
+        : `${count} recurring charges cost about ${fmt(monthlyCost)} a month — ${fmt(totalPaid)} so far.`;
+    }
+
+    case 'recurring_stopped': {
+      const { label: charge, monthlyCost, totalPaid, lastSeen } = finding.data;
+      return `${asName(charge)} looks like it stopped — nothing since ${formatDate(lastSeen)}, ` +
+        `after ${fmt(totalPaid)} at about ${fmt(monthlyCost)} a month.`;
+    }
+
+    case 'merchant_drip': {
+      const { key, total, count, average, days } = finding.data;
+      return `${asName(key)} adds up — ${fmt(total)} across ${count} purchases in the last ${days} days, ` +
+        `about ${fmt(average)} each.`;
+    }
+
+    case 'weekend_skew': {
+      const { weekendPerDay, weekdayPerDay, ratio } = finding.data;
+      return ratio > 1
+        ? `Weekends cost more — about ${fmt(weekendPerDay)} a day, against ${fmt(weekdayPerDay)} on weekdays.`
+        : `Weekdays cost more — about ${fmt(weekdayPerDay)} a day, against ${fmt(weekendPerDay)} at the weekend.`;
+    }
+  }
+}
+
+export default function InsightsStrip({ view, categories, expenses }: InsightsStripProps) {
+  const [summary, setSummary] = useState<SummaryResult | null>(null);
+
+  // The scope is part of the question now, not something to re-apply to an
+  // answer: ranking a PLN finding against a USD one needs the conversion, so
+  // the server does the merge and a currency switch costs a round trip.
+  const scope = view === 'primary' ? 'primary' : view;
+
   useEffect(() => {
     let cancelled = false;
 
     // An empty ledger has nothing to compare and nothing that repeats, so a
-    // fresh install should not spend two requests learning that.
+    // fresh install should not spend a request learning that.
     if (expenses.length === 0) {
-      setComparison(null);
-      setRecurring([]);
+      setSummary(null);
       return;
     }
 
     (async () => {
       try {
-        const [comparisonResult, recurringResult] = await Promise.all([
-          getInsightsComparison(),
-          getInsightsRecurring()
-        ]);
+        const result = await getInsightsSummary({ scope });
         if (cancelled) return;
-        setComparison(comparisonResult);
-        setRecurring(recurringResult.recurring);
+        setSummary(result);
       } catch {
         // The strip is an enhancement on top of the dashboard, not part of it.
         // If insights cannot be loaded, stay silent rather than push an error
@@ -83,96 +126,15 @@ export default function InsightsStrip({ view, primary, categories, rates, expens
     })();
 
     return () => { cancelled = true; };
-  }, [expenses]);
+  }, [expenses, scope]);
 
-  const sentences = useMemo(() => {
-    const displayCurrency: Currency = view === 'primary' ? primary : view;
-    const inScope = (currency: Currency) => view === 'primary' || currency === view;
-    const amount = (value: number, from: Currency) =>
-      view === 'primary' ? convertAmount(value, from, primary, rates) : value;
-    const fmt = (value: number) => formatCurrency(value, displayCurrency);
-
-    const lines: string[] = [];
-
-    if (comparison) {
-      const days = windowDays(comparison.current.start, comparison.current.end);
-      // Measured, not assumed to match: the two windows are equal by definition
-      // only for `rolling`. A calendar comparison of March against February is
-      // 31 days against 28, and the sentence below would otherwise state a
-      // number it never looked at.
-      const previousDays = windowDays(comparison.previous.start, comparison.previous.end);
-
-      // Merge the per-currency rows down to one entry per category, in whatever
-      // currency is on screen. `isNew` is re-derived rather than carried over:
-      // a category new in one currency may not be new once they are combined.
-      const totals = new Map<ExpenseCategory, { current: number; previous: number }>();
-      comparison.byCategory.forEach(entry => {
-        if (!inScope(entry.currency)) return;
-        const accumulated = totals.get(entry.category) ?? { current: 0, previous: 0 };
-        totals.set(entry.category, {
-          current: accumulated.current + amount(entry.current, entry.currency),
-          previous: accumulated.previous + amount(entry.previous, entry.currency)
-        });
-      });
-
-      const entries = Array.from(totals.entries());
-
-      // Biggest mover, among categories that existed in both windows. Below one
-      // percent there is no story worth a sentence.
-      const moved = entries
-        .filter(([, value]) => value.previous > 0)
-        .map(([category, value]) => ({
-          category,
-          ...value,
-          pct: Math.round(((value.current - value.previous) / value.previous) * 100)
-        }))
-        .filter(entry => Math.abs(entry.pct) >= 1)
-        .sort((a, b) => Math.abs(b.current - b.previous) - Math.abs(a.current - a.previous));
-
-      if (moved.length > 0) {
-        const mover = moved[0];
-        lines.push(
-          `${categoryLabel(categories, mover.category)} is ${mover.pct > 0 ? 'up' : 'down'} ${Math.abs(mover.pct)}% ` +
-          `over the last ${days} days — ${fmt(mover.current)}, against ${fmt(mover.previous)} before.`
-        );
-      }
-
-      // Something you did not spend on at all last period.
-      const newcomers = entries
-        .filter(([, value]) => value.previous === 0 && value.current > 0)
-        .sort((a, b) => b[1].current - a[1].current);
-
-      if (newcomers.length > 0) {
-        const [category, value] = newcomers[0];
-        lines.push(
-          `${categoryLabel(categories, category)} is new — ${fmt(value.current)} in the last ${days} days, ` +
-          `nothing in the ${previousDays} before that.`
-        );
-      }
-    }
-
-    // Charges that stopped are not what anything costs you now, so they are left
-    // out of the monthly figure. `totalPaid` is the number that makes someone act.
-    const active = recurring.filter(charge => !charge.likelyCancelled && inScope(charge.currency));
-    if (active.length > 0) {
-      const monthly = active.reduce((sum, charge) => sum + amount(charge.monthlyCost, charge.currency), 0);
-      const paid = active.reduce((sum, charge) => sum + amount(charge.totalPaid, charge.currency), 0);
-      lines.push(
-        active.length === 1
-          ? `1 recurring charge costs about ${fmt(monthly)} a month — ${fmt(paid)} so far.`
-          : `${active.length} recurring charges cost about ${fmt(monthly)} a month — ${fmt(paid)} so far.`
-      );
-    }
-
-    return lines.slice(0, 3);
-  }, [comparison, recurring, view, primary, categories, rates]);
-
-  if (sentences.length === 0) return null;
+  if (!summary || summary.findings.length === 0) return null;
 
   return (
     <section className="insights-strip" aria-label="What changed">
-      {sentences.map(sentence => (
-        <p className="insight" key={sentence}>{sentence}</p>
+      {/* One finding per kind, so the kind is a stable key for the list. */}
+      {summary.findings.map(finding => (
+        <p className="insight" key={finding.kind}>{sentence(finding, categories, summary.currency)}</p>
       ))}
     </section>
   );

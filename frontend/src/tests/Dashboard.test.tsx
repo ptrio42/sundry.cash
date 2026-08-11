@@ -217,7 +217,9 @@ describe('Dashboard wires up the insights strip', () => {
   it('hands over the ledger and the combined currency scope', () => {
     render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
-    expect(lastProps()).toMatchObject({ view: 'primary', primary: 'PLN', rates });
+    // `view` is the whole scope: the strip asks the backend for the merge and
+    // gets its currency back in the payload, so it needs no rates of its own.
+    expect(lastProps()).toMatchObject({ view: 'primary' });
     // The same array, so the strip can tell a new ledger from a re-render.
     expect(lastProps().expenses).toBe(mixed);
   });
@@ -226,7 +228,7 @@ describe('Dashboard wires up the insights strip', () => {
     render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
     // The tiles show unconverted USD here, so the strip must be told 'USD' too.
-    expect(lastProps()).toMatchObject({ view: 'USD', primary: 'PLN' });
+    expect(lastProps()).toMatchObject({ view: 'USD' });
   });
 
   it('re-scopes the strip when the currency buttons are used', () => {

@@ -20,7 +20,8 @@ import {
   ComparisonWindow,
   ComparisonPeriod,
   ComparisonResult,
-  RecurringCharge
+  RecurringCharge,
+  SummaryResult
 } from '../types/expense.types';
 import { downloadBlob } from '../utils/export';
 
@@ -568,6 +569,39 @@ export async function getInsightsRecurring(params: {
 
   const response = await apiFetch(
     `/insights/recurring${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+  );
+  return handleResponse(response);
+}
+
+/**
+ * The findings worth a sentence, already ranked and already in one currency.
+ *
+ * `scope` is what the dashboard's currency buttons select: a currency code for
+ * the native view, or 'primary' to have the backend convert everything into the
+ * primary currency before it ranks anything. Ranking a PLN finding against a
+ * USD one requires the conversion, so the scope has to go to the server —
+ * switching currencies costs a round trip rather than a re-render, and buys one
+ * implementation of the merge instead of two.
+ */
+export async function getInsightsSummary(params: {
+  scope?: string;
+  limit?: number;
+  anchor?: string;
+} = {}): Promise<SummaryResult> {
+  const queryParams = new URLSearchParams();
+
+  if (params.scope) {
+    queryParams.append('scope', params.scope);
+  }
+  if (params.limit !== undefined) {
+    queryParams.append('limit', String(params.limit));
+  }
+  if (params.anchor) {
+    queryParams.append('anchor', params.anchor);
+  }
+
+  const response = await apiFetch(
+    `/insights/summary${queryParams.toString() ? '?' + queryParams.toString() : ''}`
   );
   return handleResponse(response);
 }

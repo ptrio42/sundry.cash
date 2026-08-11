@@ -78,9 +78,12 @@ as a full-screen PWA, and **Scan Receipt** opens the camera directly.
   the dashboard converts everything into it using your own rates.
 - **Analytics & dashboard** — category donut with a running total, stacked day/week/month trend, and a
   13-week daily-spend heatmap.
-- **Insights** — three sentences at the top of the dashboard answering "what changed?": the biggest
-  mover against the previous 30 days, anything you started spending on, and what your recurring
-  charges cost per month. No tab to visit, and nothing shown when there is nothing to say.
+- **Insights** — three sentences at the top of the dashboard answering "what changed?". The server
+  ranks six kinds of finding — the biggest mover against the previous 30 days, anything you started
+  spending on, what your recurring charges cost, one that stopped, a shop you visit more than you
+  think, and a weekend habit — scoring each against your own spending rather than against a fixed
+  amount, and returns only the ones worth reading. No tab to visit, and nothing shown when there is
+  nothing to say.
 - **Export** — the whole ledger as `.xlsx` from the server, or CSV generated in the browser.
 - **Optional login** — set `APP_PASSWORD` and the app gates behind a 7-day HMAC bearer token.
 - **Dark-first UI, mobile layout, installable PWA** — with a light theme toggle.
@@ -170,6 +173,7 @@ Base URL `http://localhost:5000/api`. Everything except `/health` and `/auth/*` 
 | `GET` | `/insights/recurring` | Repeating charges and what each costs per month — `since`, `minOccurrences` |
 | `GET` | `/insights/merchants` | Spend per merchant, small purchases included — `since`, `until`, `currency`, `limit` (per currency) |
 | `GET` | `/insights/patterns` | Weekend against weekday spend, per day — `since`, `until`, `currency` |
+| `GET` | `/insights/summary` | The four above, scored against each other, top findings only — `scope`, `limit`, `anchor` |
 | `GET` | `/currencies` | The currency catalogue, enabled entries first |
 | `PUT` | `/currencies/:code` | Enable or disable one — `{ enabled }` is the only field |
 | `GET`, `PUT` | `/fx` | Read / set manual exchange rates |

@@ -150,6 +150,75 @@ export interface RecurringCharge {
   likelyCancelled: boolean;
 }
 
+// --- Insight summary ------------------------------------------------------
+// The composed report the dashboard strip renders. Findings carry numbers and
+// identifiers, never prose: the sentence is written here, in the component, so
+// that PL/EN stays a frontend concern and the API never has to be redone for it.
+
+export type FindingKind =
+  | 'category_moved'     // biggest mover present in both windows
+  | 'category_new'       // spend where there was none
+  | 'recurring_total'    // what the active subscriptions cost per month
+  | 'recurring_stopped'  // a repeating charge that stopped
+  | 'merchant_drip'      // many small purchases at one place, adding up
+  | 'weekend_skew';      // weekend and weekday spend are not the same
+
+interface FindingShape<K extends FindingKind, D> {
+  kind: K;
+  severity: number;   // 0..1, the server's ranking — never rendered
+  currency: Currency; // what every amount in `data` is denominated in
+  data: D;
+}
+
+export type Finding =
+  | FindingShape<'category_moved', {
+    category: ExpenseCategory;
+    current: number;
+    previous: number;
+    delta: number;
+    deltaPct: number;
+    days: number;
+    previousDays: number;
+  }>
+  | FindingShape<'category_new', {
+    category: ExpenseCategory;
+    current: number;
+    days: number;
+    previousDays: number;
+  }>
+  | FindingShape<'recurring_total', {
+    count: number;
+    monthlyCost: number;
+    totalPaid: number;
+  }>
+  | FindingShape<'recurring_stopped', {
+    label: string;
+    cadence: Cadence;
+    monthlyCost: number;
+    totalPaid: number;
+    lastSeen: string;
+  }>
+  | FindingShape<'merchant_drip', {
+    key: string;
+    total: number;
+    count: number;
+    average: number;
+    days: number;
+  }>
+  | FindingShape<'weekend_skew', {
+    weekendPerDay: number;
+    weekdayPerDay: number;
+    ratio: number;
+    days: number;
+  }>;
+
+export interface SummaryResult {
+  scope: string;      // 'primary' (everything converted) or a currency code
+  currency: Currency; // the currency the findings are expressed in
+  windowDays: number;
+  findings: Finding[];
+}
+
 // A monthly spending limit for a category in a given currency
 export interface Budget {
   category: ExpenseCategory;

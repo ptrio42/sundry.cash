@@ -830,6 +830,302 @@ describe('GET /api/insights/patterns', () => {
   });
 });
 
+describe('GET /api/insights/summary', () => {
+  // One ledger that reaches all six kinds of finding, anchored on 2026-08-10:
+  // current window 2026-07-12..2026-08-10 (30 days, Sunday to Monday), previous
+  // 2026-06-12..2026-07-11. Every assertion below asks for `scope=PLN`, so the
+  // numbers are the ones seeded here rather than a conversion of them.
+  //
+  // Current-window spend, which is the denominator every score divides by:
+  //   groceries 1400 + utilities 300 + other 150 + media 100 + transport 13 = 1963
+  const coffeeDays = ['2026-07-13', '2026-07-16', '2026-07-17', '2026-07-21', '2026-07-22',
+    '2026-07-23', '2026-07-24', '2026-07-27', '2026-07-28', '2026-07-29'];
+  const previousCoffeeDays = ['2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19',
+    '2026-06-22', '2026-06-23', '2026-06-24', '2026-06-25', '2026-06-26'];
+
+  beforeAll(() => {
+    reset([
+      // Biggest mover: 1000 -> 1400, and the weekend half of the skew below.
+      { amount: 1000, date: '2026-06-20', description: 'big shop', category: 'groceries', currency: 'PLN' },
+      { amount: 700, date: '2026-08-01', description: 'weekend shop', category: 'groceries', currency: 'PLN' },
+      { amount: 700, date: '2026-07-15', description: 'midweek shop', category: 'groceries', currency: 'PLN' },
+
+      // Nothing last window, 300 this one.
+      { amount: 300, date: '2026-08-02', description: 'electricity', category: 'utilities', currency: 'PLN' },
+
+      // A 30% move on a category worth 0.7% of the window — real, and not news.
+      { amount: 10, date: '2026-06-15', description: 'tram ticket', category: 'transport', currency: 'PLN' },
+      { amount: 13, date: '2026-07-14', description: 'tram ticket', category: 'transport', currency: 'PLN' },
+
+      // Still running: 100 PLN on the 5th, eight months of it.
+      ...['2026-01-05', '2026-02-05', '2026-03-05', '2026-04-05', '2026-05-05', '2026-06-05', '2026-07-05', '2026-08-05']
+        .map(date => ({ amount: 100, date, description: 'netflix', category: 'media', currency: 'PLN' })),
+
+      // Stopped in April, after four months at 200.
+      ...['2026-01-10', '2026-02-10', '2026-03-10', '2026-04-10']
+        .map(date => ({ amount: 200, date, description: 'old gazette', category: 'media', currency: 'PLN' })),
+
+      // Ten coffees at 15 in each window: individually trivial, 150 together,
+      // and no movement at all between the two windows.
+      ...coffeeDays.map(date => ({ amount: 15, date, description: 'coffee shop', category: 'other', currency: 'PLN' })),
+      ...previousCoffeeDays.map(date => ({ amount: 15, date, description: 'coffee shop', category: 'other', currency: 'PLN' }))
+    ]);
+  });
+
+  const summary = async (query = '') =>
+    (await request(app).get(`/api/insights/summary?anchor=2026-08-10&scope=PLN${query}`).expect(200)).body;
+
+  const finding = (body: any, kind: string) => body.findings.find((f: any) => f.kind === kind);
+
+  it('reports the scope, the display currency and the window it measured', async () => {
+    const body = await summary('&limit=10');
+    expect(body).toMatchObject({ scope: 'PLN', currency: 'PLN', windowDays: 30 });
+  });
+
+  it('produces every kind of finding, ranked on one scale', async () => {
+    const body = await summary('&limit=10');
+
+    // The order is the assertion, not the numbers behind it. Weekends running
+    // at 111 PLN a day against 46 on weekdays moves the most money of anything
+    // here; the subscriptions that simply carry on rank last, as they should.
+    expect(body.findings.map((f: any) => f.kind)).toEqual([
+      'weekend_skew',
+      'category_moved',
+      'category_new',
+      'recurring_stopped',
+      'merchant_drip',
+      'recurring_total'
+    ]);
+    expect(body.findings.every((f: any) => f.currency === 'PLN')).toBe(true);
+    // Severity ranks, it never renders — but it does have to be a real 0..1.
+    expect(body.findings.every((f: any) => f.severity > 0 && f.severity <= 1)).toBe(true);
+  });
+
+  it('carries numbers and identifiers, never sentences', async () => {
+    const body = await summary('&limit=10');
+
+    expect(finding(body, 'category_moved').data).toEqual({
+      category: 'groceries', current: 1400, previous: 1000, delta: 400, deltaPct: 40, days: 30, previousDays: 30
+    });
+    expect(finding(body, 'category_new').data).toEqual({
+      category: 'utilities', current: 300, days: 30, previousDays: 30
+    });
+    // 200 PLN a month, last charged in April: the cadence is what makes the
+    // monthly figure 196.39 rather than 200 (a 31-day median, 30.44-day month).
+    expect(finding(body, 'recurring_stopped').data).toMatchObject({
+      label: 'old gazette', cadence: 'monthly', totalPaid: 800, lastSeen: '2026-04-10'
+    });
+    expect(finding(body, 'merchant_drip').data).toEqual({
+      key: 'coffee shop', total: 150, count: 10, average: 15, days: 30
+    });
+    expect(finding(body, 'weekend_skew').data).toEqual({
+      // 1000 over the window's 9 weekend days, 963 over its 21 weekdays.
+      weekendPerDay: 111.11, weekdayPerDay: 45.86, ratio: 2.42, days: 30
+    });
+    // Only the charge that is still running counts towards what things cost.
+    expect(finding(body, 'recurring_total').data).toMatchObject({ count: 1, totalPaid: 800 });
+  });
+
+  it('drops a big percentage move on a category nobody spends anything on', async () => {
+    const body = await summary('&limit=10');
+    // Transport went 10 -> 13. That is +30%, and it is 0.7% of the window: too
+    // small to matter no matter how surprising the percentage looks.
+    expect(body.findings.some((f: any) => f.data.category === 'transport')).toBe(false);
+  });
+
+  it('says at most three things, and never twice about the same thing', async () => {
+    const body = await summary();
+    expect(body.findings).toHaveLength(3);
+    expect(body.findings.map((f: any) => f.kind)).toEqual(['weekend_skew', 'category_moved', 'category_new']);
+
+    const one = await summary('&limit=1');
+    expect(one.findings.map((f: any) => f.kind)).toEqual(['weekend_skew']);
+  });
+
+  it('rejects unknown parameter values', async () => {
+    await request(app).get('/api/insights/summary?scope=ZZZ').expect(400);
+    await request(app).get('/api/insights/summary?anchor=nope').expect(400);
+    await request(app).get('/api/insights/summary?limit=0').expect(400);
+    await request(app).get('/api/insights/summary?limit=11').expect(400);
+    const res = await request(app).get('/api/insights/summary?limit=2.5').expect(400);
+    expect(res.body.error).toBe('Validation failed');
+  });
+});
+
+describe('Insight summary scoring', () => {
+  const summary = async (query: string) =>
+    (await request(app).get(`/api/insights/summary?anchor=2026-08-10&scope=PLN&limit=10${query}`).expect(200)).body;
+
+  describe('the geometric mean', () => {
+    beforeAll(() => {
+      reset([
+        // A large, dull finding: 500 a month of rent, a quarter of everything
+        // spent in the window, and about as surprising as rent ever is.
+        ...['2026-02-03', '2026-03-03', '2026-04-03', '2026-05-03', '2026-06-03', '2026-07-03', '2026-08-03']
+          .map(date => ({ amount: 500, date, description: 'rent', category: 'other', currency: 'PLN' })),
+        // A small, startling one: 60 on a category that had nothing at all.
+        { amount: 60, date: '2026-08-04', description: 'water', category: 'utilities', currency: 'PLN' },
+        // Filler, identical in both windows, so it moves nothing and only sets
+        // the denominator: 500 + 60 + 1440 = 2000 in the current window.
+        { amount: 1440, date: '2026-07-20', description: 'monthly stock-up', category: 'groceries', currency: 'PLN' },
+        { amount: 1440, date: '2026-06-22', description: 'monthly stock-up', category: 'groceries', currency: 'PLN' }
+      ]);
+    });
+
+    it('lets neither size nor novelty carry a finding on its own', async () => {
+      const body = await summary('');
+
+      // materiality 0.25 x surprise 0.40 beats materiality 0.03 x surprise 1.
+      // An arithmetic mean would have ranked these the other way round (0.33
+      // against 0.52) — which is the whole reason the mean is geometric.
+      expect(body.findings.map((f: any) => f.kind)).toEqual(['recurring_total', 'category_new']);
+    });
+  });
+
+  describe('the severity floor', () => {
+    beforeAll(() => {
+      // 2000 -> 2060 is the entire ledger for this window: 2.9% of the window
+      // spend, which clears MIN_MATERIALITY, at +3%, which does not survive
+      // MIN_SEVERITY once the two are multiplied (0.042 against a floor of 0.05).
+      reset([
+        { amount: 2000, date: '2026-06-22', description: 'monthly stock-up', category: 'groceries', currency: 'PLN' },
+        { amount: 2060, date: '2026-07-20', description: 'monthly stock-up', category: 'groceries', currency: 'PLN' }
+      ]);
+    });
+
+    it('says nothing about a move that is material but not interesting', async () => {
+      expect((await summary('')).findings).toEqual([]);
+    });
+  });
+
+  describe('the materiality floor', () => {
+    beforeAll(() => {
+      // 100 -> 130 is +30%, which would score 0.09 — comfortably above the
+      // severity floor. It never gets that far: 30 out of 2130 is 1.4% of the
+      // window, under MIN_MATERIALITY, and the finding is dropped there.
+      reset([
+        { amount: 100, date: '2026-06-22', description: 'tram ticket', category: 'transport', currency: 'PLN' },
+        { amount: 130, date: '2026-07-20', description: 'tram ticket', category: 'transport', currency: 'PLN' },
+        { amount: 2000, date: '2026-06-23', description: 'monthly stock-up', category: 'groceries', currency: 'PLN' },
+        { amount: 2000, date: '2026-07-21', description: 'monthly stock-up', category: 'groceries', currency: 'PLN' }
+      ]);
+    });
+
+    it('says nothing about a big percentage on a rounding error', async () => {
+      expect((await summary('')).findings).toEqual([]);
+    });
+  });
+});
+
+describe('Insight summary scope', () => {
+  // The one endpoint that combines currencies, so it is the one that has to be
+  // told which currency the answer is in. Settings and rates are restored
+  // afterwards: the suite shares a database with every other test file.
+  let originalSettings: any;
+  let originalBtcRate: number | undefined;
+
+  beforeAll(async () => {
+    originalSettings = (await request(app).get('/api/settings').expect(200)).body;
+    originalBtcRate = (db.prepare('SELECT rate FROM fx_rates WHERE currency = ?').get('BTC') as { rate: number } | undefined)?.rate;
+
+    await request(app).put('/api/settings').send({ primaryCurrency: 'USD' }).expect(200);
+    await request(app).put('/api/fx').send({ currency: 'PLN', rate: 0.25 }).expect(200);
+    // Deleted rather than set: a currency with no rate is the case the merge
+    // has to survive, and PUT /api/fx refuses a zero.
+    db.prepare('DELETE FROM fx_rates WHERE currency = ?').run('BTC');
+
+    reset([
+      // Groceries in two currencies: 400 PLN -> 100 USD, plus 50 USD = 150 now,
+      // against 200 PLN -> 50 plus 25 = 75 before.
+      { amount: 400, date: '2026-07-15', description: 'zabka', category: 'groceries', currency: 'PLN' },
+      { amount: 200, date: '2026-06-20', description: 'zabka', category: 'groceries', currency: 'PLN' },
+      { amount: 50, date: '2026-07-16', description: 'whole foods', category: 'groceries', currency: 'USD' },
+      { amount: 25, date: '2026-06-22', description: 'whole foods', category: 'groceries', currency: 'USD' },
+
+      // Media is new in USD and gone in PLN. Combined it is neither: 10 USD now
+      // against 50 before, which is a category that shrank, not a new one.
+      { amount: 40, date: '2026-07-17', description: 'streaming', category: 'media', currency: 'USD' },
+      { amount: 200, date: '2026-06-23', description: 'prasa', category: 'media', currency: 'PLN' },
+
+      // A currency with no rate at all.
+      { amount: 0.01, date: '2026-07-20', description: 'sat stack', category: 'entertainment', currency: 'BTC' },
+      { amount: 0.005, date: '2026-06-24', description: 'sat stack', category: 'entertainment', currency: 'BTC' }
+    ]);
+  });
+
+  afterAll(async () => {
+    await request(app).put('/api/settings').send(originalSettings);
+    if (originalBtcRate !== undefined) {
+      await request(app).put('/api/fx').send({ currency: 'BTC', rate: originalBtcRate });
+    }
+  });
+
+  const summary = async (query: string) =>
+    (await request(app).get(`/api/insights/summary?anchor=2026-08-10&limit=10${query}`).expect(200)).body;
+
+  it('converts every currency into the primary one when asked to combine them', async () => {
+    const body = await summary('&scope=primary');
+
+    expect(body).toMatchObject({ scope: 'primary', currency: 'USD' });
+    expect(body.findings[0]).toMatchObject({
+      kind: 'category_moved',
+      currency: 'USD',
+      data: { category: 'groceries', current: 150, previous: 75, delta: 75, deltaPct: 100 }
+    });
+  });
+
+  it('defaults to the combined view', async () => {
+    expect(await summary('')).toMatchObject({ scope: 'primary', currency: 'USD' });
+  });
+
+  it('re-derives what is new only after the currencies are merged', async () => {
+    const body = await summary('&scope=primary');
+
+    // Media has no spend at all in the previous USD window, so a per-currency
+    // reading would announce it as new. Across both currencies it is a category
+    // that fell from 50 to 10 — the opposite story.
+    expect(body.findings.some((f: any) => f.kind === 'category_new')).toBe(false);
+    expect(body.findings.every((f: any) => f.data.category !== 'media')).toBe(true);
+  });
+
+  it('leaves a currency it cannot convert out of both sides of the ratio', async () => {
+    const body = await summary('&scope=primary');
+
+    expect(body.findings.every((f: any) => f.data.category !== 'entertainment')).toBe(true);
+    // It is out of the denominator too, not just out of the findings: 150 of
+    // groceries plus 40 of media is everything this window can be measured
+    // against. The next case gives BTC a rate and watches the same finding's
+    // severity fall, which is that denominator growing to 840.
+    expect(body.findings[0].severity).toBeCloseTo(Math.sqrt(75 / 190), 4);
+  });
+
+  it('converts, rather than ignoring, a currency that has a rate', async () => {
+    await request(app).put('/api/fx').send({ currency: 'BTC', rate: 65000 }).expect(200);
+    const body = await summary('&scope=primary');
+
+    // 0.01 BTC -> 650 USD, up from 0.005 -> 325: now the biggest mover there is.
+    expect(body.findings[0]).toMatchObject({
+      kind: 'category_moved',
+      data: { category: 'entertainment', current: 650, previous: 325, deltaPct: 100 }
+    });
+    // And the window it is measured against is now 840, not 190.
+    expect(body.findings[0].severity).toBeCloseTo(Math.sqrt(325 / 840), 4);
+
+    db.prepare('DELETE FROM fx_rates WHERE currency = ?').run('BTC');
+  });
+
+  it('neither converts nor combines when asked for one currency', async () => {
+    const body = await summary('&scope=USD');
+
+    expect(body).toMatchObject({ scope: 'USD', currency: 'USD' });
+    // The USD rows on their own: media is genuinely new here, and groceries is
+    // 50 against 25 rather than the 150 against 75 the combined view reports.
+    expect(body.findings.map((f: any) => f.kind)).toEqual(['category_new', 'category_moved']);
+    expect(body.findings[0].data).toMatchObject({ category: 'media', current: 40 });
+    expect(body.findings[1].data).toMatchObject({ category: 'groceries', current: 50, previous: 25 });
+  });
+});
+
 describe('Insights with an empty ledger', () => {
   beforeAll(() => {
     reset();
@@ -856,5 +1152,12 @@ describe('Insights with an empty ledger', () => {
     const res = await request(app).get('/api/insights/patterns?since=2026-06-01&until=2026-06-07').expect(200);
     expect(res.body.byCurrency).toEqual([]);
     expect(res.body.days).toBe(7);
+  });
+
+  it('returns no findings rather than scoring against an empty window', async () => {
+    // Nothing spent means no denominator. The strip renders nothing for an
+    // empty list, so silence here is the correct answer, not an error.
+    const res = await request(app).get('/api/insights/summary?anchor=2026-08-10&scope=PLN').expect(200);
+    expect(res.body).toEqual({ scope: 'PLN', currency: 'PLN', windowDays: 30, findings: [] });
   });
 });

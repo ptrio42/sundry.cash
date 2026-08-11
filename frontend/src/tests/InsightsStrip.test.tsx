@@ -1,306 +1,293 @@
 /**
  * Tests for the dashboard insights strip.
  *
- * The component's whole job is turning two API payloads into at most three
- * sentences — which ones it picks, how it scopes them to the currency on
- * screen, and when it decides to say nothing at all. Both endpoints are mocked
- * so the fixtures are exact and the assertions can be about the prose.
+ * The component no longer decides anything — the backend ranks the findings and
+ * the strip turns each one into a sentence. So these are tests about prose:
+ * that every kind of finding says something, that the numbers are formatted in
+ * the currency the payload came back in, and that an empty list renders nothing
+ * at all rather than an empty box. The endpoint is mocked so the fixtures are
+ * exact and the assertions can be about the words.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import InsightsStrip from '../components/InsightsStrip';
 import { TEST_CATEGORIES } from './categories.fixture';
-import { ComparisonResult, Expense, FxRates, RecurringCharge } from '../types/expense.types';
+import { Expense, Finding, SummaryResult } from '../types/expense.types';
 
 vi.mock('../services/api', () => ({
-  getInsightsComparison: vi.fn(),
-  getInsightsRecurring: vi.fn()
+  getInsightsSummary: vi.fn()
 }));
 
-import { getInsightsComparison, getInsightsRecurring } from '../services/api';
+import { getInsightsSummary } from '../services/api';
 
-const comparisonMock = vi.mocked(getInsightsComparison);
-const recurringMock = vi.mocked(getInsightsRecurring);
+const summaryMock = vi.mocked(getInsightsSummary);
 
-// Value of one unit in USD: 1 PLN = 0.25 USD (so 1 USD = 4 PLN), 1 BTC = 65000 USD.
-const rates: FxRates = { USD: 1, PLN: 0.25, BTC: 65000 };
-
-// The strip never reads these rows — the insights come from the API. It reads
+// The strip never reads these rows — the findings come from the API. It reads
 // the array's length, to know whether asking is worth a request, and its
 // identity, to know when the answer it holds has gone stale. One row is enough.
 const ledger: Expense[] = [
   { id: 1, amount: 10, date: '2026-08-01', description: 'x', category: 'groceries', currency: 'PLN' }
 ];
 
-const EMPTY: ComparisonResult = {
-  window: 'rolling',
-  period: 'month',
-  // 2026-07-12..2026-08-10 inclusive is exactly 30 days.
-  current: { start: '2026-07-12', end: '2026-08-10' },
-  previous: { start: '2026-06-12', end: '2026-07-11' },
-  byCategory: []
-};
-
-const comparison = (byCategory: ComparisonResult['byCategory']): ComparisonResult => ({ ...EMPTY, byCategory });
-
-const row = (over: Partial<ComparisonResult['byCategory'][number]> & { category: ComparisonResult['byCategory'][number]['category'] }) => ({
-  currency: 'PLN' as const,
-  current: 0,
-  previous: 0,
-  delta: 0,
-  deltaPct: null,
-  currentCount: 0,
-  previousCount: 0,
-  isNew: false,
-  ...over
+const summary = (findings: Finding[], currency = 'PLN'): SummaryResult => ({
+  scope: currency,
+  currency,
+  windowDays: 30,
+  findings
 });
 
-const charge = (over: Partial<RecurringCharge> & Pick<RecurringCharge, 'label'>): RecurringCharge => ({
-  currency: 'PLN',
-  cadence: 'monthly',
-  medianAmount: 43,
-  monthlyCost: 43,
-  totalPaid: 344,
-  occurrences: 8,
-  firstSeen: '2026-01-05',
-  lastSeen: '2026-08-05',
-  amountStability: 'stable',
-  likelyCancelled: false,
-  ...over
-});
+const strip = (view: string = 'PLN', expenses: Expense[] = ledger) => (
+  <InsightsStrip view={view} categories={TEST_CATEGORIES} expenses={expenses} />
+);
 
 beforeEach(() => {
-  comparisonMock.mockReset();
-  recurringMock.mockReset();
-  comparisonMock.mockResolvedValue(EMPTY);
-  recurringMock.mockResolvedValue({ recurring: [] });
+  summaryMock.mockReset();
+  summaryMock.mockResolvedValue(summary([]));
 });
 
 describe('InsightsStrip', () => {
-  it('leads with the biggest mover, in percent and in money', async () => {
-    comparisonMock.mockResolvedValue(comparison([
-      row({ category: 'groceries', current: 1412, previous: 1053.5 }), // +358.50
-      row({ category: 'media', current: 90, previous: 100 })           // -10, smaller move
+  it('says which way a category moved, in percent and in money', async () => {
+    summaryMock.mockResolvedValue(summary([
+      {
+        kind: 'category_moved',
+        severity: 0.4,
+        currency: 'PLN',
+        data: { category: 'groceries', current: 1412, previous: 1053.5, delta: 358.5, deltaPct: 34, days: 30, previousDays: 30 }
+      }
     ]));
 
-    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
+    render(strip());
 
-    // 358.50 / 1053.50 = 34%, over the 30-day window the payload describes.
     const sentence = await screen.findByText(/Groceries is up 34%/);
     expect(sentence).toHaveTextContent('over the last 30 days');
     expect(sentence).toHaveTextContent(/1\s*412,00\s*zł/);
     expect(sentence).toHaveTextContent(/1\s*053,50\s*zł/);
-    // The smaller move is not worth one of the three sentences.
-    expect(screen.queryByText(/Media/)).not.toBeInTheDocument();
   });
 
   it('says "down" when spending fell', async () => {
-    comparisonMock.mockResolvedValue(comparison([
-      row({ category: 'transport', current: 50, previous: 200 })
+    summaryMock.mockResolvedValue(summary([
+      {
+        kind: 'category_moved',
+        severity: 0.4,
+        currency: 'PLN',
+        data: { category: 'transport', current: 50, previous: 200, delta: -150, deltaPct: -75, days: 30, previousDays: 30 }
+      }
     ]));
 
-    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
+    render(strip());
 
     expect(await screen.findByText(/Transport is down 75%/)).toBeInTheDocument();
   });
 
   it('names a category that had no spending at all last period', async () => {
-    comparisonMock.mockResolvedValue(comparison([
-      row({ category: 'utilities', current: 40, previous: 0, isNew: true })
+    summaryMock.mockResolvedValue(summary([
+      {
+        kind: 'category_new',
+        severity: 0.4,
+        currency: 'PLN',
+        // The two windows are not assumed to be the same length: a calendar
+        // March against February is 31 days against 28.
+        data: { category: 'utilities', current: 40, days: 31, previousDays: 28 }
+      }
     ]));
 
-    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
+    render(strip());
 
     // No previous spend means no percentage — the sentence must not invent one.
     const sentence = await screen.findByText(/Utilities is new/);
-    expect(sentence).toHaveTextContent('nothing in the 30 before that');
+    expect(sentence).toHaveTextContent('in the last 31 days');
+    expect(sentence).toHaveTextContent('nothing in the 28 before that');
     expect(sentence).not.toHaveTextContent('%');
   });
 
-  it('sums what the recurring charges cost per month and what they have cost so far', async () => {
-    recurringMock.mockResolvedValue({
-      recurring: [
-        charge({ label: 'netflix', monthlyCost: 43, totalPaid: 344 }),
-        charge({ label: 'gym', monthlyCost: 99.8, totalPaid: 540 })
-      ]
-    });
+  it('counts the recurring charges and what they have cost', async () => {
+    summaryMock.mockResolvedValue(summary([
+      { kind: 'recurring_total', severity: 0.3, currency: 'PLN', data: { count: 2, monthlyCost: 142.8, totalPaid: 884 } }
+    ]));
 
-    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
+    render(strip());
 
     const sentence = await screen.findByText(/2 recurring charges/);
-    expect(sentence).toHaveTextContent(/142,80\s*zł a month/); // 43 + 99.80
-    expect(sentence).toHaveTextContent(/884,00\s*zł so far/);  // 344 + 540
+    expect(sentence).toHaveTextContent(/142,80\s*zł a month/);
+    expect(sentence).toHaveTextContent(/884,00\s*zł so far/);
   });
 
-  it('leaves cancelled charges out of what things cost now', async () => {
-    recurringMock.mockResolvedValue({
-      recurring: [
-        charge({ label: 'netflix', monthlyCost: 43, totalPaid: 344 }),
-        charge({ label: 'old gazette', monthlyCost: 25, totalPaid: 100, likelyCancelled: true })
-      ]
-    });
-
-    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
-
-    // Singular, and the 25,00 zł that stopped is not counted.
-    const sentence = await screen.findByText(/1 recurring charge costs/);
-    expect(sentence).toHaveTextContent(/43,00\s*zł a month/);
-    expect(sentence).toHaveTextContent(/344,00\s*zł so far/);
-  });
-
-  it('says no more than three things', async () => {
-    comparisonMock.mockResolvedValue(comparison([
-      row({ category: 'groceries', current: 1412, previous: 1053.5 }),
-      row({ category: 'media', current: 300, previous: 100 }),
-      row({ category: 'utilities', current: 40, previous: 0, isNew: true }),
-      row({ category: 'transport', current: 80, previous: 0, isNew: true })
+  it('uses the singular for a single charge', async () => {
+    summaryMock.mockResolvedValue(summary([
+      { kind: 'recurring_total', severity: 0.3, currency: 'PLN', data: { count: 1, monthlyCost: 43, totalPaid: 344 } }
     ]));
-    recurringMock.mockResolvedValue({ recurring: [charge({ label: 'netflix' })] });
 
-    const { container } = render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
+    render(strip());
 
-    await screen.findByText(/recurring charge/);
-    expect(container.querySelectorAll('.insight')).toHaveLength(3);
-    // One mover and one newcomer — the largest of each, not every category.
-    expect(screen.getByText(/Groceries is up/)).toBeInTheDocument();
-    expect(screen.getByText(/Transport is new/)).toBeInTheDocument();
-    expect(screen.queryByText(/Utilities/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/1 recurring charge costs about/)).toHaveTextContent(/43,00\s*zł a month/);
   });
 
-  it('shows only the selected currency in a native view', async () => {
-    comparisonMock.mockResolvedValue(comparison([
-      row({ category: 'groceries', currency: 'PLN', current: 1412, previous: 1053.5 }),
-      row({ category: 'media', currency: 'USD', current: 300, previous: 100 })
+  it('names a charge that stopped, and what it had cost by then', async () => {
+    summaryMock.mockResolvedValue(summary([
+      {
+        kind: 'recurring_stopped',
+        severity: 0.3,
+        currency: 'PLN',
+        data: { label: 'old gazette', cadence: 'monthly', monthlyCost: 25, totalPaid: 100, lastSeen: '2026-04-10' }
+      }
     ]));
-    recurringMock.mockResolvedValue({
-      recurring: [
-        charge({ label: 'netflix', currency: 'PLN', monthlyCost: 43, totalPaid: 344 }),
-        charge({ label: 'spotify', currency: 'USD', monthlyCost: 12, totalPaid: 96 })
-      ]
-    });
 
-    render(<InsightsStrip view="PLN" primary="USD" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
+    render(strip());
 
-    // The USD rows are out of scope entirely — neither converted nor added.
-    expect(await screen.findByText(/Groceries is up 34%/)).toBeInTheDocument();
-    expect(screen.queryByText(/Media/)).not.toBeInTheDocument();
-    expect(screen.getByText(/1 recurring charge costs/)).toHaveTextContent(/43,00\s*zł/);
+    const sentence = await screen.findByText(/Old gazette looks like it stopped/);
+    expect(sentence).toHaveTextContent('Apr 10, 2026');
+    expect(sentence).toHaveTextContent(/100,00\s*zł/);
   });
 
-  it('converts every currency into the primary one in the combined view', async () => {
-    comparisonMock.mockResolvedValue(comparison([
-      row({ category: 'groceries', currency: 'PLN', current: 400, previous: 200 }),
-      row({ category: 'groceries', currency: 'USD', current: 50, previous: 25 })
+  it('adds up the small purchases at one place', async () => {
+    summaryMock.mockResolvedValue(summary([
+      {
+        kind: 'merchant_drip',
+        severity: 0.2,
+        currency: 'PLN',
+        // Merchant keys are a case-folded grouping key, not a name.
+        data: { key: 'żabka', total: 300, count: 20, average: 15, days: 30 }
+      }
     ]));
-    recurringMock.mockResolvedValue({
-      recurring: [
-        charge({ label: 'netflix', currency: 'PLN', monthlyCost: 40, totalPaid: 400 }),
-        charge({ label: 'spotify', currency: 'USD', monthlyCost: 10, totalPaid: 100 })
-      ]
-    });
 
-    render(<InsightsStrip view="primary" primary="USD" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
+    render(strip());
 
-    // 400 PLN -> 100 USD, plus 50 USD = 150 now; 200 PLN -> 50, plus 25 = 75 before.
-    const mover = await screen.findByText(/Groceries is up 100%/);
-    expect(mover).toHaveTextContent('$150.00');
-    expect(mover).toHaveTextContent('$75.00');
+    const sentence = await screen.findByText(/Żabka adds up/);
+    expect(sentence).toHaveTextContent('across 20 purchases in the last 30 days');
+    expect(sentence).toHaveTextContent(/300,00\s*zł/);
+    expect(sentence).toHaveTextContent(/15,00\s*zł each/);
+  });
 
-    // 40 PLN -> 10 USD, plus 10 USD = $20.00 a month; 400 PLN -> 100, plus 100 = $200.00.
-    const subs = screen.getByText(/2 recurring charges/);
-    expect(subs).toHaveTextContent('$20.00 a month');
-    expect(subs).toHaveTextContent('$200.00 so far');
+  it('says which side of the week costs more, whichever side it is', async () => {
+    summaryMock.mockResolvedValue(summary([
+      { kind: 'weekend_skew', severity: 0.5, currency: 'PLN', data: { weekendPerDay: 111.11, weekdayPerDay: 45.86, ratio: 2.42, days: 30 } }
+    ]));
+
+    const { rerender } = render(strip());
+    expect(await screen.findByText(/Weekends cost more/)).toHaveTextContent(/111,11\s*zł a day/);
+
+    // A ratio below 1 is the same finding pointing the other way.
+    summaryMock.mockResolvedValue(summary([
+      { kind: 'weekend_skew', severity: 0.5, currency: 'PLN', data: { weekendPerDay: 20, weekdayPerDay: 80, ratio: 0.25, days: 30 } }
+    ]));
+    rerender(strip('PLN', [...ledger]));
+
+    expect(await screen.findByText(/Weekdays cost more/)).toHaveTextContent(/80,00\s*zł a day/);
+  });
+
+  it('renders one paragraph per finding, in the order the server ranked them', async () => {
+    summaryMock.mockResolvedValue(summary([
+      { kind: 'weekend_skew', severity: 0.5, currency: 'PLN', data: { weekendPerDay: 111.11, weekdayPerDay: 45.86, ratio: 2.42, days: 30 } },
+      {
+        kind: 'category_moved',
+        severity: 0.4,
+        currency: 'PLN',
+        data: { category: 'groceries', current: 1412, previous: 1053.5, delta: 358.5, deltaPct: 34, days: 30, previousDays: 30 }
+      },
+      { kind: 'category_new', severity: 0.39, currency: 'PLN', data: { category: 'utilities', current: 300, days: 30, previousDays: 30 } }
+    ]));
+
+    const { container } = render(strip());
+
+    await screen.findByText(/Weekends cost more/);
+    const rendered = Array.from(container.querySelectorAll('.insight')).map(p => p.textContent ?? '');
+    expect(rendered).toHaveLength(3);
+    expect(rendered[0]).toMatch(/Weekends/);
+    expect(rendered[1]).toMatch(/Groceries/);
+    expect(rendered[2]).toMatch(/Utilities/);
+  });
+
+  it('formats every amount in the currency the payload came back in', async () => {
+    // The strip does no conversion of its own any more; the server has already
+    // decided what currency the findings are in, and says so.
+    summaryMock.mockResolvedValue(summary([
+      {
+        kind: 'category_moved',
+        severity: 0.4,
+        currency: 'USD',
+        data: { category: 'groceries', current: 150, previous: 75, delta: 75, deltaPct: 100, days: 30, previousDays: 30 }
+      }
+    ], 'USD'));
+
+    render(strip('primary'));
+
+    const sentence = await screen.findByText(/Groceries is up 100%/);
+    expect(sentence).toHaveTextContent('$150.00');
+    expect(sentence).toHaveTextContent('$75.00');
   });
 
   it('renders nothing when there is nothing worth saying', async () => {
-    const { container } = render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
+    const { container } = render(strip());
 
-    await waitFor(() => expect(comparisonMock).toHaveBeenCalled());
-    expect(container.querySelector('.insights-strip')).toBeNull();
-  });
-
-  it('ignores a move too small to be a story', async () => {
-    comparisonMock.mockResolvedValue(comparison([
-      row({ category: 'groceries', current: 1000.4, previous: 1000 }) // +0.04%
-    ]));
-
-    const { container } = render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
-
-    await waitFor(() => expect(comparisonMock).toHaveBeenCalled());
+    await waitFor(() => expect(summaryMock).toHaveBeenCalled());
     expect(container.querySelector('.insights-strip')).toBeNull();
   });
 
   it('stays silent when the insights cannot be loaded', async () => {
     // A broken strip must not take the charts down with it, or shout about it.
-    comparisonMock.mockRejectedValue(new Error('HTTP error 500'));
-    recurringMock.mockRejectedValue(new Error('HTTP error 500'));
+    summaryMock.mockRejectedValue(new Error('HTTP error 500'));
 
-    const { container } = render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
+    const { container } = render(strip());
 
-    await waitFor(() => expect(comparisonMock).toHaveBeenCalled());
+    await waitFor(() => expect(summaryMock).toHaveBeenCalled());
     expect(container.querySelector('.insights-strip')).toBeNull();
     expect(screen.queryByText(/error/i)).not.toBeInTheDocument();
   });
 
-  it('counts the previous window separately instead of reusing the current one', async () => {
-    // Only `rolling` guarantees two equal windows. March against February is
-    // 31 days against 28, and the sentence has to say both.
-    comparisonMock.mockResolvedValue({
-      window: 'calendar',
-      period: 'month',
-      current: { start: '2026-03-01', end: '2026-03-31' },
-      previous: { start: '2026-02-01', end: '2026-02-28' },
-      byCategory: [row({ category: 'utilities', current: 40, previous: 0, isNew: true })]
-    });
+  it('asks the server for the currency the dashboard is showing', async () => {
+    const { rerender } = render(strip('PLN'));
 
-    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
+    await waitFor(() => expect(summaryMock).toHaveBeenCalledWith({ scope: 'PLN' }));
 
-    const sentence = await screen.findByText(/Utilities is new/);
-    expect(sentence).toHaveTextContent('in the last 31 days');
-    expect(sentence).toHaveTextContent('nothing in the 28 before that');
+    // Switching the currency buttons is a new question, not a re-render of the
+    // old answer: ranking across currencies needs the conversion the server does.
+    rerender(strip('primary'));
+    await waitFor(() => expect(summaryMock).toHaveBeenCalledWith({ scope: 'primary' }));
+    expect(summaryMock).toHaveBeenCalledTimes(2);
+
+    // The same scope twice is not new information.
+    rerender(strip('primary'));
+    expect(summaryMock).toHaveBeenCalledTimes(2);
   });
 
   it('asks the server again when the ledger changes underneath it', async () => {
-    comparisonMock.mockResolvedValue(comparison([
-      row({ category: 'groceries', current: 1412, previous: 1053.5 })
+    summaryMock.mockResolvedValue(summary([
+      {
+        kind: 'category_moved',
+        severity: 0.4,
+        currency: 'PLN',
+        data: { category: 'groceries', current: 1412, previous: 1053.5, delta: 358.5, deltaPct: 34, days: 30, previousDays: 30 }
+      }
     ]));
 
-    const { rerender } = render(
-      <InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />
-    );
+    const { rerender } = render(strip());
     await screen.findByText(/Groceries is up 34%/);
-    expect(comparisonMock).toHaveBeenCalledTimes(1);
+    expect(summaryMock).toHaveBeenCalledTimes(1);
 
     // A re-render with the same ledger is not new information.
-    rerender(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
-    expect(comparisonMock).toHaveBeenCalledTimes(1);
+    rerender(strip());
+    expect(summaryMock).toHaveBeenCalledTimes(1);
 
     // App replaces the array on every add, edit and delete; that is the signal.
-    comparisonMock.mockResolvedValue(comparison([
-      row({ category: 'groceries', current: 2000, previous: 1053.5 })
+    summaryMock.mockResolvedValue(summary([
+      {
+        kind: 'category_moved',
+        severity: 0.4,
+        currency: 'PLN',
+        data: { category: 'groceries', current: 2000, previous: 1053.5, delta: 946.5, deltaPct: 89.8, days: 30, previousDays: 30 }
+      }
     ]));
-    rerender(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={[...ledger]} />);
+    rerender(strip('PLN', [...ledger]));
 
     expect(await screen.findByText(/Groceries is up 90%/)).toBeInTheDocument();
-    expect(comparisonMock).toHaveBeenCalledTimes(2);
+    expect(summaryMock).toHaveBeenCalledTimes(2);
   });
 
   it('does not call the server at all for an empty ledger', async () => {
-    const { container } = render(
-      <InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={[]} />
-    );
+    const { container } = render(strip('PLN', []));
 
     await waitFor(() => expect(container.querySelector('.insights-strip')).toBeNull());
-    expect(comparisonMock).not.toHaveBeenCalled();
-    expect(recurringMock).not.toHaveBeenCalled();
-  });
-
-  it('asks for the backend defaults rather than inventing a window', async () => {
-    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
-
-    await waitFor(() => expect(comparisonMock).toHaveBeenCalled());
-    expect(comparisonMock).toHaveBeenCalledWith();
-    expect(recurringMock).toHaveBeenCalledWith();
+    expect(summaryMock).not.toHaveBeenCalled();
   });
 });
