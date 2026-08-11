@@ -253,6 +253,20 @@ describe('Expenses — currencies', () => {
     expect(within(card('Total')).queryAllByRole('listitem')).toHaveLength(0);
   });
 
+  it('keeps the exact figure visible when the whole selection had to be converted', () => {
+    // One foreign currency is the case where the headline number is entirely an
+    // estimate at the user's own rates, so the native subtotal is worth most.
+    renderScreen();
+
+    // Filtered down to the one USD row while the scope is still "All → PLN",
+    // so the total is 25 USD expressed at 4 PLN.
+    fireEvent.change(screen.getByLabelText('Search:'), { target: { value: 'Corner shop' } });
+
+    expect(card('Total')).toHaveTextContent(/100,00\s*zł/);
+    expect(card('Total')).toHaveTextContent(/converted to PLN/i);
+    expect(within(card('Total')).getAllByRole('listitem')[0]).toHaveTextContent(/\$25\.00/);
+  });
+
   it('offers only currencies the ledger actually holds', () => {
     renderScreen();
 

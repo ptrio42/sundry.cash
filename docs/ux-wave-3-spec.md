@@ -196,6 +196,11 @@ click in order to read.
 - **`.time-grouping` is unreferenced CSS.** It went unused when the Dashboard's grouping control left
   in wave 2 and nothing has claimed it since. Same class of finding as the `.btn-danger` note wave 0
   recorded; delete it with whatever sweep collects the rest.
+- **The two exports disagree about the filter.** `Export ▾` now offers CSV and Excel from one control:
+  CSV writes the rows the filter left standing, while Excel calls `/expenses/export` and writes the
+  **whole ledger** regardless. Both behaviours predate this wave — they were simply 40px apart in a
+  table header, and putting them in one menu is what makes the disagreement visible. Either the
+  endpoint learns the filter or the menu says which is which; not one of the 28 either way.
 
 ## Decisions 3b took where the spec left two readings
 

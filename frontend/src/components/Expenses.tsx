@@ -63,6 +63,13 @@ import ExpenseTable from './ExpenseTable';
 /** How many characters of a description the "Largest" tile shows. */
 const LARGEST_DESCRIPTION = 42;
 
+/** A description cut to fit a stat tile, saying so when it was cut. */
+function shorten(description: string): string {
+  return description.length > LARGEST_DESCRIPTION
+    ? `${description.slice(0, LARGEST_DESCRIPTION - 1).trimEnd()}…`
+    : description;
+}
+
 export default function Expenses({
   expenses,
   settings,
@@ -362,8 +369,12 @@ export default function Expenses({
           <h3>Total</h3>
           <p className="value">{fmt(summary.total)}</p>
           {converted && <p className="subtitle">converted to {display} at your rates</p>}
-          {/* The exact subtotals underneath the estimate that combined them. */}
-          {summary.natives.length > 1 && (
+          {/* The exact subtotals underneath the estimate that combined them.
+              Shown whenever anything was converted, not only when two
+              currencies were: a lone foreign subtotal is the case where the
+              figure above is entirely an estimate, which is when the exact
+              number is worth most. */}
+          {converted && (
             <ul className="native-totals">
               {summary.natives.map(native => (
                 <li key={native.currency}>
@@ -397,9 +408,7 @@ export default function Expenses({
             {summary.largest ? fmt(summary.largest.amount) : '—'}
           </p>
           <p className="subtitle">
-            {summary.largest
-              ? summary.largest.description.slice(0, LARGEST_DESCRIPTION)
-              : 'nothing in this selection'}
+            {summary.largest ? shorten(summary.largest.description) : 'nothing in this selection'}
           </p>
         </div>
       </div>
