@@ -162,3 +162,96 @@ describe('Analytics', () => {
     expect(card('Total Spent')).toHaveTextContent(/converted to USD/i);
   });
 });
+
+/**
+ * The presets, checked against the dates they actually send and the day count
+ * they actually print. "Last 30 Days" used to subtract a whole month, so on the
+ * 11th it asked for the 11th of the month before — 31 days, a third of them in
+ * the current month — and printed "31 days" beside a label that said 30 (F2).
+ *
+ * Both ends of the API filter are inclusive, so a preset of N days spans N-1
+ * days back to today and the printed count is the difference plus one.
+ */
+describe('Analytics — time presets', () => {
+  // One currency, so the "Total Spent" subtitle shows the day count rather than
+  // the conversion caption it swaps in for mixed results.
+  const singleCurrencyResponse = {
+    total: 0,
+    count: 4,
+    average: 0,
+    byCategory: [{ category: 'groceries', currency: 'PLN', total: 400, count: 4, average: 100 }],
+    byCurrency: [{ currency: 'PLN', total: 400, count: 4, average: 100 }],
+  };
+
+  /** The `startDate`/`endDate` of the most recent request. */
+  const lastRange = (): { startDate: string; endDate: string } => {
+    const calls = mockGetAnalytics.mock.calls;
+    const { startDate, endDate } = calls[calls.length - 1][0];
+    return { startDate, endDate };
+  };
+
+  const daysBetweenInclusive = (startDate: string, endDate: string): number =>
+    Math.round((Date.parse(endDate) - Date.parse(startDate)) / 86_400_000) + 1;
+
+  /** `YYYY-MM-DD` in local time, matching what the component builds. */
+  const iso = (date: Date): string =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+  const renderAnalytics = () => {
+    mockGetAnalytics.mockResolvedValue(singleCurrencyResponse);
+    return render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} rates={rates} />);
+  };
+
+  it('asks for exactly 30 days under "Last 30 Days", and says 30', async () => {
+    renderAnalytics();
+    await waitFor(() => expect(card('Total Spent')).toBeInTheDocument());
+
+    const { startDate, endDate } = lastRange();
+    expect(endDate).toBe(iso(new Date()));
+    expect(daysBetweenInclusive(startDate, endDate)).toBe(30);
+    // The subtitle is the other half of the defect: the label said 30 and the
+    // figure beside it said 31, on the same view.
+    expect(card('Total Spent')).toHaveTextContent('30 days');
+  });
+
+  it('asks for exactly 7 days under "Last 7 Days", and says 7', async () => {
+    renderAnalytics();
+    await waitFor(() => expect(card('Total Spent')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Last 7 Days' }));
+
+    await waitFor(() => expect(card('Total Spent')).toHaveTextContent('7 days'));
+    expect(daysBetweenInclusive(lastRange().startDate, lastRange().endDate)).toBe(7);
+  });
+
+  it('offers the previous calendar month, whole, and never runs it into this one', async () => {
+    renderAnalytics();
+    await waitFor(() => expect(card('Total Spent')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Last Month' }));
+
+    const now = new Date();
+    const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
+    await waitFor(() => expect(lastRange().startDate).toBe(iso(firstOfLastMonth)));
+    expect(lastRange().endDate).toBe(iso(lastOfLastMonth));
+    // Nothing from the current month leaks in, which is the whole point of it.
+    expect(lastRange().endDate < iso(new Date(now.getFullYear(), now.getMonth(), 1))).toBe(true);
+    expect(card('Total Spent')).toHaveTextContent(`${lastOfLastMonth.getDate()} days`);
+  });
+
+  it('counts a single-day custom range as one day, not none', async () => {
+    renderAnalytics();
+    await waitFor(() => expect(card('Total Spent')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Range' }));
+    fireEvent.change(screen.getByLabelText('Start Date'), { target: { value: '2026-03-04' } });
+    fireEvent.change(screen.getByLabelText('End Date'), { target: { value: '2026-03-04' } });
+
+    // Zero days made "Average per Day" divide by nothing and print 0 for a range
+    // that plainly held something.
+    await waitFor(() => expect(card('Total Spent')).toHaveTextContent(/\b1 days?\b/));
+    expect(card('Average per Day')).toHaveTextContent(/400,00\s*zł/);
+  });
+});

@@ -180,6 +180,21 @@ describe('Dashboard', () => {
     expect(container.querySelectorAll('.chart-legend-swatch')).toHaveLength(3);
   });
 
+  it('lets the swatch carry the category colour, never the label text', () => {
+    // The rule is written above `.category-dot` in App.css: a category hue is
+    // user data and one value has to work on both themes. Painting it onto the
+    // text failed all ten labels in light mode (F14).
+    const { container } = render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
+
+    const items = [...container.querySelectorAll<HTMLElement>('.chart-legend li')];
+    expect(items).not.toHaveLength(0);
+    for (const item of items) {
+      expect(item.style.color).toBe('');
+      const swatch = item.querySelector<HTMLElement>('.chart-legend-swatch');
+      expect(swatch?.style.background).not.toBe('');
+    }
+  });
+
   it('renders the combined empty state when there are no expenses at all', () => {
     render(<Dashboard expenses={[]} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 

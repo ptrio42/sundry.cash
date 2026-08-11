@@ -11,6 +11,7 @@ import { formatCurrency } from '../utils/format';
 import { categoryColor, categoryLabel, stackedCategorySeries } from '../utils/categories';
 import { relevantCurrencies } from '../utils/currencies';
 import { convertAmount } from '../utils/fx';
+import CurrencyScope from './CurrencyScope';
 import InsightsStrip from './InsightsStrip';
 
 type TimeGrouping = 'day' | 'week' | 'month';
@@ -146,24 +147,21 @@ export default function Dashboard({ expenses, settings, categories, currencies, 
 
       <div className="dashboard-head">
         <div className="dashboard-head-controls">
-          <div className="currency-buttons">
-            <button
-              className={view === 'primary' ? 'active' : ''}
-              onClick={() => setView('primary')}
-              title="All currencies converted to your primary currency"
-            >
-              All → {primary}
-            </button>
-            {/* Only the currencies actually in the ledger get a button —
-                including ones since disabled, whose history is still here. */}
-            {relevantCurrencies(currencies, presentCurrencies)
-              .filter(c => presentCurrencies.includes(c.code))
-              .map(c => (
-                <button key={c.code} className={view === c.code ? 'active' : ''} onClick={() => setView(c.code)}>
-                  {c.code} ({c.symbol})
-                </button>
-              ))}
-          </div>
+          {/* Only the currencies actually in the ledger get a button — including
+              ones since disabled, whose history is still here. The option set
+              stays this screen's own for now; `CurrencyScope` shares the
+              control, not the choice of what goes in it. */}
+          <CurrencyScope
+            currencies={relevantCurrencies(currencies, presentCurrencies)
+              .filter(c => presentCurrencies.includes(c.code))}
+            value={view}
+            onChange={setView}
+            combined={{
+              value: 'primary',
+              label: `All → ${primary}`,
+              title: 'All currencies converted to your primary currency'
+            }}
+          />
           {converted && (
             <p className="dashboard-note muted-text">
               Converted from all currencies using your FX rates (editable under Currencies).
@@ -235,9 +233,13 @@ export default function Dashboard({ expenses, settings, categories, currencies, 
                   into an absolutely-positioned box whose height recharts fixes up
                   front, so on a phone the seven categories wrapped to three rows and
                   spilled out of the card. Plain flow content just grows instead. */}
+              {/* The swatch carries the colour and the text does not, per the
+                  rule written above `.category-dot` in App.css: a hue picked to
+                  read on the dark surface fails on the light one, and all ten of
+                  these labels did (F14). */}
               <ul className="chart-legend">
                 {categoryStats.map(entry => (
-                  <li key={entry.category} style={{ color: color(entry.category) }}>
+                  <li key={entry.category}>
                     <span className="chart-legend-swatch" style={{ background: color(entry.category) }} />
                     {entry.name}
                   </li>

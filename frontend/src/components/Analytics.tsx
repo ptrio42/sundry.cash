@@ -17,8 +17,21 @@ import { formatCurrency } from '../utils/format';
 import { categoryColor, categoryLabel } from '../utils/categories';
 import { relevantCurrencies } from '../utils/currencies';
 import { convertAmount } from '../utils/fx';
+import CurrencyScope from './CurrencyScope';
 
-type TimePeriod = 'week' | 'month' | 'year' | 'custom';
+type TimePeriod = 'week' | 'month' | 'lastMonth' | 'year' | 'custom';
+
+/**
+ * `YYYY-MM-DD` for a date in the *user's* timezone. `toISOString()` is UTC, so
+ * anywhere east of it "today" became tomorrow's date after mid-afternoon and
+ * anywhere west of it stayed yesterday's until mid-morning — which silently
+ * moved the boundary of every preset by a day.
+ */
+function toISODate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
 
 interface AnalyticsData {
   total: number;
@@ -64,34 +77,41 @@ export default function Analytics({ settings, categories, currencies, rates }: A
   const nothingSelected = categories.length > 0 && selectedCategories.length === 0;
 
   /**
-   * Calculate date range based on time period
+   * The date range a preset stands for.
+   *
+   * **Both ends are inclusive** — the API filters `date >= start AND date <=
+   * end` — so "the last N days" ends today and starts N−1 days back. Subtracting
+   * a whole month was what made "Last 30 Days" return 11 Jul – 11 Aug: 31 days,
+   * a third of them in the current month (F2).
    */
   const getDateRange = (period: TimePeriod): { startDate: string; endDate: string } => {
     const now = new Date();
-    const end = now.toISOString().split('T')[0];
-    let start: Date;
+    const endingToday = (days: number) => {
+      const start = new Date(now);
+      start.setDate(now.getDate() - (days - 1));
+      return { startDate: toISODate(start), endDate: toISODate(now) };
+    };
 
     switch (period) {
       case 'week':
-        start = new Date(now);
-        start.setDate(now.getDate() - 7);
-        break;
+        return endingToday(7);
       case 'month':
-        start = new Date(now);
-        start.setMonth(now.getMonth() - 1);
-        break;
+        return endingToday(30);
+      case 'lastMonth':
+        // The previous calendar month, whole. Day 0 of this month is the last
+        // day of the one before it, whatever its length. Nothing else in the
+        // product answers "how did last month go?": every other preset runs to
+        // today, and Custom Range wants both dates typed and the reader to know
+        // when the month ended.
+        return {
+          startDate: toISODate(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+          endDate: toISODate(new Date(now.getFullYear(), now.getMonth(), 0))
+        };
       case 'year':
-        start = new Date(now);
-        start.setFullYear(now.getFullYear() - 1);
-        break;
+        return endingToday(365);
       default:
         return { startDate: '', endDate: '' };
     }
-
-    return {
-      startDate: start.toISOString().split('T')[0],
-      endDate: end
-    };
   };
 
   /**
@@ -147,25 +167,24 @@ export default function Analytics({ settings, categories, currencies, rates }: A
   };
 
   /**
-   * Calculate days in period
+   * Days covered by the active range, **counting both ends** — the filter is
+   * inclusive, so a range of one day covers one day. The subtraction alone
+   * printed "31 days" under a preset labelled "Last 30 Days", and returned 0
+   * for a single-day Custom Range, which made "Average per Day" read 0.
    */
   const getDaysInPeriod = (): number => {
-    let dates: { startDate: string; endDate: string };
-
-    if (timePeriod === 'custom') {
-      dates = { startDate, endDate };
-    } else {
-      dates = getDateRange(timePeriod);
-    }
+    const dates = timePeriod === 'custom' ? { startDate, endDate } : getDateRange(timePeriod);
 
     if (!dates.startDate || !dates.endDate) return 0;
 
+    // Date-only strings parse as UTC midnight, so the difference is a whole
+    // number of days with no daylight-saving remainder to round away.
     const start = new Date(dates.startDate);
     const end = new Date(dates.endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
 
-    return diffDays;
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    return Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
   };
 
   /**
@@ -257,6 +276,12 @@ export default function Analytics({ settings, categories, currencies, rates }: A
               Last 30 Days
             </button>
             <button
+              className={timePeriod === 'lastMonth' ? 'active' : ''}
+              onClick={() => setTimePeriod('lastMonth')}
+            >
+              Last Month
+            </button>
+            <button
               className={timePeriod === 'year' ? 'active' : ''}
               onClick={() => setTimePeriod('year')}
             >
@@ -323,25 +348,14 @@ export default function Analytics({ settings, categories, currencies, rates }: A
         {/* Currency Selection */}
         <div className="filter-section">
           <h3>Currency</h3>
-          <div className="currency-buttons">
-            <button
-              className={selectedCurrency === 'all' ? 'active' : ''}
-              onClick={() => setSelectedCurrency('all')}
-            >
-              All Currencies
-            </button>
-            {/* Enabled currencies, plus any the results are already in — a
-                currency switched off after the fact still has history to slice. */}
-            {relevantCurrencies(currencies, (analytics?.byCurrency ?? []).map(c => c.currency)).map(currency => (
-              <button
-                key={currency.code}
-                className={selectedCurrency === currency.code ? 'active' : ''}
-                onClick={() => setSelectedCurrency(currency.code)}
-              >
-                {currency.code} ({currency.symbol})
-              </button>
-            ))}
-          </div>
+          {/* Enabled currencies, plus any the results are already in — a
+              currency switched off after the fact still has history to slice. */}
+          <CurrencyScope
+            currencies={relevantCurrencies(currencies, (analytics?.byCurrency ?? []).map(c => c.currency))}
+            value={selectedCurrency}
+            onChange={setSelectedCurrency}
+            combined={{ value: 'all', label: 'All Currencies' }}
+          />
         </div>
       </div>
 

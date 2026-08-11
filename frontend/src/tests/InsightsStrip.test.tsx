@@ -176,6 +176,28 @@ describe('InsightsStrip', () => {
     expect(await screen.findByText(/Weekdays cost more/)).toHaveTextContent(/80,00\s*zł a day/);
   });
 
+  /**
+   * The Insights tab makes the same claim over its own, much longer window, so a
+   * per-day figure with no window on it reads as the app contradicting itself
+   * (F10). `days` was in the payload all along and this was the one template
+   * that dropped it.
+   */
+  it('states the window it measured the week over, whichever side won', async () => {
+    summaryMock.mockResolvedValue(summary([
+      { kind: 'weekend_skew', severity: 0.5, currency: 'PLN', data: { weekendPerDay: 111.11, weekdayPerDay: 45.86, ratio: 2.42, days: 30 } }
+    ]));
+
+    const { rerender } = render(strip());
+    expect(await screen.findByText(/Weekends cost more/)).toHaveTextContent('over the last 30 days');
+
+    summaryMock.mockResolvedValue(summary([
+      { kind: 'weekend_skew', severity: 0.5, currency: 'PLN', data: { weekendPerDay: 20, weekdayPerDay: 80, ratio: 0.25, days: 14 } }
+    ]));
+    rerender(strip('PLN', [...ledger]));
+
+    expect(await screen.findByText(/Weekdays cost more/)).toHaveTextContent('over the last 14 days');
+  });
+
   it('renders one paragraph per finding, in the order the server ranked them', async () => {
     summaryMock.mockResolvedValue(summary([
       { kind: 'weekend_skew', severity: 0.5, currency: 'PLN', data: { weekendPerDay: 111.11, weekdayPerDay: 45.86, ratio: 2.42, days: 30 } },
