@@ -150,6 +150,50 @@ export interface RecurringCharge {
   likelyCancelled: boolean;
 }
 
+// One merchant's spend inside the window, in a single currency. The key is a
+// case-folded grouping key ('żabka'), not a display name — see getMerchants.
+export interface MerchantTotal {
+  key: string;
+  currency: Currency;
+  total: number;
+  count: number;
+  average: number;
+  firstSeen: string;
+  lastSeen: string;
+}
+
+export interface MerchantsResult {
+  since: string;
+  until: string;
+  limit: number; // rows kept per currency, not in total
+  truncated: boolean; // true when `limit` cut any currency's list
+  merchants: MerchantTotal[];
+}
+
+// One day of the week inside the window, for a single currency.
+export interface WeekdayBucket {
+  dow: number;  // 0 = Sunday .. 6 = Saturday
+  days: number; // how many days of this kind the window actually contains
+  total: number;
+  count: number;
+  perDay: number;
+}
+
+export interface CurrencyPattern {
+  currency: Currency;
+  byWeekday: WeekdayBucket[]; // always seven entries, Sunday first
+  weekdayPerDay: number;
+  weekendPerDay: number;
+  weekendRatio: number | null; // null when one side has nothing to divide by
+}
+
+export interface PatternsResult {
+  since: string;
+  until: string;
+  days: number;
+  byCurrency: CurrencyPattern[];
+}
+
 // --- Insight summary ------------------------------------------------------
 // The composed report the dashboard strip renders. Findings carry numbers and
 // identifiers, never prose: the sentence is written here, in the component, so

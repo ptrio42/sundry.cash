@@ -10,6 +10,7 @@ import ExpenseTable from './ExpenseTable';
 import Dashboard from './Dashboard';
 import ExcelImport from './ExcelImport';
 import Analytics from './Analytics';
+import Insights from './Insights';
 import Budgets from './Budgets';
 import Fx from './Fx';
 import Settings from './Settings';
@@ -20,7 +21,7 @@ import { Expense, AppSettings, Category, CurrencyInfo, FxRates } from '../types/
 import { setCurrencyRegistry } from '../utils/format';
 import '../App.css';
 
-type View = 'form' | 'receipt' | 'table' | 'dashboard' | 'import' | 'analytics' | 'budgets' | 'fx' | 'settings';
+type View = 'form' | 'receipt' | 'table' | 'dashboard' | 'import' | 'analytics' | 'insights' | 'budgets' | 'fx' | 'settings';
 
 const DEFAULT_SETTINGS: AppSettings = {
   defaultCurrency: 'USD',
@@ -284,6 +285,7 @@ export default function App() {
     { key: 'table', label: 'All Expenses', icon: '📋', short: 'Expenses' },
     { key: 'dashboard', label: 'Dashboard', icon: '📊' },
     { key: 'analytics', label: 'Analytics', icon: '📈' },
+    { key: 'insights', label: 'Insights', icon: '💡' },
     { key: 'budgets', label: 'Budgets', icon: '🎯' },
     { key: 'fx', label: 'Currencies', icon: '💱' },
     { key: 'settings', label: 'Settings', icon: '⚙️' }
@@ -295,6 +297,7 @@ export default function App() {
     table: 'All Expenses',
     dashboard: 'Dashboard',
     analytics: 'Analytics',
+    insights: 'Insights',
     budgets: 'Monthly Budgets',
     fx: 'Currency Conversion',
     settings: 'Preferences'
@@ -384,6 +387,7 @@ export default function App() {
               )}
               {currentView === 'dashboard' && <Dashboard expenses={expenses} settings={settings} categories={categories} currencies={currencies} rates={fxRates} />}
               {currentView === 'analytics' && <Analytics settings={settings} categories={categories} currencies={currencies} rates={fxRates} />}
+              {currentView === 'insights' && <Insights expenses={expenses} settings={settings} categories={categories} currencies={currencies} rates={fxRates} />}
               {currentView === 'budgets' && <Budgets expenses={expenses} categories={categories} currencies={currencies} />}
               {currentView === 'fx' && <Fx expenses={expenses} currencies={currencies} rates={fxRates} onRatesChanged={setFxRates} />}
               {currentView === 'settings' && (

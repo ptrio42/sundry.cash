@@ -3,9 +3,14 @@
  *
  * At most three sentences at the top of the Dashboard answering "what changed?".
  * Deliberately not a tab: an insight you have to navigate to is an insight you
- * never read, and a fifth tab would cost more than it gives. Same progressive
- * disclosure as the currency buttons below it — when there is nothing worth
- * saying, the strip renders nothing at all.
+ * never read, so these are seen whether or not anyone goes looking. Same
+ * progressive disclosure as the currency buttons below it — when there is
+ * nothing worth saying, the strip renders nothing at all.
+ *
+ * There *is* an Insights tab now (`Insights.tsx`), and it does not replace this.
+ * The two do different jobs: the strip is what you are shown, the tab is where
+ * you dig. The argument above is about navigation, and it never extended to a
+ * detail view for the people who want one.
  *
  * It used to pick the sentences itself, merging two payloads and converting
  * currencies client-side. It no longer chooses anything: `/insights/summary`

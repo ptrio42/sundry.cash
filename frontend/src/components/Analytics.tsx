@@ -1,6 +1,13 @@
 /**
  * Analytics Component
- * Shows spending analytics by time period and category
+ * Shows spending analytics by time period and category.
+ *
+ * **Analytics is not Insights.** This screen answers "how much did I spend on X
+ * between A and B?" and is driven by the user's filters — period pickers,
+ * category checkboxes, a currency. `Insights.tsx` answers "what should I know
+ * that I did not ask about?" and is driven by the data, which is why it has no
+ * filter wall. A block that only says something once it has been configured
+ * belongs here, not there.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';

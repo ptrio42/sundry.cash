@@ -21,6 +21,8 @@ import {
   ComparisonPeriod,
   ComparisonResult,
   RecurringCharge,
+  MerchantsResult,
+  PatternsResult,
   SummaryResult
 } from '../types/expense.types';
 import { downloadBlob } from '../utils/export';
@@ -569,6 +571,72 @@ export async function getInsightsRecurring(params: {
 
   const response = await apiFetch(
     `/insights/recurring${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+  );
+  return handleResponse(response);
+}
+
+/**
+ * Where the money goes, ranked by total — the spend that hides in small,
+ * frequent purchases no category total makes visible.
+ *
+ * `limit` is rows kept **per currency**, not in total: totals are counted in
+ * each currency's own minor units, so one flat top-N would rank satoshis
+ * against grosze and could drop a whole currency. The response says whether
+ * that cap cut anything (`truncated`), which is the caller's cue that the list
+ * it is holding is not everything.
+ */
+export async function getInsightsMerchants(params: {
+  since?: string;
+  until?: string;
+  currency?: Currency;
+  limit?: number;
+} = {}): Promise<MerchantsResult> {
+  const queryParams = new URLSearchParams();
+
+  if (params.since) {
+    queryParams.append('since', params.since);
+  }
+  if (params.until) {
+    queryParams.append('until', params.until);
+  }
+  if (params.currency) {
+    queryParams.append('currency', params.currency);
+  }
+  if (params.limit !== undefined) {
+    queryParams.append('limit', String(params.limit));
+  }
+
+  const response = await apiFetch(
+    `/insights/merchants${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+  );
+  return handleResponse(response);
+}
+
+/**
+ * When the money goes out: seven weekday buckets per currency, plus the
+ * weekend/weekday split. Every figure is per day — a week holds five weekdays
+ * and two weekend days, so raw totals would make weekdays win on an even spread.
+ * Defaults to the twelve months ending today.
+ */
+export async function getInsightsPatterns(params: {
+  since?: string;
+  until?: string;
+  currency?: Currency;
+} = {}): Promise<PatternsResult> {
+  const queryParams = new URLSearchParams();
+
+  if (params.since) {
+    queryParams.append('since', params.since);
+  }
+  if (params.until) {
+    queryParams.append('until', params.until);
+  }
+  if (params.currency) {
+    queryParams.append('currency', params.currency);
+  }
+
+  const response = await apiFetch(
+    `/insights/patterns${queryParams.toString() ? '?' + queryParams.toString() : ''}`
   );
   return handleResponse(response);
 }

@@ -66,8 +66,9 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 **frontend/** — React 18 + Vite, single-page tabbed UI (no router, no state library — plain hooks):
 - `src/main.tsx` -> `src/components/App.tsx`. Feature components: `Dashboard`, `Analytics`, `Budgets`,
   `Fx`, `ExpenseForm`, `ExpenseTable`, `ExcelImport`, `EditExpenseModal`, `Login`, `Settings`,
-  `ReceiptScan`, `InsightsStrip` (three sentences at the top of `Dashboard` — insights are
-  deliberately not a tab; it renders what `/insights/summary` ranked and picks nothing itself).
+  `ReceiptScan`, `InsightsStrip` (three sentences at the top of `Dashboard` — it renders what
+  `/insights/summary` ranked and picks nothing itself), `Insights` (the tab behind those sentences:
+  four blocks over the four data endpoints, no filters — see below).
 - `src/services/api.ts` — central `apiFetch` wrapper (base `/api`, bearer from localStorage key
   `sundry-token`, 401 -> `auth-expired` window event). Add API calls here.
 - `src/utils/` — `format.ts` (currency/date display, backed by a registry App refreshes),
@@ -109,6 +110,16 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   the question: clicking a currency button costs a round trip instead of a re-render, and buys one
   implementation of the merge instead of two. Findings carry numbers and identifiers, **never
   sentences** — PL/EN is a roadmap item and an API that emitted English would have to be redone.
+- **The Insights *tab* scopes currency client-side, unlike the strip** — it only displays per-currency
+  lists and totals, which is what `Dashboard` already converts with `convertAmount`, so `utils/insights.ts`
+  does the merge and a currency switch is a re-render. Nothing is ranked across currencies there, which
+  is the whole reason the strip needs the server. It asks `/insights/merchants` for the maximum 100 rows
+  because that endpoint's limit is a top-N *per currency* — a merchant dropped server-side cannot
+  reappear in a client-side merge, and the UI says so when `truncated` comes back true.
+- **Insights is not Analytics** — Analytics answers "how much on X between A and B?" and is driven by
+  the user's filters; Insights answers "what should I know that I did not ask about?" and is driven by
+  the data. Insights therefore has **no filter wall**, at most a currency scope. A block that needs
+  configuring before it says anything belongs in Analytics. Stated in both component headers; keep it.
 - **Dark-first UI** — `index.html` sets the dark background before React mounts to avoid a flash.
 
 ## Gotchas

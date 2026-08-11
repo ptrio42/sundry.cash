@@ -82,8 +82,12 @@ as a full-screen PWA, and **Scan Receipt** opens the camera directly.
   ranks six kinds of finding — the biggest mover against the previous 30 days, anything you started
   spending on, what your recurring charges cost, one that stopped, a shop you visit more than you
   think, and a weekend habit — scoring each against your own spending rather than against a fixed
-  amount, and returns only the ones worth reading. No tab to visit, and nothing shown when there is
-  nothing to say.
+  amount, and returns only the ones worth reading. Nothing is shown when there is nothing to say.
+- **Insights tab** — the detail behind those sentences, for when you do want to dig: every
+  subscription with its cadence, monthly cost and lifetime total (the stopped ones listed separately),
+  where the money actually goes per merchant, what you spend per day of the week, and the full
+  category comparison the strip only ever quotes one row of. No filters — Analytics is the screen you
+  drive, this is the one that talks back.
 - **Export** — the whole ledger as `.xlsx` from the server, or CSV generated in the browser.
 - **Optional login** — set `APP_PASSWORD` and the app gates behind a 7-day HMAC bearer token.
 - **Dark-first UI, mobile layout, installable PWA** — with a light theme toggle.
