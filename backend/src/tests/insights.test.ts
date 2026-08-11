@@ -950,6 +950,75 @@ describe('GET /api/insights/summary', () => {
     const res = await request(app).get('/api/insights/summary?limit=2.5').expect(400);
     expect(res.body.error).toBe('Validation failed');
   });
+
+  /**
+   * The window the summary scores over is a parameter, because Home carries a
+   * page-window control that has to move the findings and the sections they head
+   * together. Same values, same defaults and the same validation as
+   * /comparison — a summary that accepted a period the comparison did not would
+   * rank findings over a window nothing else could be asked for.
+   */
+  describe('the window it scores over', () => {
+    it('defaults to a rolling month', async () => {
+      const body = await summary();
+      expect(body.windowDays).toBe(30);
+    });
+
+    it('takes a calendar month, which is a different number of days', async () => {
+      // August 2026 runs to the 31st, so the window is 31 days rather than 30.
+      const body = await summary('&period=month&window=calendar&limit=10');
+      expect(body.windowDays).toBe(31);
+    });
+
+    it('takes a week and a year', async () => {
+      expect((await summary('&period=week')).windowDays).toBe(7);
+      expect((await summary('&period=year')).windowDays).toBe(365);
+    });
+
+    it('scores against the window it was given, not the default one', async () => {
+      // Over the rolling month the coffee shop wins the merchant slot: ten
+      // visits worth 150 of the window's 1963.
+      const month = await summary('&limit=10');
+      expect(finding(month, 'merchant_drip').data)
+        .toMatchObject({ key: 'coffee shop', total: 150, count: 10, days: 30 });
+
+      // Over a rolling year a different merchant does, because the window now
+      // holds a year of everything — Netflix's eight monthly charges are 800,
+      // which outscores twenty coffees worth 300. Not a nicety: this is the
+      // proof that every pass inside `getSummary` moved with the window rather
+      // than only the comparison, and that `days` reports what was measured.
+      const year = await summary('&period=year&limit=10');
+      expect(finding(year, 'merchant_drip').data)
+        .toMatchObject({ key: 'netflix', total: 800, count: 8, days: 365 });
+    });
+
+    it('states the window in every sentence-bound field it hands back', async () => {
+      // The frontend prints `days` verbatim, so the payload has to agree with
+      // the window that was asked for — F10 was exactly one template dropping it.
+      const body = await summary('&period=week&limit=10');
+      expect(body.findings.every((f: any) => f.data.days === undefined || f.data.days === 7)).toBe(true);
+    });
+
+    it('rejects a period or window it does not know', async () => {
+      await request(app).get('/api/insights/summary?period=fortnight').expect(400);
+      await request(app).get('/api/insights/summary?window=sliding').expect(400);
+      // Repeated params arrive as an array, which is not a valid value either.
+      await request(app).get('/api/insights/summary?period=month&period=year').expect(400);
+
+      const res = await request(app).get('/api/insights/summary?period=fortnight&window=sliding').expect(400);
+      expect(res.body.details).toEqual([
+        'Window must be one of: rolling, calendar',
+        'Period must be one of: week, month, year'
+      ]);
+    });
+
+    it('refuses them in the same words /comparison does', async () => {
+      // One helper, so the two endpoints cannot drift into two vocabularies.
+      const fromSummary = await request(app).get('/api/insights/summary?period=fortnight').expect(400);
+      const fromComparison = await request(app).get('/api/insights/comparison?period=fortnight').expect(400);
+      expect(fromSummary.body.details).toEqual(fromComparison.body.details);
+    });
+  });
 });
 
 describe('Insight summary scoring', () => {

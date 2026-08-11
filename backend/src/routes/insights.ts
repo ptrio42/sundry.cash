@@ -53,6 +53,31 @@ function windowErrors(since: unknown, until: unknown): string[] {
 }
 
 /**
+ * `period` / `window`, shared by `/comparison` and `/summary`.
+ *
+ * Both answer over the same two-window comparison — `/summary` composes
+ * `getComparison` and scores against the spend it reports — so they have to
+ * accept exactly the same values. A summary that took a period the comparison
+ * did not would rank findings over a window nothing else in the API could be
+ * asked for.
+ *
+ * A repeated query param arrives as an array, which fails these checks too.
+ */
+function periodWindowErrors(period: unknown, window: unknown): string[] {
+  const errors: string[] = [];
+
+  if (window !== undefined && !VALID_WINDOWS.includes(window as ComparisonWindow)) {
+    errors.push(`Window must be one of: ${VALID_WINDOWS.join(', ')}`);
+  }
+
+  if (period !== undefined && !VALID_PERIODS.includes(period as ComparisonPeriod)) {
+    errors.push(`Period must be one of: ${VALID_PERIODS.join(', ')}`);
+  }
+
+  return errors;
+}
+
+/**
  * `exists`, not `isEnabled`: insights read history, and a disabled currency's
  * history is still there to be reported on.
  */
@@ -82,18 +107,11 @@ function anchorErrors(anchor: unknown): string[] {
 router.get('/comparison', (req: Request, res: Response) => {
   try {
     const { window, period, anchor, currency } = req.query;
-    const errors: string[] = [];
-
-    // A repeated query param arrives as an array, which fails these checks too.
-    if (window !== undefined && !VALID_WINDOWS.includes(window as ComparisonWindow)) {
-      errors.push(`Window must be one of: ${VALID_WINDOWS.join(', ')}`);
-    }
-
-    if (period !== undefined && !VALID_PERIODS.includes(period as ComparisonPeriod)) {
-      errors.push(`Period must be one of: ${VALID_PERIODS.join(', ')}`);
-    }
-
-    errors.push(...anchorErrors(anchor), ...currencyErrors(currency));
+    const errors: string[] = [
+      ...periodWindowErrors(period, window),
+      ...anchorErrors(anchor),
+      ...currencyErrors(currency)
+    ];
 
     if (errors.length > 0) {
       res.status(400).json({ error: 'Validation failed', details: errors });
@@ -220,18 +238,24 @@ router.get('/patterns', (req: Request, res: Response) => {
 
 /**
  * GET /api/insights/summary
- * Query params: scope (primary|<code>), limit (1..10, default 3), anchor (YYYY-MM-DD)
+ * Query params: scope (primary|<code>), limit (1..10, default 3),
+ *               anchor (YYYY-MM-DD), period (week|month|year), window (rolling|calendar)
  *
  * The only endpoint that ranks findings against each other, and therefore the
  * only one that has to know the currency scope: comparing a PLN finding with a
  * USD one means converting first, and the backend already owns both the rates
  * and the primary currency. `anchor` exists for the same reason it does on
  * /comparison — an "as of" answer that a test can pin down.
+ *
+ * `period` and `window` are the same pair /comparison takes, with the same
+ * defaults, because Home's page-window control moves the spending sections and
+ * the findings that head them together. The scoring is untouched; only the
+ * window it scores over becomes a parameter.
  */
 router.get('/summary', (req: Request, res: Response) => {
   try {
-    const { scope, limit, anchor } = req.query;
-    const errors: string[] = [...anchorErrors(anchor)];
+    const { scope, limit, anchor, period, window } = req.query;
+    const errors: string[] = [...periodWindowErrors(period, window), ...anchorErrors(anchor)];
 
     // `exists` rather than `isEnabled`, like every other currency check here:
     // a summary of history recorded in a since-disabled currency is still a
@@ -258,7 +282,9 @@ router.get('/summary', (req: Request, res: Response) => {
     res.json(insightsModel.getSummary({
       scope: scope as string | undefined,
       limit: rowLimit,
-      anchor: anchor as string | undefined
+      anchor: anchor as string | undefined,
+      period: period as ComparisonPeriod | undefined,
+      window: window as ComparisonWindow | undefined
     }));
   } catch (error) {
     console.error('Error building insight summary:', error);

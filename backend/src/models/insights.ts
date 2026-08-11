@@ -791,9 +791,16 @@ function convert(amount: number, from: Currency, to: Currency, rates: Record<str
  * The one question that decides everything: what changed, and does it matter
  * relative to what this person actually spends?
  *
- * Composes the four analyses above over a single window — a rolling month
- * ending at `anchor` — so that every finding is scored against the same
+ * Composes the four analyses above over a single window — by default a rolling
+ * month ending at `anchor` — so that every finding is scored against the same
  * denominator, and returns at most `limit` of them.
+ *
+ * `period` and `window` are `getComparison`'s own pair, forwarded verbatim: the
+ * caller decides how long the window is, and everything here (the merchant and
+ * weekday passes included) measures over whatever the comparison came back
+ * with. That keeps `materiality` honest — it divides by spend *in the window*,
+ * so a year of coffees scored against a month of spending would clear every
+ * threshold on arithmetic alone.
  *
  * Fewer than `limit`, or none at all, is a correct answer. A quiet month should
  * say nothing rather than pad itself out with noise.
@@ -804,6 +811,9 @@ export function getSummary(params: {
   limit?: number;
   /** Both the end of the window and the summary's notion of "now". */
   anchor?: string;
+  /** How long the scored window is — as on /comparison, default a rolling month. */
+  period?: ComparisonPeriod;
+  window?: ComparisonWindow;
 } = {}): SummaryResult {
   const scope = params.scope ?? 'primary';
   const limit = Math.min(Math.max(Math.trunc(params.limit ?? DEFAULT_SUMMARY_LIMIT), 1), MAX_SUMMARY_LIMIT);
@@ -829,7 +839,12 @@ export function getSummary(params: {
     return converted === null ? null : snap(converted);
   };
 
-  const comparison = getComparison({ anchor, currency: nativeFilter });
+  const comparison = getComparison({
+    window: params.window,
+    period: params.period,
+    anchor,
+    currency: nativeFilter
+  });
   const days = diffDays(comparison.current.start, comparison.current.end) + 1;
   // Measured rather than assumed equal: only `rolling` guarantees two windows of
   // the same length, and a sentence should not state a number nobody looked at.
