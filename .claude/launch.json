@@ -14,6 +14,16 @@
       "port": 5173
     },
     {
+      "name": "empty-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "concurrently", "-k", "-n", "backend,frontend", "-c", "blue,magenta",
+        "cross-env PORT=5178 DB_PATH=./data/empty.db npm --prefix backend run dev",
+        "cross-env VITE_DEV_PORT=5177 VITE_API_TARGET=http://localhost:5178 npm --prefix frontend run dev -- --no-open"
+      ],
+      "port": 5177
+    },
+    {
       "name": "demo-preview",
       "runtimeExecutable": "npx",
       "runtimeArgs": [

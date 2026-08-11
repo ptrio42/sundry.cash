@@ -570,14 +570,17 @@ Honest results for `[+ Add expense] Home · Expenses · Budgets · Settings`:
 
 ## 9. Not verified — settle these before the spec commits
 
-- **All empty and first-run states.** The only database available was the shared seeded demo, and wiping
-  it was not acceptable. Empty-state behaviour above is read from the components' own branches, not
-  observed. In particular, one source-grounded prediction needs confirming: with expenses recorded but no
-  limits set, Budgets computes `totalBudget = 0` so `remaining = −totalSpent`, rendered in `--danger` —
-  **a fresh user may see a large red negative number for having done nothing.** Settle by pointing the app
-  at an empty DB and screenshotting Dashboard, Insights, ExpenseTable and Budgets.
-- **The Analytics day-count mismatch**, end to end: the tile subtitle prints `${daysInPeriod} days` only
-  when not converted, so "Last 30 Days" with a single currency selected is expected to read "31 days".
+- ~~**All empty and first-run states.**~~ **Settled 2026-08-11** against a genuinely empty database
+  (`empty-preview` launch config, `./data/empty.db`). The prediction holds, and the trigger is worse
+  than predicted: on a completely empty install Budgets reads `Remaining $0.00` in green, and the red
+  negative appears **the moment the first expense is saved** — one expense of $250 renders
+  `Remaining −$250.00` in `--danger` `#f87171`. It is not a first-launch state; it fires on the first
+  thing a new user does. Also observed on the empty install: default currency is **USD** while the
+  month header reads **"sierpień 2026"** (F19, locale by accident), and all seven categories render
+  full-height `$0.00` rows.
+- ~~**The Analytics day-count mismatch.**~~ **Settled 2026-08-11**: with the "Last 30 Days" preset
+  active the screen prints **"31 days"**. The label and the figure contradict each other on the same
+  view, confirming F2 end to end.
 - **`defaultCurrency` vs `primaryCurrency` divergence** — Budgets opens on the former, Dashboard converts
   to the latter. Both are PLN in the demo, so the trap is latent. Set them differently and compare.
 - **Whether a newly added row is findable** in All Expenses — no highlight, no scroll handling, so
