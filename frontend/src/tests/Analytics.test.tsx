@@ -1,14 +1,16 @@
 /**
  * Tests for the Analytics component. The API layer is mocked.
  *
- * The behaviour under test is currency handling: the API returns one row per
+ * Two behaviours are covered. Currency handling: the API returns one row per
  * (category, currency), and the component must combine them through the user's
- * FX rates rather than adding raw major units together.
+ * FX rates rather than adding raw major units together. And the category
+ * filter: an empty selection must mean *no* expenses, not all of them.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import Analytics from '../components/Analytics';
+import { TEST_CATEGORIES } from './categories.fixture';
 import { getAnalytics } from '../services/api';
 import { AppSettings, FxRates } from '../types/expense.types';
 
@@ -52,7 +54,7 @@ beforeEach(() => vi.clearAllMocks());
 describe('Analytics', () => {
   it('converts mixed currencies into the primary currency instead of adding them', async () => {
     mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
-    render(<Analytics settings={settings('PLN')} rates={rates} />);
+    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
 
     // 400 PLN + (25 USD * 4) = 500 PLN. The old code produced a bare 425 and
     // labelled it "$" regardless of the underlying currencies.
@@ -65,7 +67,7 @@ describe('Analytics', () => {
 
   it('derives the averages from the converted total', async () => {
     mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
-    render(<Analytics settings={settings('PLN')} rates={rates} />);
+    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
 
     // 500 PLN over 3 transactions.
     await waitFor(() => expect(card('Average per Expense')).toHaveTextContent(/166,67\s*zł/));
@@ -74,7 +76,7 @@ describe('Analytics', () => {
 
   it('keeps the exact native subtotal for each currency alongside the converted total', async () => {
     mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
-    render(<Analytics settings={settings('PLN')} rates={rates} />);
+    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
 
     await waitFor(() => expect(card('PLN Total')).toHaveTextContent(/400,00\s*zł/));
     expect(card('USD Total')).toHaveTextContent(/\$25\.00/);
@@ -82,7 +84,7 @@ describe('Analytics', () => {
 
   it('collapses the per-currency category rows into one bar per category', async () => {
     mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
-    const { container } = render(<Analytics settings={settings('PLN')} rates={rates} />);
+    const { container } = render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
 
     await waitFor(() =>
       expect(container.querySelector('.category-breakdown')).toBeInTheDocument()
@@ -96,9 +98,63 @@ describe('Analytics', () => {
     expect(within(breakdown).getByText(/3 transactions/)).toBeInTheDocument();
   });
 
+  it('shows nothing — and asks the server nothing — when every category is unchecked', async () => {
+    // An empty `categories` filter reads as *unfiltered* to the API, so
+    // forwarding it would answer "show me none of it" with the whole ledger.
+    mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
+    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
+
+    await waitFor(() => expect(card('Total Spent')).toBeInTheDocument());
+    mockGetAnalytics.mockClear();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /all categories/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/no expenses found for the selected period/i)).toBeInTheDocument()
+    );
+    // The stale numbers are gone, and no request was made to learn that.
+    expect(screen.queryByText(/Total Spent/)).not.toBeInTheDocument();
+    expect(mockGetAnalytics).not.toHaveBeenCalled();
+  });
+
+  it('reaches the same empty state by unchecking the categories one at a time', async () => {
+    mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
+    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
+
+    await waitFor(() => expect(card('Total Spent')).toBeInTheDocument());
+
+    for (const category of TEST_CATEGORIES) {
+      fireEvent.click(screen.getByRole('checkbox', { name: category.label }));
+    }
+
+    await waitFor(() =>
+      expect(screen.getByText(/no expenses found for the selected period/i)).toBeInTheDocument()
+    );
+    // Every intermediate selection was fetched; the empty one was not, so the
+    // last request still names the single category that was left standing.
+    expect(mockGetAnalytics).toHaveBeenLastCalledWith(
+      expect.objectContaining({ categories: [TEST_CATEGORIES[TEST_CATEGORIES.length - 1].slug] })
+    );
+  });
+
+  it('goes back to querying once a category is checked again', async () => {
+    mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
+    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
+
+    await waitFor(() => expect(card('Total Spent')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('checkbox', { name: /all categories/i }));
+    await waitFor(() => expect(screen.getByText(/no expenses found/i)).toBeInTheDocument());
+    mockGetAnalytics.mockClear();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /groceries/i }));
+
+    await waitFor(() => expect(mockGetAnalytics).toHaveBeenCalledTimes(1));
+    expect(mockGetAnalytics.mock.calls[0][0].categories).toEqual(['groceries']);
+  });
+
   it('converts into USD when that is the primary currency', async () => {
     mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
-    render(<Analytics settings={settings('USD')} rates={rates} />);
+    render(<Analytics settings={settings('USD')} categories={TEST_CATEGORIES} rates={rates} />);
 
     // 400 PLN * 0.25 = 100 USD, plus 25 USD = 125 USD.
     await waitFor(() => expect(card('Total Spent')).toHaveTextContent(/\$125\.00/));

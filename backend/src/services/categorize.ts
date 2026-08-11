@@ -9,7 +9,12 @@ import { ExpenseCategory } from '../types/expense.types';
 
 /**
  * Keyword mapping for auto-categorization
- * Maps keywords (case-insensitive) to expense categories
+ * Maps keywords (case-insensitive) to expense categories.
+ *
+ * This map stays in code even though categories are now rows: it is our
+ * heuristic, not user data. Every slug it can emit is a *built-in* category,
+ * which is precisely why built-ins cannot be deleted — otherwise this could
+ * hand the model layer a category that no longer exists.
  */
 export const CATEGORY_KEYWORDS: Record<ExpenseCategory, string[]> = {
   groceries: [

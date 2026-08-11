@@ -8,13 +8,10 @@ import { createExpense } from '../services/api';
 import { ExpenseFormProps, ExpenseCategory, Currency } from '../types/expense.types';
 import { SATS_PER_BTC } from '../utils/format';
 
-// Available categories for the dropdown
-const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
-
 // Available currencies for the dropdown
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
-export default function ExpenseForm({ onExpenseAdded, settings }: ExpenseFormProps) {
+export default function ExpenseForm({ onExpenseAdded, settings, categories }: ExpenseFormProps) {
   const [amount, setAmount] = useState<string>('');
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState<string>('');
@@ -216,9 +213,9 @@ export default function ExpenseForm({ onExpenseAdded, settings }: ExpenseFormPro
             onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
             required
           >
-            {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat.charAt(0).toUpperCase() + cat.slice(1)}
+            {categories.map((cat) => (
+              <option key={cat.slug} value={cat.slug}>
+                {cat.label}
               </option>
             ))}
           </select>

@@ -7,11 +7,11 @@
 
 import { Router, Request, Response } from 'express';
 import * as BudgetModel from '../models/budget';
+import * as CategoryModel from '../models/category';
 import { ExpenseCategory, Currency } from '../types/expense.types';
 
 const router = Router();
 
-const VALID_CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 const VALID_CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
 router.get('/', (_req: Request, res: Response) => {
@@ -28,7 +28,7 @@ router.put('/', (req: Request, res: Response) => {
     const { category, currency, amount } = req.body;
     const errors: string[] = [];
 
-    if (!VALID_CATEGORIES.includes(category)) errors.push('Category must be one of: ' + VALID_CATEGORIES.join(', '));
+    if (!CategoryModel.exists(category)) errors.push('Category must be one of: ' + CategoryModel.allSlugs().join(', '));
     if (!VALID_CURRENCIES.includes(currency)) errors.push('Currency must be one of: ' + VALID_CURRENCIES.join(', '));
     if (typeof amount !== 'number' || !isFinite(amount) || amount <= 0) errors.push('Amount must be a positive number');
 
@@ -49,7 +49,7 @@ router.delete('/:category', (req: Request, res: Response) => {
     const category = req.params.category as ExpenseCategory;
     const currency = req.query.currency as Currency;
 
-    if (!VALID_CATEGORIES.includes(category) || !VALID_CURRENCIES.includes(currency)) {
+    if (!CategoryModel.exists(category) || !VALID_CURRENCIES.includes(currency)) {
       res.status(400).json({ error: 'Invalid category or currency' });
       return;
     }

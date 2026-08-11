@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import InsightsStrip from '../components/InsightsStrip';
+import { TEST_CATEGORIES } from './categories.fixture';
 import { ComparisonResult, Expense, FxRates, RecurringCharge } from '../types/expense.types';
 
 vi.mock('../services/api', () => ({
@@ -83,7 +84,7 @@ describe('InsightsStrip', () => {
       row({ category: 'media', current: 90, previous: 100 })           // -10, smaller move
     ]));
 
-    render(<InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={ledger} />);
+    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
 
     // 358.50 / 1053.50 = 34%, over the 30-day window the payload describes.
     const sentence = await screen.findByText(/Groceries is up 34%/);
@@ -99,7 +100,7 @@ describe('InsightsStrip', () => {
       row({ category: 'transport', current: 50, previous: 200 })
     ]));
 
-    render(<InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={ledger} />);
+    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
 
     expect(await screen.findByText(/Transport is down 75%/)).toBeInTheDocument();
   });
@@ -109,7 +110,7 @@ describe('InsightsStrip', () => {
       row({ category: 'utilities', current: 40, previous: 0, isNew: true })
     ]));
 
-    render(<InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={ledger} />);
+    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
 
     // No previous spend means no percentage — the sentence must not invent one.
     const sentence = await screen.findByText(/Utilities is new/);
@@ -125,7 +126,7 @@ describe('InsightsStrip', () => {
       ]
     });
 
-    render(<InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={ledger} />);
+    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
 
     const sentence = await screen.findByText(/2 recurring charges/);
     expect(sentence).toHaveTextContent(/142,80\s*zł a month/); // 43 + 99.80
@@ -140,7 +141,7 @@ describe('InsightsStrip', () => {
       ]
     });
 
-    render(<InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={ledger} />);
+    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
 
     // Singular, and the 25,00 zł that stopped is not counted.
     const sentence = await screen.findByText(/1 recurring charge costs/);
@@ -157,7 +158,7 @@ describe('InsightsStrip', () => {
     ]));
     recurringMock.mockResolvedValue({ recurring: [charge({ label: 'netflix' })] });
 
-    const { container } = render(<InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={ledger} />);
+    const { container } = render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
 
     await screen.findByText(/recurring charge/);
     expect(container.querySelectorAll('.insight')).toHaveLength(3);
@@ -179,7 +180,7 @@ describe('InsightsStrip', () => {
       ]
     });
 
-    render(<InsightsStrip view="PLN" primary="USD" rates={rates} expenses={ledger} />);
+    render(<InsightsStrip view="PLN" primary="USD" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
 
     // The USD rows are out of scope entirely — neither converted nor added.
     expect(await screen.findByText(/Groceries is up 34%/)).toBeInTheDocument();
@@ -199,7 +200,7 @@ describe('InsightsStrip', () => {
       ]
     });
 
-    render(<InsightsStrip view="primary" primary="USD" rates={rates} expenses={ledger} />);
+    render(<InsightsStrip view="primary" primary="USD" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
 
     // 400 PLN -> 100 USD, plus 50 USD = 150 now; 200 PLN -> 50, plus 25 = 75 before.
     const mover = await screen.findByText(/Groceries is up 100%/);
@@ -213,7 +214,7 @@ describe('InsightsStrip', () => {
   });
 
   it('renders nothing when there is nothing worth saying', async () => {
-    const { container } = render(<InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={ledger} />);
+    const { container } = render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
 
     await waitFor(() => expect(comparisonMock).toHaveBeenCalled());
     expect(container.querySelector('.insights-strip')).toBeNull();
@@ -224,7 +225,7 @@ describe('InsightsStrip', () => {
       row({ category: 'groceries', current: 1000.4, previous: 1000 }) // +0.04%
     ]));
 
-    const { container } = render(<InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={ledger} />);
+    const { container } = render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
 
     await waitFor(() => expect(comparisonMock).toHaveBeenCalled());
     expect(container.querySelector('.insights-strip')).toBeNull();
@@ -235,7 +236,7 @@ describe('InsightsStrip', () => {
     comparisonMock.mockRejectedValue(new Error('HTTP error 500'));
     recurringMock.mockRejectedValue(new Error('HTTP error 500'));
 
-    const { container } = render(<InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={ledger} />);
+    const { container } = render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
 
     await waitFor(() => expect(comparisonMock).toHaveBeenCalled());
     expect(container.querySelector('.insights-strip')).toBeNull();
@@ -253,7 +254,7 @@ describe('InsightsStrip', () => {
       byCategory: [row({ category: 'utilities', current: 40, previous: 0, isNew: true })]
     });
 
-    render(<InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={ledger} />);
+    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
 
     const sentence = await screen.findByText(/Utilities is new/);
     expect(sentence).toHaveTextContent('in the last 31 days');
@@ -266,20 +267,20 @@ describe('InsightsStrip', () => {
     ]));
 
     const { rerender } = render(
-      <InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={ledger} />
+      <InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />
     );
     await screen.findByText(/Groceries is up 34%/);
     expect(comparisonMock).toHaveBeenCalledTimes(1);
 
     // A re-render with the same ledger is not new information.
-    rerender(<InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={ledger} />);
+    rerender(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
     expect(comparisonMock).toHaveBeenCalledTimes(1);
 
     // App replaces the array on every add, edit and delete; that is the signal.
     comparisonMock.mockResolvedValue(comparison([
       row({ category: 'groceries', current: 2000, previous: 1053.5 })
     ]));
-    rerender(<InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={[...ledger]} />);
+    rerender(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={[...ledger]} />);
 
     expect(await screen.findByText(/Groceries is up 90%/)).toBeInTheDocument();
     expect(comparisonMock).toHaveBeenCalledTimes(2);
@@ -287,7 +288,7 @@ describe('InsightsStrip', () => {
 
   it('does not call the server at all for an empty ledger', async () => {
     const { container } = render(
-      <InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={[]} />
+      <InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={[]} />
     );
 
     await waitFor(() => expect(container.querySelector('.insights-strip')).toBeNull());
@@ -296,7 +297,7 @@ describe('InsightsStrip', () => {
   });
 
   it('asks for the backend defaults rather than inventing a window', async () => {
-    render(<InsightsStrip view="PLN" primary="PLN" rates={rates} expenses={ledger} />);
+    render(<InsightsStrip view="PLN" primary="PLN" categories={TEST_CATEGORIES} rates={rates} expenses={ledger} />);
 
     await waitFor(() => expect(comparisonMock).toHaveBeenCalled());
     expect(comparisonMock).toHaveBeenCalledWith();

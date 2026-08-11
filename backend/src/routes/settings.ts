@@ -6,11 +6,11 @@
 
 import { Router, Request, Response } from 'express';
 import { AppSettings, BtcUnit, Currency, ExpenseCategory } from '../types/expense.types';
+import * as CategoryModel from '../models/category';
 import {
   getSettings,
   updateSettings,
   VALID_CURRENCIES,
-  VALID_CATEGORIES,
   VALID_BTC_UNITS,
 } from '../models/settings';
 
@@ -36,7 +36,7 @@ router.put('/', (req: Request, res: Response) => {
       else partial.defaultCurrency = defaultCurrency as Currency;
     }
     if (defaultCategory !== undefined) {
-      if (!VALID_CATEGORIES.includes(defaultCategory)) errors.push(`defaultCategory must be one of: ${VALID_CATEGORIES.join(', ')}`);
+      if (!CategoryModel.exists(defaultCategory)) errors.push(`defaultCategory must be one of: ${CategoryModel.allSlugs().join(', ')}`);
       else partial.defaultCategory = defaultCategory as ExpenseCategory;
     }
     if (defaultBtcUnit !== undefined) {

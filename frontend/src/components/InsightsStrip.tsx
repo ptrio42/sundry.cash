@@ -15,24 +15,17 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { getInsightsComparison, getInsightsRecurring } from '../services/api';
-import { Currency, Expense, ExpenseCategory, FxRates, ComparisonResult, RecurringCharge } from '../types/expense.types';
+import { Category, Currency, Expense, ExpenseCategory, FxRates, ComparisonResult, RecurringCharge } from '../types/expense.types';
 import { formatCurrency } from '../utils/format';
+import { categoryLabel } from '../utils/categories';
 import { convertAmount } from '../utils/fx';
-
-const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-  groceries: 'Groceries',
-  transport: 'Transport',
-  media: 'Media',
-  entertainment: 'Entertainment',
-  utilities: 'Utilities',
-  maintenance: 'Maintenance',
-  other: 'Other'
-};
 
 interface InsightsStripProps {
   /** The currency the dashboard is showing, or 'primary' for the combined view. */
   view: Currency | 'primary';
   primary: Currency;
+  /** Names the sentences use — the API answers in slugs. */
+  categories: Category[];
   rates: FxRates;
   /**
    * The ledger the dashboard is drawing. Only its length and identity are read:
@@ -55,7 +48,7 @@ function windowDays(start: string, end: string): number {
   return Math.round((to - from) / 86_400_000) + 1;
 }
 
-export default function InsightsStrip({ view, primary, rates, expenses }: InsightsStripProps) {
+export default function InsightsStrip({ view, primary, categories, rates, expenses }: InsightsStripProps) {
   const [comparison, setComparison] = useState<ComparisonResult | null>(null);
   const [recurring, setRecurring] = useState<RecurringCharge[]>([]);
 
@@ -139,7 +132,7 @@ export default function InsightsStrip({ view, primary, rates, expenses }: Insigh
       if (moved.length > 0) {
         const mover = moved[0];
         lines.push(
-          `${CATEGORY_LABELS[mover.category]} is ${mover.pct > 0 ? 'up' : 'down'} ${Math.abs(mover.pct)}% ` +
+          `${categoryLabel(categories, mover.category)} is ${mover.pct > 0 ? 'up' : 'down'} ${Math.abs(mover.pct)}% ` +
           `over the last ${days} days — ${fmt(mover.current)}, against ${fmt(mover.previous)} before.`
         );
       }
@@ -152,7 +145,7 @@ export default function InsightsStrip({ view, primary, rates, expenses }: Insigh
       if (newcomers.length > 0) {
         const [category, value] = newcomers[0];
         lines.push(
-          `${CATEGORY_LABELS[category]} is new — ${fmt(value.current)} in the last ${days} days, ` +
+          `${categoryLabel(categories, category)} is new — ${fmt(value.current)} in the last ${days} days, ` +
           `nothing in the ${previousDays} before that.`
         );
       }
@@ -172,7 +165,7 @@ export default function InsightsStrip({ view, primary, rates, expenses }: Insigh
     }
 
     return lines.slice(0, 3);
-  }, [comparison, recurring, view, primary, rates]);
+  }, [comparison, recurring, view, primary, categories, rates]);
 
   if (sentences.length === 0) return null;
 

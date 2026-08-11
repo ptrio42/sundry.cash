@@ -6,33 +6,13 @@
 
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { DashboardProps, Currency, ExpenseCategory } from '../types/expense.types';
+import { DashboardProps, Currency } from '../types/expense.types';
 import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
+import { categoryColor, categoryLabel, stackedCategorySeries } from '../utils/categories';
 import { convertAmount } from '../utils/fx';
 import InsightsStrip from './InsightsStrip';
 
-const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
-
-const COLORS: Record<string, string> = {
-  groceries: '#34d399',
-  transport: '#60a5fa',
-  media: '#a78bfa',
-  entertainment: '#fbbf24',
-  utilities: '#f87171',
-  maintenance: '#fb923c',
-  other: '#94a3b8'
-};
-
-const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-  groceries: 'Groceries',
-  transport: 'Transport',
-  media: 'Media',
-  entertainment: 'Entertainment',
-  utilities: 'Utilities',
-  maintenance: 'Maintenance',
-  other: 'Other'
-};
 
 type TimeGrouping = 'day' | 'week' | 'month';
 
@@ -46,8 +26,10 @@ function formatPeriodTick(key: string): string {
     : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(d);
 }
 
-export default function Dashboard({ expenses, settings, rates }: DashboardProps) {
+export default function Dashboard({ expenses, settings, categories, rates }: DashboardProps) {
   const primary = settings.primaryCurrency;
+  const label = (slug: string) => categoryLabel(categories, slug);
+  const color = (slug: string) => categoryColor(categories, slug);
 
   // Distinct currencies actually present in the data.
   const presentCurrencies = useMemo(
@@ -95,9 +77,18 @@ export default function Dashboard({ expenses, settings, rates }: DashboardProps)
     const stats: Record<string, number> = {};
     filtered.forEach(e => { stats[e.category] = (stats[e.category] || 0) + e.amount; });
     return Object.entries(stats)
-      .map(([category, value]) => ({ name: CATEGORY_LABELS[category as ExpenseCategory] ?? category, value, category }))
+      // `categoryLabel` rather than the `label` helper: the helper closes over
+      // `categories`, which the dependency list already covers.
+      .map(([category, value]) => ({ name: categoryLabel(categories, category), value, category }))
       .sort((a, b) => b.value - a.value);
-  }, [filtered]);
+  }, [filtered, categories]);
+
+  // One stacked series per category, plus one for any slug the ledger uses that
+  // the list does not have — see `stackedCategorySeries`.
+  const trendSeries = useMemo(
+    () => stackedCategorySeries(categories, filtered.map(e => e.category)),
+    [categories, filtered]
+  );
 
   const trendData = useMemo(() => {
     const grouped: Record<string, Record<string, number>> = {};
@@ -152,7 +143,7 @@ export default function Dashboard({ expenses, settings, rates }: DashboardProps)
     <div className="dashboard">
       {/* Reads the currency scope chosen below it, and hides itself when the
           data has nothing to say. `expenses` is what tells it to refetch. */}
-      <InsightsStrip view={view} primary={primary} rates={rates} expenses={expenses} />
+      <InsightsStrip view={view} primary={primary} categories={categories} rates={rates} expenses={expenses} />
 
       <div className="dashboard-head">
         <div className="dashboard-head-controls">
@@ -226,7 +217,7 @@ export default function Dashboard({ expenses, settings, rates }: DashboardProps)
                       stroke="none"
                     >
                       {categoryStats.map(entry => (
-                        <Cell key={entry.category} fill={COLORS[entry.category]} />
+                        <Cell key={entry.category} fill={color(entry.category)} />
                       ))}
                     </Pie>
                     <Tooltip formatter={(value: number) => fmt(value)} />
@@ -243,8 +234,8 @@ export default function Dashboard({ expenses, settings, rates }: DashboardProps)
                   spilled out of the card. Plain flow content just grows instead. */}
               <ul className="chart-legend">
                 {categoryStats.map(entry => (
-                  <li key={entry.category} style={{ color: COLORS[entry.category] }}>
-                    <span className="chart-legend-swatch" style={{ background: COLORS[entry.category] }} />
+                  <li key={entry.category} style={{ color: color(entry.category) }}>
+                    <span className="chart-legend-swatch" style={{ background: color(entry.category) }} />
                     {entry.name}
                   </li>
                 ))}
@@ -268,14 +259,14 @@ export default function Dashboard({ expenses, settings, rates }: DashboardProps)
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" tickFormatter={formatPeriodTick} interval="preserveStartEnd" minTickGap={16} />
                   <YAxis width={44} />
-                  <Tooltip formatter={(value: number, name: string) => [fmt(value), CATEGORY_LABELS[name as ExpenseCategory] ?? name]} />
-                  {CATEGORIES.map((cat, i) => (
+                  <Tooltip formatter={(value: number, name: string) => [fmt(value), label(name)]} />
+                  {trendSeries.map((series, i) => (
                     <Bar
-                      key={cat}
-                      dataKey={cat}
+                      key={series.slug}
+                      dataKey={series.slug}
                       stackId="a"
-                      fill={COLORS[cat]}
-                      radius={i === CATEGORIES.length - 1 ? [4, 4, 0, 0] : undefined}
+                      fill={series.color}
+                      radius={i === trendSeries.length - 1 ? [4, 4, 0, 0] : undefined}
                     />
                   ))}
                 </BarChart>

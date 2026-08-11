@@ -47,17 +47,57 @@ db.function('lower_unicode', { deterministic: true }, (value: unknown) =>
  * Initialize database schema
  * Creates the expenses table if it doesn't exist
  */
+/**
+ * The categories we ship. Seeded on every start with INSERT OR IGNORE, so they
+ * always exist but the user's edits to label/colour/order are never overwritten.
+ *
+ * All seven are `is_builtin = 1` and therefore undeletable, because
+ * `services/categorize.ts` can emit any of them and the Excel importer falls
+ * back to `other`. A missing slug would break both silently — see
+ * docs/categories-currencies-spec.md.
+ */
+const BUILTIN_CATEGORIES: Array<[slug: string, label: string, color: string]> = [
+  ['groceries', 'Groceries', '#34d399'],
+  ['transport', 'Transport', '#60a5fa'],
+  ['media', 'Media', '#a78bfa'],
+  ['entertainment', 'Entertainment', '#fbbf24'],
+  ['utilities', 'Utilities', '#f87171'],
+  ['maintenance', 'Maintenance', '#fb923c'],
+  ['other', 'Other', '#94a3b8'],
+];
+
 export function initializeDatabase(): void {
+  // Categories first: `expenses` and `budgets` both hold a foreign key into it.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS categories (
+      slug       TEXT PRIMARY KEY,
+      label      TEXT NOT NULL CHECK(length(label) > 0),
+      color      TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      is_builtin INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+
+  // OR IGNORE, never OR REPLACE: a PRIMARY KEY conflict is the normal case here
+  // (this runs on every start), and REPLACE would rewrite the row — reverting a
+  // renamed or recoloured built-in on the next restart. The spec is explicit
+  // that renaming a label is free.
+  const seedCategory = db.prepare(
+    `INSERT OR IGNORE INTO categories (slug, label, color, sort_order, is_builtin) VALUES (?, ?, ?, ?, 1)`
+  );
+  BUILTIN_CATEGORIES.forEach(([slug, label, color], index) => seedCategory.run(slug, label, color, index));
+
   const createTableSQL = `
     CREATE TABLE IF NOT EXISTS expenses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       amount INTEGER NOT NULL CHECK(amount > 0),
       date TEXT NOT NULL,
       description TEXT NOT NULL CHECK(length(description) > 0),
-      category TEXT NOT NULL CHECK(category IN ('groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other')),
+      category TEXT NOT NULL,
       currency TEXT DEFAULT 'USD' CHECK(currency IN ('USD', 'PLN', 'BTC')),
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      receipt_image TEXT
+      receipt_image TEXT,
+      FOREIGN KEY(category) REFERENCES categories(slug)
     )
   `;
 
@@ -67,11 +107,12 @@ export function initializeDatabase(): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS budgets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      category TEXT NOT NULL CHECK(category IN ('groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other')),
+      category TEXT NOT NULL,
       currency TEXT NOT NULL CHECK(currency IN ('USD', 'PLN', 'BTC')),
       amount INTEGER NOT NULL CHECK(amount > 0),
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(category, currency)
+      UNIQUE(category, currency),
+      FOREIGN KEY(category) REFERENCES categories(slug)
     )
   `);
 
@@ -122,8 +163,15 @@ export function initializeDatabase(): void {
     const checkStmt = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='expenses'`);
     const tableInfo = checkStmt.get() as any;
 
-    // If the CHECK constraint doesn't include 'maintenance', recreate the table
-    if (tableInfo && tableInfo.sql && !tableInfo.sql.includes("'maintenance'")) {
+    // If the category CHECK constraint doesn't include 'maintenance', recreate
+    // the table.
+    //
+    // Gated on the constraint still being there. Once the categories migration
+    // below has removed it there is nothing here to widen, and without the gate
+    // "no 'maintenance' in the DDL" would read as "needs migrating" on every
+    // single start — re-adding the CHECK, and losing `receipt_image` (which
+    // this copy predates and does not carry) along with it.
+    if (tableInfo && tableInfo.sql && tableInfo.sql.includes('CHECK(category IN') && !tableInfo.sql.includes("'maintenance'")) {
       console.log('Migrating database to add new categories...');
 
       // Begin transaction
@@ -177,8 +225,10 @@ export function initializeDatabase(): void {
     const checkStmt = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='expenses'`);
     const tableInfo = checkStmt.get() as any;
 
-    // If the CHECK constraint doesn't include 'BTC', recreate the table
-    if (tableInfo && tableInfo.sql && !tableInfo.sql.includes("'BTC'")) {
+    // If the currency CHECK constraint doesn't include 'BTC', recreate the
+    // table. Gated on the constraint existing for the same reason as the
+    // category migration above.
+    if (tableInfo && tableInfo.sql && tableInfo.sql.includes('CHECK(currency IN') && !tableInfo.sql.includes("'BTC'")) {
       console.log('Migrating database to add BTC currency...');
 
       // Begin transaction
@@ -238,7 +288,93 @@ export function initializeDatabase(): void {
     }
   }
 
+  // Migration: categories move from a CHECK-constrained enum to rows in
+  // `categories`. Only the constraint changes — the seeds above reuse today's
+  // seven slugs, so not a single expense or budget row is rewritten.
+  //
+  // Runs after the receipt_image ALTER above, so `expenses.receipt_image`
+  // exists by now and the copy below can carry its data across. (The two older
+  // recreations further up predate that column and do not.)
+  migrateCategoryEnumToTable();
+
   console.log('Database initialized successfully');
+}
+
+/**
+ * Drop `CHECK(category IN (...))` from `expenses` and `budgets`, replacing it
+ * with a foreign key into `categories`.
+ *
+ * Idempotent the same way the migrations above are: the table's own DDL in
+ * `sqlite_master` is the marker. Once the CHECK is gone there is nothing to do,
+ * which is also why a freshly created database (already built without it, see
+ * `initializeDatabase`) skips straight past this.
+ */
+function migrateCategoryEnumToTable(): void {
+  const tableSQL = (name: string): string => {
+    const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name=?`).get(name) as
+      | { sql: string | null }
+      | undefined;
+    return row?.sql ?? '';
+  };
+
+  const expensesNeedsMigration = tableSQL('expenses').includes('CHECK(category IN');
+  const budgetsNeedsMigration = tableSQL('budgets').includes('CHECK(category IN');
+  if (!expensesNeedsMigration && !budgetsNeedsMigration) return;
+
+  console.log('Migrating database to make categories data rather than an enum...');
+
+  db.exec('BEGIN TRANSACTION');
+  try {
+    if (expensesNeedsMigration) {
+      db.exec(`
+        CREATE TABLE expenses_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          amount INTEGER NOT NULL CHECK(amount > 0),
+          date TEXT NOT NULL,
+          description TEXT NOT NULL CHECK(length(description) > 0),
+          category TEXT NOT NULL,
+          currency TEXT DEFAULT 'USD' CHECK(currency IN ('USD', 'PLN', 'BTC')),
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          receipt_image TEXT,
+          FOREIGN KEY(category) REFERENCES categories(slug)
+        )
+      `);
+      db.exec(`
+        INSERT INTO expenses_new (id, amount, date, description, category, currency, created_at, receipt_image)
+        SELECT id, amount, date, description, category, currency, created_at, receipt_image FROM expenses
+      `);
+      db.exec('DROP TABLE expenses');
+      db.exec('ALTER TABLE expenses_new RENAME TO expenses');
+    }
+
+    if (budgetsNeedsMigration) {
+      db.exec(`
+        CREATE TABLE budgets_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          category TEXT NOT NULL,
+          currency TEXT NOT NULL CHECK(currency IN ('USD', 'PLN', 'BTC')),
+          amount INTEGER NOT NULL CHECK(amount > 0),
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(category, currency),
+          FOREIGN KEY(category) REFERENCES categories(slug)
+        )
+      `);
+      db.exec(`
+        INSERT INTO budgets_new (id, category, currency, amount, created_at)
+        SELECT id, category, currency, amount, created_at FROM budgets
+      `);
+      db.exec('DROP TABLE budgets');
+      db.exec('ALTER TABLE budgets_new RENAME TO budgets');
+    }
+
+    db.exec('COMMIT');
+    console.log('Successfully migrated categories to the categories table');
+  } catch (migrationError) {
+    db.exec('ROLLBACK');
+    // Rethrown rather than swallowed: half-migrated is not a state the app can
+    // run in, and the rollback above means the old tables are still intact.
+    throw migrationError;
+  }
 }
 
 /**

@@ -8,12 +8,11 @@ import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { scanReceipt, createReceiptExpense } from '../services/api';
 import { ExpenseFormProps, ExpenseCategory, Currency, ReceiptExtraction } from '../types/expense.types';
 
-const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
 type Phase = 'capture' | 'review';
 
-export default function ReceiptScan({ onExpenseAdded, settings }: ExpenseFormProps) {
+export default function ReceiptScan({ onExpenseAdded, settings, categories }: ExpenseFormProps) {
   const [phase, setPhase] = useState<Phase>('capture');
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
@@ -248,9 +247,9 @@ export default function ReceiptScan({ onExpenseAdded, settings }: ExpenseFormPro
                   onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
                   required
                 >
-                  {CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                  {categories.map((cat) => (
+                    <option key={cat.slug} value={cat.slug}>
+                      {cat.label}
                     </option>
                   ))}
                 </select>
