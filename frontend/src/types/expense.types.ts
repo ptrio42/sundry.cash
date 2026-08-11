@@ -298,12 +298,14 @@ export interface DashboardProps {
 
 export interface BudgetsProps {
   expenses: Expense[];
+  settings: AppSettings;
   categories: Category[];
   currencies: CurrencyInfo[];
 }
 
 export interface FxProps {
   expenses: Expense[];
+  settings: AppSettings;
   currencies: CurrencyInfo[];
   rates: FxRates;
   onRatesChanged: (rates: FxRates) => void;

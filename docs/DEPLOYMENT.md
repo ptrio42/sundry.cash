@@ -47,6 +47,41 @@ so expenses added from any phone show up everywhere — one shared "bucket".
 
 See `backend/.env.example` and `frontend/.env.example`.
 
+## The public demo instance
+
+`sundry.cash` serves a throwaway ledger produced by `backend/src/scripts/seed.ts`
+— a few hundred fictional expenses over eighteen months, generated relative to
+the day it runs so the last 30 days always contain spending:
+
+```bash
+DB_PATH=./data/demo.db npm run seed --prefix backend
+```
+
+The script refuses to run without an explicit `DB_PATH`, refuses one that
+resolves to `<cwd>/data/expenses.db`, and refuses a database that already holds
+expenses unless it is passed `--force` (which wipes and reports the count). It
+is deterministic: the same anchor produces the same ledger, so a reset does not
+move the demo under anyone's feet.
+
+Three rules for running it in public:
+
+- **Reset on a schedule.** Drop the file, re-seed, restart. Daily is enough.
+  Delete the `-wal` / `-shm` sidecars along with the database, exactly as in
+  *Backups and restore* below.
+
+  ```bash
+  docker compose stop backend
+  rm -f data/demo.db data/demo.db-wal data/demo.db-shm
+  DB_PATH=./data/demo.db npm run seed --prefix backend
+  docker compose start backend
+  ```
+
+- **Disable or hard rate-limit receipt upload.** With no `APP_PASSWORD` the API
+  is fully open by design, and OCR is CPU on your box: an open `/api/receipts`
+  endpoint is a free compute service for the internet.
+- **Keep it separate.** Its own `DB_PATH`, its own container, its own volume. It
+  shares nothing with any real instance.
+
 ## Networking / "no internet" note
 
 An earlier revision set `dns: 0.0.0.0` on the compose services to block internet
