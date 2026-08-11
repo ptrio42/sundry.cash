@@ -15,8 +15,8 @@ import Fx from './Fx';
 import Settings from './Settings';
 import EditExpenseModal from './EditExpenseModal';
 import Login from './Login';
-import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getToken, logout, getSettings, getFxRates } from '../services/api';
-import { Expense, AppSettings, FxRates } from '../types/expense.types';
+import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getToken, logout, getSettings, getFxRates, getCategories } from '../services/api';
+import { Expense, AppSettings, Category, FxRates } from '../types/expense.types';
 import '../App.css';
 
 type View = 'form' | 'receipt' | 'table' | 'dashboard' | 'import' | 'analytics' | 'budgets' | 'fx' | 'settings';
@@ -31,9 +31,23 @@ const DEFAULT_SETTINGS: AppSettings = {
 // Sensible fallback rates (match the backend seed) until the real ones load.
 const DEFAULT_FX_RATES: FxRates = { USD: 1, PLN: 0.25, BTC: 65000 };
 
+// The built-ins the backend seeds, mirrored here for the same reason as the FX
+// rates above: the category fetch is non-fatal, and an empty list would leave
+// every category dropdown in the app blank. These seven always exist server-side.
+const DEFAULT_CATEGORIES: Category[] = [
+  { slug: 'groceries', label: 'Groceries', color: '#34d399', sortOrder: 0, isBuiltin: true },
+  { slug: 'transport', label: 'Transport', color: '#60a5fa', sortOrder: 1, isBuiltin: true },
+  { slug: 'media', label: 'Media', color: '#a78bfa', sortOrder: 2, isBuiltin: true },
+  { slug: 'entertainment', label: 'Entertainment', color: '#fbbf24', sortOrder: 3, isBuiltin: true },
+  { slug: 'utilities', label: 'Utilities', color: '#f87171', sortOrder: 4, isBuiltin: true },
+  { slug: 'maintenance', label: 'Maintenance', color: '#fb923c', sortOrder: 5, isBuiltin: true },
+  { slug: 'other', label: 'Other', color: '#94a3b8', sortOrder: 6, isBuiltin: true },
+];
+
 export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [fxRates, setFxRates] = useState<FxRates>(DEFAULT_FX_RATES);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
@@ -110,14 +124,18 @@ export default function App() {
     setError('');
 
     try {
-      // Expenses are required; settings and FX rates are non-fatal (fall back).
-      const [data, loadedSettings, fx] = await Promise.all([
+      // Expenses are required; settings, categories and FX rates are non-fatal
+      // (fall back). Loaded here rather than per component so the whole app
+      // agrees on one list, the same way settings and rates already do.
+      const [data, loadedSettings, loadedCategories, fx] = await Promise.all([
         getExpenses(),
         getSettings().catch(() => settings),
+        getCategories().catch(() => categories),
         getFxRates().then(f => f.rates as FxRates).catch(() => fxRates),
       ]);
       setExpenses(data);
       setSettings(loadedSettings);
+      setCategories(loadedCategories);
       setFxRates(fx);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load expenses');
@@ -203,6 +221,23 @@ export default function App() {
 
   const handleSettingsSaved = (updated: AppSettings) => {
     setSettings(updated);
+  };
+
+  /**
+   * Re-read the ledger without the full-screen loading state.
+   *
+   * Deleting a category with a reassignment target rewrites expense rows
+   * server-side, so what we are holding is stale — but going through
+   * `loadExpenses` would swap the Settings view out for "Loading expenses…"
+   * mid-edit. This just swaps the data underneath.
+   */
+  const refreshExpenses = async () => {
+    try {
+      setExpenses(await getExpenses());
+    } catch {
+      // Keep showing the previous ledger rather than blanking the app; the
+      // next real load will correct it.
+    }
   };
 
   if (!authChecked) {
@@ -308,22 +343,31 @@ export default function App() {
             <div className="loading">Loading expenses…</div>
           ) : (
             <>
-              {currentView === 'form' && <ExpenseForm onExpenseAdded={handleExpenseAdded} settings={settings} />}
-              {currentView === 'receipt' && <ReceiptScan onExpenseAdded={handleExpenseAdded} settings={settings} />}
+              {currentView === 'form' && <ExpenseForm onExpenseAdded={handleExpenseAdded} settings={settings} categories={categories} />}
+              {currentView === 'receipt' && <ReceiptScan onExpenseAdded={handleExpenseAdded} settings={settings} categories={categories} />}
               {currentView === 'import' && <ExcelImport settings={settings} />}
               {currentView === 'table' && (
                 <ExpenseTable
                   expenses={expenses}
+                  categories={categories}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onUpdate={handleUpdateExpense}
                 />
               )}
-              {currentView === 'dashboard' && <Dashboard expenses={expenses} settings={settings} rates={fxRates} />}
-              {currentView === 'analytics' && <Analytics settings={settings} rates={fxRates} />}
-              {currentView === 'budgets' && <Budgets expenses={expenses} />}
+              {currentView === 'dashboard' && <Dashboard expenses={expenses} settings={settings} categories={categories} rates={fxRates} />}
+              {currentView === 'analytics' && <Analytics settings={settings} categories={categories} rates={fxRates} />}
+              {currentView === 'budgets' && <Budgets expenses={expenses} categories={categories} />}
               {currentView === 'fx' && <Fx expenses={expenses} rates={fxRates} onRatesChanged={setFxRates} />}
-              {currentView === 'settings' && <Settings settings={settings} onSaved={handleSettingsSaved} />}
+              {currentView === 'settings' && (
+                <Settings
+                  settings={settings}
+                  categories={categories}
+                  onSaved={handleSettingsSaved}
+                  onCategoriesChanged={setCategories}
+                  onExpensesStale={refreshExpenses}
+                />
+              )}
             </>
           )}
         </main>
@@ -407,6 +451,7 @@ export default function App() {
 
       <EditExpenseModal
         expense={editingExpense}
+        categories={categories}
         onSave={handleUpdateExpense}
         onClose={handleCloseEditModal}
       />

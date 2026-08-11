@@ -6,11 +6,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { ExpenseTableProps, ExpenseCategory, SortField, SortOrder, Currency } from '../types/expense.types';
 import { formatCurrency, formatDate, CURRENCY_SYMBOLS } from '../utils/format';
+import { categoryColor, categoryLabel } from '../utils/categories';
 import { exportExpensesCsv } from '../utils/export';
 import { exportExpensesXlsx, fetchReceiptObjectUrl } from '../services/api';
-
-// Available categories for filtering
-const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 
 // Available currencies for filtering
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
@@ -20,7 +18,7 @@ const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 // makes the page crawl, so only a slice reaches the DOM.
 const PAGE_SIZE = 50;
 
-export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: ExpenseTableProps) {
+export default function ExpenseTable({ expenses, categories, onEdit, onDelete, onUpdate }: ExpenseTableProps) {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -29,6 +27,7 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
   const [endDate, setEndDate] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  // 'other' is a built-in, so it is always a valid target for a bulk reassign.
   const [bulkCategory, setBulkCategory] = useState<ExpenseCategory>('other');
   const [page, setPage] = useState<number>(1);
 
@@ -112,12 +111,15 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
   const filteredAndSortedExpenses = useMemo(() => {
     let result = [...expenses];
 
-    // Filter by search query
+    // Filter by search query. Both the slug and the label are searchable: the
+    // label is what the row shows, the slug is what a user who renamed a
+    // category may still think in (and what an exported file holds).
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(exp =>
         exp.description.toLowerCase().includes(query) ||
         exp.category.toLowerCase().includes(query) ||
+        categoryLabel(categories, exp.category).toLowerCase().includes(query) ||
         exp.amount.toString().includes(query)
       );
     }
@@ -149,14 +151,16 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
       } else if (sortField === 'amount') {
         compareValue = a.amount - b.amount;
       } else if (sortField === 'category') {
-        compareValue = a.category.localeCompare(b.category);
+        // By the label, which is the column the user is looking at — not by the
+        // slug underneath it, which a rename would leave pointing elsewhere.
+        compareValue = categoryLabel(categories, a.category).localeCompare(categoryLabel(categories, b.category));
       }
 
       return sortOrder === 'asc' ? compareValue : -compareValue;
     });
 
     return result;
-  }, [expenses, searchQuery, filterCategory, filterCurrency, startDate, endDate, sortField, sortOrder]);
+  }, [expenses, categories, searchQuery, filterCategory, filterCurrency, startDate, endDate, sortField, sortOrder]);
 
   const pageCount = Math.max(1, Math.ceil(filteredAndSortedExpenses.length / PAGE_SIZE));
 
@@ -258,7 +262,7 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
   const handleBulkAssignCategory = async () => {
     if (selectedIds.size === 0) return;
 
-    const confirmMessage = `Assign "${bulkCategory}" category to ${selectedIds.size} selected expense${selectedIds.size > 1 ? 's' : ''}?`;
+    const confirmMessage = `Assign "${categoryLabel(categories, bulkCategory)}" category to ${selectedIds.size} selected expense${selectedIds.size > 1 ? 's' : ''}?`;
     if (!window.confirm(confirmMessage)) return;
 
     try {
@@ -298,9 +302,9 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
               onChange={(e) => setBulkCategory(e.target.value as ExpenseCategory)}
               className="bulk-category-select"
             >
-              {CATEGORIES.map(cat => (
-                <option key={cat} value={cat}>
-                  {cat.charAt(0).toUpperCase() + cat.slice(1)}
+              {categories.map(cat => (
+                <option key={cat.slug} value={cat.slug}>
+                  {cat.label}
                 </option>
               ))}
             </select>
@@ -350,9 +354,9 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
             onChange={(e) => setFilterCategory(e.target.value)}
           >
             <option value="all">All Categories</option>
-            {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat.charAt(0).toUpperCase() + cat.slice(1)}
+            {categories.map((cat) => (
+              <option key={cat.slug} value={cat.slug}>
+                {cat.label}
               </option>
             ))}
           </select>
@@ -470,8 +474,13 @@ export default function ExpenseTable({ expenses, onEdit, onDelete, onUpdate }: E
                       </button>
                     )}
                   </td>
-                  <td className={`category-${expense.category}`}>
-                    {expense.category.charAt(0).toUpperCase() + expense.category.slice(1)}
+                  {/* The colour is data now, so it arrives as a swatch rather
+                      than as text colour: one hex per category has to work on
+                      both the dark and the light theme, and a mid-tone that
+                      reads on dark is unreadable on white. */}
+                  <td className="category-cell">
+                    <span className="category-dot" style={{ background: categoryColor(categories, expense.category) }} />
+                    {categoryLabel(categories, expense.category)}
                   </td>
                   <td className="amount">{formatCurrency(expense.amount, expense.currency)}</td>
                   <td className="actions">

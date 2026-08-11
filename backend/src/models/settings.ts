@@ -6,9 +6,12 @@
  */
 
 import { db } from '../config/database';
-import { AppSettings, BtcUnit, Currency, ExpenseCategory } from '../types/expense.types';
+import * as CategoryModel from '../models/category';
+import { AppSettings, BtcUnit, Currency } from '../types/expense.types';
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  // 'groceries' is safe as a fallback because it is a built-in and built-ins
+  // cannot be deleted — see docs/categories-currencies-spec.md.
   defaultCurrency: 'USD',
   defaultCategory: 'groceries',
   defaultBtcUnit: 'BTC',
@@ -16,7 +19,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export const VALID_CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
-export const VALID_CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 export const VALID_BTC_UNITS: BtcUnit[] = ['BTC', 'sats'];
 
 /** Read all settings, applying defaults for anything missing or invalid. */
@@ -31,7 +33,9 @@ export function getSettings(): AppSettings {
 
   return {
     defaultCurrency: VALID_CURRENCIES.includes(currency as Currency) ? (currency as Currency) : DEFAULT_SETTINGS.defaultCurrency,
-    defaultCategory: VALID_CATEGORIES.includes(category as ExpenseCategory) ? (category as ExpenseCategory) : DEFAULT_SETTINGS.defaultCategory,
+    // Re-checked against the table on every read, so a saved default that has
+    // since been deleted falls back instead of handing the UI a dead slug.
+    defaultCategory: CategoryModel.exists(category) ? (category as string) : DEFAULT_SETTINGS.defaultCategory,
     defaultBtcUnit: VALID_BTC_UNITS.includes(btcUnit as BtcUnit) ? (btcUnit as BtcUnit) : DEFAULT_SETTINGS.defaultBtcUnit,
     primaryCurrency: VALID_CURRENCIES.includes(primaryCurrency as Currency) ? (primaryCurrency as Currency) : DEFAULT_SETTINGS.primaryCurrency,
   };

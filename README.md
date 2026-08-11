@@ -67,6 +67,9 @@ as a full-screen PWA, and **Scan Receipt** opens the camera directly.
 - **Auto-categorization** — keyword matching in English and Polish, including Polish chains (Biedronka,
   Lidl, Żabka, Orlen, Castorama…) and utility providers (Tauron, PGE, Enea…). Shared by the importer and
   the receipt scanner. Matching is whole-word, so "scarf" is not transport and "photography" is not a game.
+- **Your own categories** — seven ship with the app; add, rename and recolour as many more as you like
+  from Settings. Deleting one asks where its expenses should go rather than orphaning them, and the
+  seven built-ins stay put because auto-categorization depends on them.
 - **Budgets** — a monthly limit per category and currency, with per-category progress bars and a
   cumulative burn-down against the month's total.
 - **Multi-currency** — USD, PLN and BTC (stored to satoshi precision). Totals are grouped per currency by
@@ -158,6 +161,9 @@ Base URL `http://localhost:5000/api`. Everything except `/health` and `/auth/*` 
 | `GET` | `/receipts/:filename` | Stream a stored receipt image |
 | `GET`, `PUT` | `/budgets` | List limits / upsert one for a category+currency pair |
 | `DELETE` | `/budgets/:category` | Remove a limit (`?currency=` required) |
+| `GET`, `POST` | `/categories` | List categories in display order / add one — `slug`, `label`, `color` |
+| `PUT` | `/categories/:slug` | Change `label`, `color` or `sortOrder`; the slug itself is fixed |
+| `DELETE` | `/categories/:slug` | Delete one — 403 for a built-in, 409 if in use without `?reassignTo=` |
 | `GET` | `/insights/comparison` | Spend per category vs the period before — `window`, `period`, `anchor`, `currency` |
 | `GET` | `/insights/recurring` | Repeating charges and what each costs per month — `since`, `minOccurrences` |
 | `GET`, `PUT` | `/fx` | Read / set manual exchange rates |
@@ -165,18 +171,22 @@ Base URL `http://localhost:5000/api`. Everything except `/health` and `/auth/*` 
 
 ## Data model
 
-Four tables — `expenses`, `budgets`, `fx_rates`, `settings` — created idempotently on boot.
+Five tables — `expenses`, `budgets`, `categories`, `fx_rates`, `settings` — created idempotently on boot.
 
-**Categories** (CHECK-constrained): `groceries`, `transport`, `media`, `entertainment`, `utilities`,
-`maintenance`, `other`.
+**Categories** are rows, not an enum. `expenses.category` and `budgets.category` are foreign keys into
+`categories(slug)`, so adding one is a `POST`, not a migration. Seven ship built-in — `groceries`,
+`transport`, `media`, `entertainment`, `utilities`, `maintenance`, `other` — each carrying a label,
+a colour and a sort order you can edit. Built-ins cannot be deleted: the keyword auto-categorizer can
+emit any of them, and the importer falls back to `other`. Deleting a category that is still in use
+requires naming where its rows should go.
 
-**Currencies** (CHECK-constrained): `USD` (2dp), `PLN` (2dp), `BTC` (8dp).
+**Currencies** (still CHECK-constrained): `USD` (2dp), `PLN` (2dp), `BTC` (8dp). Adding one means a
+migration in [`config/database.ts`](backend/src/config/database.ts), not just a type change —
+a currency row would carry its minor-unit exponent, and getting that wrong silently reinterprets every
+stored amount. See [`docs/categories-currencies-spec.md`](docs/categories-currencies-spec.md).
 
 **Exchange rates** are manual and user-editable — there is no live feed, because the app is meant to run
 offline. A rate is the value of one unit in USD; seeds are `USD 1`, `PLN 0.25`, `BTC 65000`.
-
-Adding a category or currency means a migration in
-[`config/database.ts`](backend/src/config/database.ts), not just a type change.
 
 ## Development
 

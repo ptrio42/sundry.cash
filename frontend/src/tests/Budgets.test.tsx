@@ -11,6 +11,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import Budgets from '../components/Budgets';
+import { TEST_CATEGORIES } from './categories.fixture';
 import { getBudgets, setBudget, deleteBudget } from '../services/api';
 import { Budget, Expense } from '../types/expense.types';
 
@@ -72,7 +73,7 @@ const card = (heading: string): HTMLElement => {
 };
 
 const renderBudgets = async () => {
-  const result = render(<Budgets expenses={expenses} />);
+  const result = render(<Budgets expenses={expenses} categories={TEST_CATEGORIES} />);
   await waitFor(() => expect(screen.queryByText(/loading budgets/i)).not.toBeInTheDocument());
   return result;
 };
@@ -183,7 +184,7 @@ describe('Budgets', () => {
 
   it('surfaces a load failure instead of an empty budget list', async () => {
     mockGetBudgets.mockRejectedValue(new Error('budgets unavailable'));
-    render(<Budgets expenses={expenses} />);
+    render(<Budgets expenses={expenses} categories={TEST_CATEGORIES} />);
 
     expect(await screen.findByText('budgets unavailable')).toBeInTheDocument();
     // The rows still render, just without any limits attached.

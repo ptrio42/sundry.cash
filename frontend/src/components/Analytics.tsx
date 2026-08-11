@@ -5,32 +5,12 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getAnalytics } from '../services/api';
-import { ExpenseCategory, Currency, AppSettings, FxRates } from '../types/expense.types';
+import { Category, ExpenseCategory, Currency, AppSettings, FxRates } from '../types/expense.types';
 import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
+import { categoryColor, categoryLabel } from '../utils/categories';
 import { convertAmount } from '../utils/fx';
 
-const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
-
-const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-  groceries: '🛒 Groceries',
-  transport: '🚗 Transport',
-  media: '📺 Media',
-  entertainment: '🎮 Entertainment',
-  utilities: '💡 Utilities',
-  maintenance: '🔨 Maintenance',
-  other: '📦 Other'
-};
-
-const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
-  groceries: '#34d399',
-  transport: '#60a5fa',
-  media: '#a78bfa',
-  entertainment: '#fbbf24',
-  utilities: '#f87171',
-  maintenance: '#fb923c',
-  other: '#94a3b8'
-};
 
 type TimePeriod = 'week' | 'month' | 'year' | 'custom';
 
@@ -44,18 +24,37 @@ interface AnalyticsData {
 
 interface AnalyticsProps {
   settings: AppSettings;
+  categories: Category[];
   rates: FxRates;
 }
 
-export default function Analytics({ settings, rates }: AnalyticsProps) {
+export default function Analytics({ settings, categories, rates }: AnalyticsProps) {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('month');
-  const [selectedCategories, setSelectedCategories] = useState<ExpenseCategory[]>([...CATEGORIES]);
+  // The filter tracks what has been *deselected* rather than what is selected.
+  // Categories are data now, so the list can change underneath this component:
+  // storing the exclusions means a newly added category is included by default
+  // and a deleted one simply disappears, with no stale slug left in state.
+  const [excludedCategories, setExcludedCategories] = useState<Set<string>>(() => new Set());
   const [selectedCurrency, setSelectedCurrency] = useState<Currency | 'all'>('all');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+
+  const selectedCategories = useMemo(
+    () => categories.filter(c => !excludedCategories.has(c.slug)).map(c => c.slug),
+    [categories, excludedCategories]
+  );
+  const allSelected = excludedCategories.size === 0;
+
+  // Unchecking every category means "show me nothing". The API reads a missing
+  // `categories` parameter as *unfiltered*, so forwarding an empty selection
+  // would answer with the whole ledger — the exact opposite of the question.
+  // The answer is knowable without asking, so don't make the request at all.
+  // Derived from `selectedCategories` rather than comparing sizes, because
+  // `excludedCategories` may still hold the slug of a since-deleted category.
+  const nothingSelected = categories.length > 0 && selectedCategories.length === 0;
 
   /**
    * Calculate date range based on time period
@@ -123,22 +122,21 @@ export default function Analytics({ settings, rates }: AnalyticsProps) {
    * Handle category toggle
    */
   const toggleCategory = (category: ExpenseCategory) => {
-    setSelectedCategories(prev =>
-      prev.includes(category)
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
-    );
+    setExcludedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
   };
 
   /**
    * Handle select/deselect all categories
    */
   const toggleAllCategories = () => {
-    if (selectedCategories.length === CATEGORIES.length) {
-      setSelectedCategories([]);
-    } else {
-      setSelectedCategories([...CATEGORIES]);
-    }
+    setExcludedCategories(prev =>
+      prev.size === 0 ? new Set(categories.map(c => c.slug)) : new Set()
+    );
   };
 
   /**
@@ -167,10 +165,17 @@ export default function Analytics({ settings, rates }: AnalyticsProps) {
    * Load analytics when filters change
    */
   useEffect(() => {
+    if (nothingSelected) {
+      // Drop whatever the last query returned: it describes a filter the user
+      // has since cleared, and leaving it would keep those numbers on screen.
+      setAnalytics(null);
+      setError('');
+      return;
+    }
     if (timePeriod !== 'custom' || (startDate && endDate)) {
       loadAnalytics();
     }
-  }, [timePeriod, selectedCategories, selectedCurrency, startDate, endDate]);
+  }, [nothingSelected, timePeriod, selectedCategories, selectedCurrency, startDate, endDate]);
 
   /**
    * Format amount with currency symbol
@@ -289,19 +294,20 @@ export default function Analytics({ settings, rates }: AnalyticsProps) {
             <label className="checkbox-label">
               <input
                 type="checkbox"
-                checked={selectedCategories.length === CATEGORIES.length}
+                checked={allSelected}
                 onChange={toggleAllCategories}
               />
               <strong>All Categories</strong>
             </label>
-            {CATEGORIES.map(category => (
-              <label key={category} className="checkbox-label">
+            {categories.map(category => (
+              <label key={category.slug} className="checkbox-label">
                 <input
                   type="checkbox"
-                  checked={selectedCategories.includes(category)}
-                  onChange={() => toggleCategory(category)}
+                  checked={!excludedCategories.has(category.slug)}
+                  onChange={() => toggleCategory(category.slug)}
                 />
-                {CATEGORY_LABELS[category]}
+                <span className="category-dot" style={{ background: category.color }} />
+                {category.label}
               </label>
             ))}
           </div>
@@ -336,8 +342,17 @@ export default function Analytics({ settings, rates }: AnalyticsProps) {
       {/* Loading */}
       {loading && <div className="loading">Loading analytics...</div>}
 
+      {/* Nothing selected — answered locally, no request was made. Guarding the
+          results block on the same flag matters for the single render between
+          the last checkbox coming off and the effect clearing `analytics`. */}
+      {!loading && nothingSelected && (
+        <div className="no-data">
+          No expenses found for the selected period and categories.
+        </div>
+      )}
+
       {/* Results */}
-      {!loading && analytics && (
+      {!loading && !nothingSelected && analytics && (
         <div className="analytics-results">
           {/* Summary Cards */}
           <div className="analytics-summary">
@@ -394,7 +409,7 @@ export default function Analytics({ settings, rates }: AnalyticsProps) {
                     <div key={cat.category} className="category-bar-item">
                       <div className="category-bar-header">
                         <span className="category-name">
-                          {CATEGORY_LABELS[cat.category as ExpenseCategory]}
+                          {categoryLabel(categories, cat.category)}
                         </span>
                         <span className="category-amount">
                           {formatAmount(cat.total)} ({percentage.toFixed(1)}%)
@@ -405,7 +420,7 @@ export default function Analytics({ settings, rates }: AnalyticsProps) {
                           className="category-bar-fill"
                           style={{
                             width: `${percentage}%`,
-                            backgroundColor: CATEGORY_COLORS[cat.category as ExpenseCategory]
+                            backgroundColor: categoryColor(categories, cat.category)
                           }}
                         />
                       </div>

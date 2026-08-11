@@ -1,23 +1,52 @@
 /**
  * Settings Component
- * Edit single-user preferences (defaults for new expenses). Saved to the
- * backend so they're shared across every device on the network.
+ * Edit single-user preferences (defaults for new expenses) and manage the
+ * category list. Both are saved to the backend so they're shared across every
+ * device on the network.
+ *
+ * Categories live here rather than behind their own tab: they are configuration
+ * you touch a handful of times, not a place you go to look at your money.
  */
 
 import { useState, FormEvent } from 'react';
-import { AppSettings, BtcUnit, Currency, ExpenseCategory } from '../types/expense.types';
-import { updateSettings } from '../services/api';
+import { AppSettings, BtcUnit, Category, Currency, ExpenseCategory } from '../types/expense.types';
+import { updateSettings, getCategories, createCategory, updateCategory, deleteCategory } from '../services/api';
 
-const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 const BTC_UNITS: BtcUnit[] = ['BTC', 'sats'];
 
-interface SettingsProps {
-  settings: AppSettings;
-  onSaved: (settings: AppSettings) => void;
+// Slugs are what every expense row stores, so the field is derived from the
+// label rather than typed: 'Pet food' -> 'pet-food'. Same shape the backend
+// enforces (lowercase letters, digits and hyphens).
+function slugify(label: string): string {
+  return label
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // strip diacritics so 'Ogród' -> 'ogrod'
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32);
 }
 
-export default function Settings({ settings, onSaved }: SettingsProps) {
+const NEW_CATEGORY_COLOR = '#38bdf8';
+
+interface SettingsProps {
+  settings: AppSettings;
+  categories: Category[];
+  onSaved: (settings: AppSettings) => void;
+  /** Hand the fresh list back to App, which owns it for the whole app. */
+  onCategoriesChanged: (categories: Category[]) => void;
+  /** Deleting with a reassignment target rewrites expense rows server-side. */
+  onExpensesStale: () => void;
+}
+
+export default function Settings({
+  settings,
+  categories,
+  onSaved,
+  onCategoriesChanged,
+  onExpensesStale,
+}: SettingsProps) {
   const [defaultCurrency, setDefaultCurrency] = useState<Currency>(settings.defaultCurrency);
   const [defaultCategory, setDefaultCategory] = useState<ExpenseCategory>(settings.defaultCategory);
   const [defaultBtcUnit, setDefaultBtcUnit] = useState<BtcUnit>(settings.defaultBtcUnit);
@@ -25,6 +54,15 @@ export default function Settings({ settings, onSaved }: SettingsProps) {
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [saved, setSaved] = useState<boolean>(false);
+
+  // --- Category management -------------------------------------------------
+  const [newLabel, setNewLabel] = useState<string>('');
+  const [newColor, setNewColor] = useState<string>(NEW_CATEGORY_COLOR);
+  const [categoryError, setCategoryError] = useState<string>('');
+  const [categoryBusy, setCategoryBusy] = useState<boolean>(false);
+  // The slug awaiting a "where should its rows go?" answer, and the answer.
+  const [pendingDelete, setPendingDelete] = useState<string>('');
+  const [reassignTo, setReassignTo] = useState<string>('other');
 
   const dirty =
     defaultCurrency !== settings.defaultCurrency ||
@@ -47,6 +85,62 @@ export default function Settings({ settings, onSaved }: SettingsProps) {
       setSaving(false);
     }
   };
+
+  /** Run a category mutation, then re-read the list so App holds the truth. */
+  const withCategories = async (mutate: () => Promise<void>) => {
+    setCategoryError('');
+    setCategoryBusy(true);
+    try {
+      await mutate();
+      onCategoriesChanged(await getCategories());
+    } catch (err) {
+      setCategoryError(err instanceof Error ? err.message : 'Failed to update categories');
+    } finally {
+      setCategoryBusy(false);
+    }
+  };
+
+  const handleAddCategory = async (e: FormEvent) => {
+    e.preventDefault();
+    const label = newLabel.trim();
+    const slug = slugify(label);
+    if (!slug) {
+      setCategoryError('Give the category a name using letters or digits');
+      return;
+    }
+    await withCategories(async () => {
+      await createCategory({ slug, label, color: newColor });
+      setNewLabel('');
+      setNewColor(NEW_CATEGORY_COLOR);
+    });
+  };
+
+  const handleRename = (slug: string, label: string) => {
+    void withCategories(() => updateCategory(slug, { label }).then(() => undefined));
+  };
+
+  const handleRecolor = (slug: string, color: string) => {
+    void withCategories(() => updateCategory(slug, { color }).then(() => undefined));
+  };
+
+  const startDelete = (slug: string) => {
+    setCategoryError('');
+    setPendingDelete(slug);
+    // Default the target to 'other', the built-in everything already falls back to.
+    setReassignTo(categories.find(c => c.slug === 'other' && c.slug !== slug) ? 'other' : '');
+  };
+
+  const confirmDelete = async () => {
+    const slug = pendingDelete;
+    await withCategories(async () => {
+      await deleteCategory(slug, reassignTo || undefined);
+      setPendingDelete('');
+      // The rows that used it now carry a different slug.
+      if (reassignTo) onExpensesStale();
+    });
+  };
+
+  const reassignTargets = categories.filter(c => c.slug !== pendingDelete);
 
   return (
     <div className="settings">
@@ -75,10 +169,10 @@ export default function Settings({ settings, onSaved }: SettingsProps) {
           <select
             id="default-category"
             value={defaultCategory}
-            onChange={(e) => { setDefaultCategory(e.target.value as ExpenseCategory); setSaved(false); }}
+            onChange={(e) => { setDefaultCategory(e.target.value); setSaved(false); }}
           >
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+            {categories.map((c) => (
+              <option key={c.slug} value={c.slug}>{c.label}</option>
             ))}
           </select>
         </div>
@@ -116,6 +210,124 @@ export default function Settings({ settings, onSaved }: SettingsProps) {
           {saved && !dirty && <span className="settings-saved" role="status">✓ Saved</span>}
         </div>
       </form>
+
+      <section className="settings-section" aria-labelledby="categories-heading">
+        <h3 id="categories-heading">Categories</h3>
+        <p className="settings-intro">
+          Rename or recolour any category, and add your own. The seven we ship cannot be
+          deleted — auto-categorization falls back to them.
+        </p>
+
+        {categoryError && <div className="error-message">{categoryError}</div>}
+
+        <ul className="category-manager">
+          {categories.map((category) => (
+            <li key={category.slug} className="category-manager-row">
+              <input
+                type="color"
+                className="category-color-input"
+                value={category.color}
+                aria-label={`Colour for ${category.label}`}
+                disabled={categoryBusy}
+                onChange={(e) => handleRecolor(category.slug, e.target.value)}
+              />
+              {/* Uncontrolled, so typing does not round-trip to the server on
+                  every keystroke — the rename is sent on blur. The key carries
+                  the label so a saved (or rejected) value re-seeds the field. */}
+              <input
+                type="text"
+                className="category-label-input"
+                defaultValue={category.label}
+                key={`${category.slug}-${category.label}`}
+                aria-label={`Name for ${category.label}`}
+                maxLength={40}
+                disabled={categoryBusy}
+                onBlur={(e) => {
+                  const next = e.target.value.trim();
+                  if (!next) {
+                    // The field is uncontrolled and the key has not changed, so
+                    // React will not re-seed it: put the old name back by hand
+                    // rather than leaving the row looking nameless.
+                    setCategoryError(`"${category.label}" needs a name`);
+                    e.target.value = category.label;
+                    return;
+                  }
+                  if (next !== category.label) handleRename(category.slug, next);
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+              />
+              <code className="category-slug">{category.slug}</code>
+              {category.isBuiltin ? (
+                <span className="category-builtin-badge" title="Shipped with the app">built-in</span>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-link"
+                  disabled={categoryBusy}
+                  onClick={() => startDelete(category.slug)}
+                >
+                  Delete
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+
+        {pendingDelete && (
+          <div className="category-delete-confirm" role="group" aria-label="Confirm category deletion">
+            <p>
+              Delete <strong>{categories.find(c => c.slug === pendingDelete)?.label}</strong> and move
+              anything that used it to:
+            </p>
+            <div className="category-delete-actions">
+              <label className="sr-only" htmlFor="reassign-to">Move expenses to</label>
+              <select id="reassign-to" value={reassignTo} onChange={(e) => setReassignTo(e.target.value)}>
+                {reassignTargets.map((c) => (
+                  <option key={c.slug} value={c.slug}>{c.label}</option>
+                ))}
+              </select>
+              <button type="button" className="btn-primary" disabled={categoryBusy} onClick={confirmDelete}>
+                Delete category
+              </button>
+              <button type="button" className="btn-secondary" disabled={categoryBusy} onClick={() => setPendingDelete('')}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        <form className="category-add" onSubmit={handleAddCategory}>
+          <div className="form-group">
+            <label htmlFor="new-category-label">Add a category</label>
+            <div className="category-add-row">
+              <input
+                type="color"
+                className="category-color-input"
+                id="new-category-color"
+                aria-label="Colour for the new category"
+                value={newColor}
+                onChange={(e) => setNewColor(e.target.value)}
+              />
+              <input
+                type="text"
+                id="new-category-label"
+                placeholder="e.g. Pet food"
+                maxLength={40}
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+              />
+              <button type="submit" className="btn-secondary" disabled={categoryBusy || !newLabel.trim()}>
+                Add
+              </button>
+            </div>
+            {newLabel.trim() && (
+              <p className="field-hint">
+                Stored as <code>{slugify(newLabel) || '—'}</code>, which cannot be changed later.
+              </p>
+            )}
+          </div>
+        </form>
+      </section>
     </div>
   );
 }

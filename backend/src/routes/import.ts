@@ -8,6 +8,7 @@ import multer from 'multer';
 import xlsx from 'xlsx';
 import { Currency, ExpenseCategory } from '../types/expense.types';
 import * as ExpenseModel from '../models/expense';
+import * as CategoryModel from '../models/category';
 import { autoCategorizeByKeywords } from '../services/categorize';
 import { parseMoneyToken } from '../services/receipt/parse';
 
@@ -390,12 +391,13 @@ router.post('/confirm', upload.single('file'), async (req: Request, res: Respons
         // Parse category
         let category: ExpenseCategory = 'other';
 
-        // First, try to use explicit category value if provided
+        // First, try to use explicit category value if provided. The spreadsheet
+        // holds a slug, matched against the categories table rather than a
+        // literal list, so a category the user added is importable too.
         if (categoryValue !== null && categoryValue !== undefined && String(categoryValue).trim() !== '') {
           const categoryStr = String(categoryValue).toLowerCase().trim();
-          const validCategories: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
-          if (validCategories.includes(categoryStr as ExpenseCategory)) {
-            category = categoryStr as ExpenseCategory;
+          if (CategoryModel.exists(categoryStr)) {
+            category = categoryStr;
           } else {
             // If category value is invalid, fall back to keyword matching
             category = autoCategorizeByKeywords(description);

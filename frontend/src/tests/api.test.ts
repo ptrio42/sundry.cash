@@ -17,7 +17,11 @@ import {
   getSettings,
   getToken,
   getInsightsComparison,
-  getInsightsRecurring
+  getInsightsRecurring,
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory
 } from '../services/api';
 
 const TOKEN_KEY = 'sundry-token';
@@ -282,5 +286,50 @@ describe('insights', () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: 'Validation failed' }, 400));
 
     await expect(getInsightsComparison({ anchor: 'nope' })).rejects.toThrow('Validation failed');
+  });
+});
+
+describe('categories', () => {
+  it('reads the list from /api/categories', async () => {
+    const payload = [{ slug: 'groceries', label: 'Groceries', color: '#34d399', sortOrder: 0, isBuiltin: true }];
+    fetchMock.mockResolvedValue(jsonResponse(payload));
+
+    await expect(getCategories()).resolves.toEqual(payload);
+    expect(requestedUrl()).toBe('/api/categories');
+  });
+
+  it('posts a new category as JSON', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ slug: 'pet-food' }, 201));
+
+    await createCategory({ slug: 'pet-food', label: 'Pet food', color: '#f472b6' });
+
+    expect(requestedUrl()).toBe('/api/categories');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ slug: 'pet-food', label: 'Pet food', color: '#f472b6' });
+  });
+
+  it('escapes the slug in the path when updating', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ slug: 'pet-food' }));
+
+    await updateCategory('pet food', { label: 'Pet food' });
+
+    expect(requestedUrl()).toBe('/api/categories/pet%20food');
+    expect(fetchMock.mock.calls[0][1].method).toBe('PUT');
+  });
+
+  it('sends reassignTo as a query parameter only when given', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(undefined, 204));
+
+    await deleteCategory('pet-food');
+    expect(requestedUrl()).toBe('/api/categories/pet-food');
+
+    await deleteCategory('pet-food', 'other');
+    expect(requestedUrl(1)).toBe('/api/categories/pet-food?reassignTo=other');
+  });
+
+  it('surfaces the 409 a still-in-use category answers with', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: '"Pet food" is still in use — pass reassignTo to move what uses it' }, 409));
+
+    await expect(deleteCategory('pet-food')).rejects.toThrow(/still in use/);
   });
 });

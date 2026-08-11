@@ -3,8 +3,21 @@
  * Shared types matching backend API contracts
  */
 
-// Available expense categories
-export type ExpenseCategory = 'groceries' | 'transport' | 'media' | 'entertainment' | 'utilities' | 'maintenance' | 'other';
+// A category slug. Categories are rows the backend owns, not a closed set, so
+// this can only be `string`. The alias survives because it still says *which*
+// string a field holds. Loaded once in App.tsx and passed down; use
+// `utils/categories.ts` to turn a slug into a label or colour.
+export type ExpenseCategory = string;
+
+// A category the user can spend against: a slug plus how it is presented.
+// Mirrors backend/src/types/expense.types.ts — keep the two in sync.
+export interface Category {
+  slug: string;
+  label: string;
+  color: string;      // '#rrggbb'
+  sortOrder: number;
+  isBuiltin: boolean; // shipped by us; cannot be deleted
+}
 
 // Available currencies
 export type Currency = 'USD' | 'PLN' | 'BTC';
@@ -137,10 +150,12 @@ export interface Budget {
 export interface ExpenseFormProps {
   onExpenseAdded: (expense: Expense) => void;
   settings: AppSettings;
+  categories: Category[];
 }
 
 export interface ExpenseTableProps {
   expenses: Expense[];
+  categories: Category[];
   onEdit: (expense: Expense) => void;
   onDelete: (id: number) => void;
   onUpdate: (id: number, updates: Partial<Expense>) => Promise<void>;
@@ -149,11 +164,13 @@ export interface ExpenseTableProps {
 export interface DashboardProps {
   expenses: Expense[];
   settings: AppSettings;
+  categories: Category[];
   rates: FxRates;
 }
 
 export interface BudgetsProps {
   expenses: Expense[];
+  categories: Category[];
 }
 
 export interface FxProps {

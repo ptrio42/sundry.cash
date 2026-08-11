@@ -11,6 +11,7 @@ import {
   CategoryStats,
   DateStats,
   Budget,
+  Category,
   ReceiptExtraction,
   ExpenseCategory,
   Currency,
@@ -210,6 +211,49 @@ export async function setBudget(category: string, currency: string, amount: numb
 
 export async function deleteBudget(category: string, currency: string): Promise<void> {
   const response = await apiFetch(`/budgets/${category}?currency=${encodeURIComponent(currency)}`, {
+    method: 'DELETE'
+  });
+  return handleResponse<void>(response);
+}
+
+// --- Categories ----------------------------------------------------------
+
+/** Every category, already in display order. */
+export async function getCategories(): Promise<Category[]> {
+  const response = await apiFetch('/categories');
+  return handleResponse<Category[]>(response);
+}
+
+export async function createCategory(input: { slug: string; label: string; color: string }): Promise<Category> {
+  const response = await apiFetch('/categories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+  return handleResponse<Category>(response);
+}
+
+/** Presentation only — the slug is fixed once the category exists. */
+export async function updateCategory(
+  slug: string,
+  changes: { label?: string; color?: string; sortOrder?: number }
+): Promise<Category> {
+  const response = await apiFetch(`/categories/${encodeURIComponent(slug)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(changes)
+  });
+  return handleResponse<Category>(response);
+}
+
+/**
+ * Delete a category. Without `reassignTo` the backend answers 409 when
+ * anything still uses it, so the caller can ask where those rows should go
+ * instead of orphaning them.
+ */
+export async function deleteCategory(slug: string, reassignTo?: string): Promise<void> {
+  const query = reassignTo ? `?reassignTo=${encodeURIComponent(reassignTo)}` : '';
+  const response = await apiFetch(`/categories/${encodeURIComponent(slug)}${query}`, {
     method: 'DELETE'
   });
   return handleResponse<void>(response);

@@ -10,25 +10,14 @@ import { BudgetsProps, Budget, ExpenseCategory, Currency } from '../types/expens
 import { getBudgets, setBudget as apiSetBudget, deleteBudget as apiDeleteBudget } from '../services/api';
 import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
 
-const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
-
-const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-  groceries: '🛒 Groceries',
-  transport: '🚗 Transport',
-  media: '📺 Media',
-  entertainment: '🎮 Entertainment',
-  utilities: '💡 Utilities',
-  maintenance: '🔨 Maintenance',
-  other: '📦 Other'
-};
 
 function currentMonthKey(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export default function Budgets({ expenses }: BudgetsProps) {
+export default function Budgets({ expenses, categories }: BudgetsProps) {
   const [currency, setCurrency] = useState<Currency>('USD');
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -208,7 +197,8 @@ export default function Budgets({ expenses }: BudgetsProps) {
           )}
 
           <div className="budget-list">
-            {CATEGORIES.map(cat => {
+            {categories.map(category => {
+              const cat = category.slug;
               const limit = budgetFor(cat);
               const spent = spentByCategory[cat] || 0;
               const pct = limit ? Math.min(100, (spent / limit) * 100) : 0;
@@ -218,7 +208,10 @@ export default function Budgets({ expenses }: BudgetsProps) {
               return (
                 <div key={cat} className={`budget-row ${over ? 'over' : ''}`}>
                   <div className="budget-row-head">
-                    <span className="budget-cat">{CATEGORY_LABELS[cat]}</span>
+                    <span className="budget-cat">
+                      <span className="category-dot" style={{ background: category.color }} />
+                      {category.label}
+                    </span>
                     <span className="budget-figures">
                       <strong>{formatCurrency(spent, currency)}</strong>
                       {limit !== undefined && <span className="muted-text"> / {formatCurrency(limit, currency)}</span>}
@@ -241,7 +234,7 @@ export default function Budgets({ expenses }: BudgetsProps) {
                         min="0"
                         step="0.01"
                         placeholder="No limit"
-                        aria-label={`Monthly limit for ${cat}`}
+                        aria-label={`Monthly limit for ${category.label}`}
                         value={draftVal}
                         onChange={e => setDrafts(prev => ({ ...prev, [cat]: e.target.value }))}
                         onBlur={() => saveDraft(cat)}

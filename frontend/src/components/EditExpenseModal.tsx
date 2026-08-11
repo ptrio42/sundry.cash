@@ -4,29 +4,20 @@
  */
 
 import { useState, useEffect, useRef, FormEvent } from 'react';
-import { Expense, ExpenseCategory, Currency } from '../types/expense.types';
+import { Category, Expense, ExpenseCategory, Currency } from '../types/expense.types';
 import { SATS_PER_BTC } from '../utils/format';
+import { categoryLabel } from '../utils/categories';
 
 interface EditExpenseModalProps {
   expense: Expense | null;
+  categories: Category[];
   onSave: (id: number, updates: Partial<Expense>) => Promise<void>;
   onClose: () => void;
 }
 
-const CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
-const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-  groceries: '🛒 Groceries',
-  transport: '🚗 Transport',
-  media: '📺 Media',
-  entertainment: '🎮 Entertainment',
-  utilities: '💡 Utilities',
-  maintenance: '🔨 Maintenance',
-  other: '📦 Other'
-};
-
-export default function EditExpenseModal({ expense, onSave, onClose }: EditExpenseModalProps) {
+export default function EditExpenseModal({ expense, categories, onSave, onClose }: EditExpenseModalProps) {
   const [amount, setAmount] = useState<string>('');
   const [date, setDate] = useState<string>('');
   const [description, setDescription] = useState<string>('');
@@ -257,9 +248,16 @@ export default function EditExpenseModal({ expense, onSave, onClose }: EditExpen
               onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
               required
             >
-              {CATEGORIES.map(cat => (
-                <option key={cat} value={cat}>
-                  {CATEGORY_LABELS[cat]}
+              {/* If the expense points at a category that has since been
+                  deleted, keep it as an option rather than letting the select
+                  fall back to the first entry and silently recategorize the
+                  row on save. */}
+              {!categories.some(cat => cat.slug === category) && (
+                <option value={category}>{categoryLabel(categories, category)}</option>
+              )}
+              {categories.map(cat => (
+                <option key={cat.slug} value={cat.slug}>
+                  {cat.label}
                 </option>
               ))}
             </select>

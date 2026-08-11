@@ -30,14 +30,9 @@
   --warning: #fbbf24;
   --info: #60a5fa;
 
-  /* Category hues (bright-on-dark, used for text + chart fills) */
-  --cat-groceries: #34d399;
-  --cat-transport: #60a5fa;
-  --cat-media: #a78bfa;
-  --cat-entertainment: #fbbf24;
-  --cat-utilities: #f87171;
-  --cat-maintenance: #fb923c;
-  --cat-other: #94a3b8;
+  /* Category hues used to live here, one custom property per slug. They are
+     rows in the database now (see docs/categories-currencies-spec.md), so the
+     colour arrives with the data and is applied inline. */
 
   --radius: 14px;
   --radius-sm: 9px;
@@ -67,13 +62,6 @@
   --accent-soft: rgba(16, 185, 129, 0.12);
   --shadow: 0 10px 30px rgba(20, 30, 50, 0.1);
   --shadow-sm: 0 2px 10px rgba(20, 30, 50, 0.06);
-  --cat-groceries: #059669;
-  --cat-transport: #2563eb;
-  --cat-media: #7c3aed;
-  --cat-entertainment: #b45309;
-  --cat-utilities: #dc2626;
-  --cat-maintenance: #ea580c;
-  --cat-other: #64748b;
 }
 
 * {
@@ -622,14 +610,19 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .btn-edit:hover { border-color: var(--accent); color: var(--accent); }
 .btn-delete:hover { border-color: var(--danger); color: var(--danger); }
 
-/* Category text colours */
-.category-groceries { color: var(--cat-groceries); font-weight: 600; }
-.category-transport { color: var(--cat-transport); font-weight: 600; }
-.category-media { color: var(--cat-media); font-weight: 600; }
-.category-entertainment { color: var(--cat-entertainment); font-weight: 600; }
-.category-utilities { color: var(--cat-utilities); font-weight: 600; }
-.category-maintenance { color: var(--cat-maintenance); font-weight: 600; }
-.category-other { color: var(--cat-other); font-weight: 600; }
+/* Category identity. The colour is user data and one value has to work on both
+   themes, so it is carried by a swatch rather than by the text colour — a hue
+   picked to read on the dark surface would fail contrast on the light one. */
+.category-cell { font-weight: 600; white-space: nowrap; }
+.category-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 7px;
+  vertical-align: baseline;
+  flex: none;
+}
 
 /* ---------- Bulk actions ---------- */
 .bulk-actions-bar {
@@ -854,6 +847,86 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .settings-form { max-width: 460px; }
 .settings-actions { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
 .settings-saved { color: var(--accent); font-size: 0.88rem; font-weight: 600; }
+
+/* Present to a screen reader, absent on screen — the "move expenses to" select
+   is captioned by the sentence above it, which a screen reader will not tie to
+   the control on its own. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.settings-section { margin-top: 34px; border-top: 1px solid var(--border); padding-top: 22px; max-width: 620px; }
+.settings-section h3 { margin-bottom: 4px; }
+
+.category-manager { list-style: none; display: flex; flex-direction: column; gap: 8px; margin: 0 0 16px; padding: 0; }
+.category-manager-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+/* The native colour swatch is chrome-heavy by default; strip it back to the dot
+   the rest of the UI uses. */
+.category-color-input {
+  inline-size: 30px;
+  block-size: 30px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: none;
+  cursor: pointer;
+  flex: none;
+}
+.category-color-input::-webkit-color-swatch-wrapper { padding: 2px; }
+.category-color-input::-webkit-color-swatch { border: none; border-radius: 3px; }
+.category-label-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 10px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+.category-slug { color: var(--text-dim); font-size: 0.78rem; flex: none; }
+.category-builtin-badge {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex: none;
+}
+
+.category-delete-confirm {
+  background: var(--surface-2);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.category-delete-confirm p { font-size: 0.9rem; margin-bottom: 10px; }
+.category-delete-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+.category-add-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.category-add-row input[type='text'] { flex: 1 1 200px; min-width: 0; }
+
+@media (max-width: 620px) {
+  .category-manager-row { flex-wrap: wrap; }
+  .category-slug { order: 3; }
+}
 
 /* ---------- Receipt scanning ---------- */
 .receipt-intro { color: var(--text-muted); font-size: 0.9rem; margin: 4px 0 18px; max-width: 620px; }

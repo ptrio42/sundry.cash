@@ -4,13 +4,20 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { ExpenseCategory, Currency } from '../types/expense.types';
-
-// Valid expense categories
-const VALID_CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
+import { Currency } from '../types/expense.types';
+import * as CategoryModel from '../models/category';
 
 // Valid currencies
 const VALID_CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
+
+/**
+ * Categories are rows now, so the valid set is read per request instead of
+ * being a literal here. The message still lists them, which is the useful part
+ * of the old error — it just lists what the table actually holds.
+ */
+function categoryError(): string {
+  return `Category must be one of: ${CategoryModel.allSlugs().join(', ')}`;
+}
 
 /**
  * Validate expense data for create/update operations
@@ -62,8 +69,8 @@ export function validateExpense(req: Request, res: Response, next: NextFunction)
   if (category !== undefined) {
     if (typeof category !== 'string') {
       errors.push('Category must be a string');
-    } else if (!VALID_CATEGORIES.includes(category as ExpenseCategory)) {
-      errors.push(`Category must be one of: ${VALID_CATEGORIES.join(', ')}`);
+    } else if (!CategoryModel.exists(category)) {
+      errors.push(categoryError());
     }
   } else if (req.method === 'POST') {
     // Category is required for POST (create)
@@ -137,8 +144,8 @@ export function validateFilters(req: Request, res: Response, next: NextFunction)
   if (category !== undefined) {
     if (typeof category !== 'string') {
       errors.push('Category must be a string');
-    } else if (!VALID_CATEGORIES.includes(category as ExpenseCategory)) {
-      errors.push(`Category must be one of: ${VALID_CATEGORIES.join(', ')}`);
+    } else if (!CategoryModel.exists(category)) {
+      errors.push(categoryError());
     }
   }
 

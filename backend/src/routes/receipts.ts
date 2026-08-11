@@ -16,6 +16,7 @@ import multer from 'multer';
 import { Currency, ExpenseCategory } from '../types/expense.types';
 import { isValidDate } from '../middleware/validation';
 import * as ExpenseModel from '../models/expense';
+import * as CategoryModel from '../models/category';
 import { getExtractor } from '../services/receipt';
 import {
   saveReceiptImage,
@@ -27,7 +28,6 @@ import fs from 'fs';
 
 const router = Router();
 
-const VALID_CATEGORIES: ExpenseCategory[] = ['groceries', 'transport', 'media', 'entertainment', 'utilities', 'maintenance', 'other'];
 const VALID_CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
 // Bound concurrent OCR jobs: each scan holds a multi-MB image in memory and runs
@@ -111,7 +111,7 @@ router.post('/', uploadReceipt, (req: Request, res: Response) => {
     if (!isFinite(amount) || amount <= 0) errors.push('Amount must be a positive number');
     if (!date || !isValidDate(date)) errors.push('Date must be a valid ISO date (YYYY-MM-DD)');
     if (!description || description.trim().length === 0) errors.push('Description is required');
-    if (!VALID_CATEGORIES.includes(category as ExpenseCategory)) errors.push(`Category must be one of: ${VALID_CATEGORIES.join(', ')}`);
+    if (!CategoryModel.exists(category)) errors.push(`Category must be one of: ${CategoryModel.allSlugs().join(', ')}`);
     if (!VALID_CURRENCIES.includes(currency as Currency)) errors.push(`Currency must be one of: ${VALID_CURRENCIES.join(', ')}`);
 
     if (errors.length > 0) {

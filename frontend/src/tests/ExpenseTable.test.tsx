@@ -14,7 +14,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import ExpenseTable from '../components/ExpenseTable';
-import { Expense } from '../types/expense.types';
+import { TEST_CATEGORIES } from './categories.fixture';
+import { Category, Expense } from '../types/expense.types';
 
 vi.mock('../services/api', () => ({
   exportExpensesXlsx: vi.fn(),
@@ -46,10 +47,11 @@ const manyExpenses = (n: number): Expense[] =>
     currency: 'USD' as const,
   }));
 
-const renderTable = (expenses: Expense[]) =>
+const renderTable = (expenses: Expense[], categories: Category[] = TEST_CATEGORIES) =>
   render(
     <ExpenseTable
       expenses={expenses}
+      categories={categories}
       onEdit={vi.fn()}
       onDelete={vi.fn()}
       onUpdate={vi.fn().mockResolvedValue(undefined)}
@@ -268,5 +270,50 @@ describe('ExpenseTable totals', () => {
 
     expect(footerTotal(container)).toMatch(/104,40\s*zł/);
     expect(footerTotal(container)).not.toMatch(/\$/);
+  });
+});
+
+describe('ExpenseTable categories', () => {
+  const CUSTOM: Category = { slug: 'pet-food', label: 'Pet food', color: '#f472b6', sortOrder: 7, isBuiltin: false };
+  const petExpense: Expense = { id: 9, date: '2024-06-01', description: 'Kibble', category: 'pet-food', currency: 'USD', amount: 20 };
+
+  /** The category cell of the row whose description is `description`. */
+  const categoryCell = (container: HTMLElement, description: string): HTMLElement => {
+    const row = within(container).getByText(description).closest('tr');
+    if (!row) throw new Error(`no row for "${description}"`);
+    return row.querySelector('.category-cell') as HTMLElement;
+  };
+
+  it('shows a custom category by its label and its own colour', () => {
+    const { container } = renderTable([petExpense], [...TEST_CATEGORIES, CUSTOM]);
+
+    const cell = categoryCell(container, 'Kibble');
+    expect(cell).toHaveTextContent('Pet food');
+    expect(cell.querySelector('.category-dot')).toHaveStyle({ background: '#f472b6' });
+  });
+
+  it('offers custom categories in the filter, and filters by them', () => {
+    const { container } = renderTable([...SAMPLE, petExpense], [...TEST_CATEGORIES, CUSTOM]);
+
+    fireEvent.change(screen.getByLabelText('Category:'), { target: { value: 'pet-food' } });
+
+    expect(rowDescriptions(container)).toEqual(['Kibble']);
+  });
+
+  it('finds a row by its category label as well as its slug', () => {
+    const { container } = renderTable([...SAMPLE, petExpense], [...TEST_CATEGORIES, CUSTOM]);
+
+    fireEvent.change(screen.getByLabelText('Search:'), { target: { value: 'Pet food' } });
+    expect(rowDescriptions(container)).toEqual(['Kibble']);
+
+    fireEvent.change(screen.getByLabelText('Search:'), { target: { value: 'pet-food' } });
+    expect(rowDescriptions(container)).toEqual(['Kibble']);
+  });
+
+  it('still renders a row whose category has been deleted elsewhere', () => {
+    // The list no longer holds 'pet-food', but the expense still points at it.
+    const { container } = renderTable([petExpense]);
+
+    expect(categoryCell(container, 'Kibble')).toHaveTextContent('Pet food');
   });
 });

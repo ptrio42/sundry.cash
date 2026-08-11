@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import EditExpenseModal from '../components/EditExpenseModal';
+import { TEST_CATEGORIES } from './categories.fixture';
 import { Expense } from '../types/expense.types';
 
 const EXPENSE: Expense = {
@@ -38,7 +39,7 @@ beforeEach(() => {
 });
 
 const renderModal = (expense: Expense | null, onSave = vi.fn(), onClose = vi.fn()) => {
-  const view = render(<EditExpenseModal expense={expense} onSave={onSave} onClose={onClose} />);
+  const view = render(<EditExpenseModal expense={expense} categories={TEST_CATEGORIES} onSave={onSave} onClose={onClose} />);
   return { ...view, onSave, onClose };
 };
 
@@ -89,7 +90,7 @@ describe('EditExpenseModal', () => {
     const harness = (expense: Expense | null) => (
       <>
         <button type="button">Edit expense</button>
-        <EditExpenseModal expense={expense} onSave={onSave} onClose={onClose} />
+        <EditExpenseModal expense={expense} categories={TEST_CATEGORIES} onSave={onSave} onClose={onClose} />
       </>
     );
 
