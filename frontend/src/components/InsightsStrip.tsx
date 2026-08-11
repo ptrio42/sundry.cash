@@ -15,7 +15,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { getInsightsComparison, getInsightsRecurring } from '../services/api';
-import { Currency, ExpenseCategory, FxRates, ComparisonResult, RecurringCharge } from '../types/expense.types';
+import { Currency, Expense, ExpenseCategory, FxRates, ComparisonResult, RecurringCharge } from '../types/expense.types';
 import { formatCurrency } from '../utils/format';
 import { convertAmount } from '../utils/fx';
 
@@ -34,6 +34,17 @@ interface InsightsStripProps {
   view: Currency | 'primary';
   primary: Currency;
   rates: FxRates;
+  /**
+   * The ledger the dashboard is drawing. Only its length and identity are read:
+   * App replaces the array on every add, edit and delete, so a new reference
+   * means what the server computed is now stale.
+   *
+   * Today the dashboard is rendered conditionally and unmounts whenever the user
+   * goes to a tab that can change expenses, so a remount already refreshes this.
+   * The dependency is here so the strip stays correct the day that stops being
+   * true — quick entry on the dashboard itself would silently freeze it.
+   */
+  expenses: Expense[];
 }
 
 /** Inclusive length of a window in days, e.g. 2026-07-12..2026-08-10 -> 30. */
@@ -44,14 +55,23 @@ function windowDays(start: string, end: string): number {
   return Math.round((to - from) / 86_400_000) + 1;
 }
 
-export default function InsightsStrip({ view, primary, rates }: InsightsStripProps) {
+export default function InsightsStrip({ view, primary, rates, expenses }: InsightsStripProps) {
   const [comparison, setComparison] = useState<ComparisonResult | null>(null);
   const [recurring, setRecurring] = useState<RecurringCharge[]>([]);
 
-  // Fetched once, unfiltered: switching the currency buttons re-scopes the same
-  // rows in the memo below rather than making another round trip.
+  // Fetched unfiltered, once per version of the ledger: switching the currency
+  // buttons re-scopes the same rows in the memo below rather than making another
+  // round trip, but changing the expenses themselves invalidates the answer.
   useEffect(() => {
     let cancelled = false;
+
+    // An empty ledger has nothing to compare and nothing that repeats, so a
+    // fresh install should not spend two requests learning that.
+    if (expenses.length === 0) {
+      setComparison(null);
+      setRecurring([]);
+      return;
+    }
 
     (async () => {
       try {
@@ -70,7 +90,7 @@ export default function InsightsStrip({ view, primary, rates }: InsightsStripPro
     })();
 
     return () => { cancelled = true; };
-  }, []);
+  }, [expenses]);
 
   const sentences = useMemo(() => {
     const displayCurrency: Currency = view === 'primary' ? primary : view;
@@ -83,6 +103,11 @@ export default function InsightsStrip({ view, primary, rates }: InsightsStripPro
 
     if (comparison) {
       const days = windowDays(comparison.current.start, comparison.current.end);
+      // Measured, not assumed to match: the two windows are equal by definition
+      // only for `rolling`. A calendar comparison of March against February is
+      // 31 days against 28, and the sentence below would otherwise state a
+      // number it never looked at.
+      const previousDays = windowDays(comparison.previous.start, comparison.previous.end);
 
       // Merge the per-currency rows down to one entry per category, in whatever
       // currency is on screen. `isNew` is re-derived rather than carried over:
@@ -128,7 +153,7 @@ export default function InsightsStrip({ view, primary, rates }: InsightsStripPro
         const [category, value] = newcomers[0];
         lines.push(
           `${CATEGORY_LABELS[category]} is new — ${fmt(value.current)} in the last ${days} days, ` +
-          `nothing in the ${days} before that.`
+          `nothing in the ${previousDays} before that.`
         );
       }
     }

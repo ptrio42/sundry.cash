@@ -187,7 +187,7 @@ npm run build         # typecheck and build both packages
 npm run test          # backend Jest, then frontend Vitest
 ```
 
-Tests: **131 backend cases** across 11 files (Jest + supertest) and **113 frontend cases** across 14 files
+Tests: **131 backend cases** across 11 files (Jest + supertest) and **120 frontend cases** across 14 files
 (Vitest + Testing Library) — every component has a suite, plus the API wrapper and the FX helper. The
 backend suite redirects `DB_PATH` to a temp directory before any app module loads, so running it never
 touches your real database. CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) lints, typechecks,

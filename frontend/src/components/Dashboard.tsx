@@ -151,8 +151,8 @@ export default function Dashboard({ expenses, settings, rates }: DashboardProps)
   return (
     <div className="dashboard">
       {/* Reads the currency scope chosen below it, and hides itself when the
-          data has nothing to say. */}
-      <InsightsStrip view={view} primary={primary} rates={rates} />
+          data has nothing to say. `expenses` is what tells it to refetch. */}
+      <InsightsStrip view={view} primary={primary} rates={rates} expenses={expenses} />
 
       <div className="dashboard-head">
         <div className="dashboard-head-controls">
