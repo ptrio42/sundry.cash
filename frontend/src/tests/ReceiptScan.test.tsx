@@ -1,5 +1,5 @@
 /**
- * Tests for the ReceiptScan component.
+ * Tests for the ReceiptScan component — the Add sheet's "Scan a receipt" tab.
  * The API layer is mocked so we exercise the capture → review flow in isolation.
  */
 
@@ -37,7 +37,9 @@ const selectFile = () => {
 describe('ReceiptScan', () => {
   it('renders the capture UI with a disabled scan button', () => {
     render(<ReceiptScan onExpenseAdded={vi.fn()} settings={TEST_SETTINGS} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} />);
-    expect(screen.getByText('Scan a Receipt')).toBeInTheDocument();
+    // No heading of its own: the sheet's header says "Add expense" once, and
+    // the tab above says which of the two ways in this is.
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
     expect(screen.getByLabelText(/receipt photo/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /scan receipt/i })).toBeDisabled();
   });

@@ -1,6 +1,8 @@
 /**
- * Tests for ExpenseForm component
- * Example test demonstrating component testing
+ * Tests for ExpenseForm component — the Add sheet's "Type it" tab.
+ *
+ * The fields, and only the fields: which tab it is, and what happens once it
+ * saves, belong to `AddSheet.test.tsx` and `App.test.tsx`.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -18,8 +20,9 @@ describe('ExpenseForm', () => {
 
     render(<ExpenseForm onExpenseAdded={mockOnExpenseAdded} settings={TEST_SETTINGS} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} />);
 
-    // Check for form heading
-    expect(screen.getByText('Add New Expense')).toBeInTheDocument();
+    // No heading of its own: the sheet's header says "Add expense" once, and
+    // the tab above says which of the two ways in this is.
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
 
     // Check for all form fields
     expect(screen.getByLabelText(/amount/i)).toBeInTheDocument();

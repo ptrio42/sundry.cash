@@ -60,20 +60,23 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   ISO catalogue), `auth.ts` (HMAC tokens), `money.ts` (minor-unit conversion, via the currency table).
 - `src/middleware/` — `auth` (`requireAuth`), `validation`.
 - `src/services/` — `categorize.ts` (keyword auto-categorization, EN + PL); `receipt/` (OCR factory — see gotchas).
-- `src/tests/` — Jest + supertest, 267 cases across 15 files (plus `env.ts` / `paths.ts` /
+- `src/tests/` — Jest + supertest, 268 cases across 15 files (plus `env.ts` / `paths.ts` /
   `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
 
 **frontend/** — React 18 + Vite, single-page UI (no state library — plain hooks). Four destinations
 (Home / Expenses / Budgets / Settings) plus a persistent Add, addressed by `utils/route.ts`: a hash
-router in ~80 lines with **no routing dependency**. Hash rather than `pushState` on purpose — the
+router in ~110 lines with **no routing dependency**. Hash rather than `pushState` on purpose — the
 latter needs every path answered with `index.html`, and nothing promises a self-hoster's static
-server does, so `/expenses` would 404 on reload:
+server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expenses/add` is a
+*second segment*, the Add sheet's open/closed state over the destination it covers:
 - `src/main.tsx` -> `src/components/App.tsx`. Feature components: `Home` (the boot screen — six
   sections over six endpoints, findings as section headings; `Dashboard`, `Insights` and
-  `InsightsStrip` merged into it in wave 2), `Analytics`, `Budgets`, `Fx`, `ExpenseForm`,
+  `InsightsStrip` merged into it in wave 2), `AddSheet` (the overlay, plus the `AddedLine`
+  confirmation the shell renders after a save), `Analytics`, `Budgets`, `Fx`, `ExpenseForm`,
   `ExpenseTable`, `ExcelImport`, `EditExpenseModal`, `Login`, `Settings`, `ReceiptScan`,
-  `CurrencyScope`. `Analytics`, `Fx` and `ReceiptScan` have no nav entry until waves 3–4 re-enter them
-  from their new homes; `ExcelImport` is reached from Home's empty-ledger Start card.
+  `CurrencyScope`. `ExpenseForm` and `ReceiptScan` are the sheet's two tabs rather than screens
+  (wave 3a); `Analytics` and `Fx` have no nav entry until waves 3b–4 re-enter them from their new
+  homes; `ExcelImport` is reached from Home's empty-ledger Start card.
 - `src/services/api.ts` — central `apiFetch` wrapper (base `/api`, bearer from localStorage key
   `sundry-token`, 401 -> `auth-expired` window event). Add API calls here.
 - `src/utils/` — `format.ts` (currency/date display, backed by a registry App refreshes),
@@ -110,6 +113,16 @@ server does, so `/expenses` would 404 on reload:
   from `Expense`, so no second "Merchant" box appears in a product whose pitch is simplicity, and an
   edit cannot overwrite what the receipt said. Nullable, never backfilled; its `ALTER TABLE` runs
   *after* the enum migrations in `database.ts`, which rebuild `expenses` from an explicit column list.
+- **Recording is an input method, not a place** — `AddSheet` opens over whatever destination you are
+  on, and saving closes it, leaves you there and prints one line (`Added — 24,90 zł · Groceries.
+  Undo · Edit`). Both halves are deliberate: Scan and Type held two of ten nav slots for one file
+  picker apiece (F17), and saving used to `navigate('expenses')` while saying nothing, so the only
+  evidence of the most frequent action in the product was that the app had moved you (F7). Two
+  consequences worth keeping: the confirmation has **no timer**, because a line that dismisses itself
+  takes Undo with it; and the sheet's default tab is resolved **at render, not at mount** — the sheet
+  is mounted with the shell, before layout, and `window.innerWidth` is 0 then, which makes every
+  `max-width` query true and would open a desktop on Scan (`isPhone` in `AddSheet.tsx` guards the
+  same case for a cold load straight into `#/home/add`).
 - **Insight selection lives on the server, and Home refetches findings per currency** —
   `/insights/summary?scope=primary|<code>&period=&window=` scores every candidate finding against the
   user's own window spend (`SCORING` in `models/insights.ts`, one exported block on purpose) and
@@ -160,7 +173,7 @@ server does, so `/expenses` would 404 on reload:
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (267 backend + 316 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (268 backend + 347 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).

@@ -2,6 +2,12 @@
  * ReceiptScan Component
  * Snap a photo of a receipt, let the backend OCR extract the fields, then
  * review/correct them before saving the expense (with the photo attached).
+ *
+ * The "Scan a receipt" tab of `AddSheet` since wave 3, and not a destination
+ * any more (change 10, F17): a nav slot holding one file input was the clearest
+ * case of an input method being filed as a place. It renders no heading of its
+ * own — the sheet's header says "Add expense" once, and the tab above says
+ * which of the two ways this is.
  */
 
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
@@ -137,7 +143,6 @@ export default function ReceiptScan({ onExpenseAdded, settings, categories, curr
 
   return (
     <div className="receipt-scan">
-      <h2>Scan a Receipt</h2>
       <p className="receipt-intro">
         Take a photo of a receipt and we'll read the amount, date, and store for you.
         You can fix anything before saving.
