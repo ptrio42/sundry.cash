@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Dashboard from '../components/Dashboard';
 import { TEST_CATEGORIES } from './categories.fixture';
+import { TEST_CURRENCIES } from './currencies.fixture';
 import { AppSettings, Expense, FxRates } from '../types/expense.types';
 
 // The dashboard renders the insights strip above everything else, and that
@@ -74,7 +75,7 @@ const card = (heading: string): HTMLElement => {
 describe('Dashboard', () => {
   it('computes the summary tiles from a single-currency fixture', () => {
     // Primary is PLN, but the data is USD-only, so nothing should be converted.
-    render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} settings={settings('PLN')} rates={rates} />);
+    render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
     expect(card('Total Spent')).toHaveTextContent('$200.00'); // 120 + 50 + 30
     expect(card('Expenses')).toHaveTextContent('3');
@@ -83,7 +84,7 @@ describe('Dashboard', () => {
   });
 
   it('starts on the sole native currency when the data spans only one', () => {
-    render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} settings={settings('PLN')} rates={rates} />);
+    render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
     expect(screen.getByRole('button', { name: /^USD/ })).toHaveClass('active');
     expect(screen.getByRole('button', { name: /^All/ })).not.toHaveClass('active');
@@ -94,7 +95,7 @@ describe('Dashboard', () => {
   });
 
   it('starts on the combined view and converts everything into the primary currency', () => {
-    render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} settings={settings('PLN')} rates={rates} />);
+    render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
     expect(screen.getByRole('button', { name: /^All → PLN/ })).toHaveClass('active');
     expect(screen.getByText(/converted from all currencies/i)).toBeInTheDocument();
@@ -108,7 +109,7 @@ describe('Dashboard', () => {
   });
 
   it('converts into USD instead when USD is the primary currency', () => {
-    render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} settings={settings('USD')} rates={rates} />);
+    render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('USD')} rates={rates} />);
 
     // 25 + (400 * 0.25) + (0.002 * 65000) = 25 + 100 + 130 = 255 USD.
     expect(screen.getByRole('button', { name: /^All → USD/ })).toHaveClass('active');
@@ -117,7 +118,7 @@ describe('Dashboard', () => {
   });
 
   it('narrows to a single native currency and back again', () => {
-    render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} settings={settings('PLN')} rates={rates} />);
+    render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
     fireEvent.click(screen.getByRole('button', { name: /^USD/ }));
 
@@ -134,7 +135,7 @@ describe('Dashboard', () => {
   });
 
   it('shows a native BTC view in BTC units', () => {
-    render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} settings={settings('PLN')} rates={rates} />);
+    render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
     fireEvent.click(screen.getByRole('button', { name: /^BTC/ }));
 
@@ -144,7 +145,7 @@ describe('Dashboard', () => {
   });
 
   it('only offers currencies the data actually contains', () => {
-    render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} settings={settings('PLN')} rates={rates} />);
+    render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
     // USD is present, so it is offered alongside the combined view. PLN and BTC
     // are not in the data and would lead to a guaranteed-empty dashboard, so
@@ -162,7 +163,7 @@ describe('Dashboard', () => {
     // App fetches expenses after mount, so on the first render there is no data
     // to inspect and a single-currency user would otherwise be stuck on the
     // combined view converting USD to PLN.
-    render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} settings={settings('PLN')} rates={rates} />);
+    render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
     expect(screen.getByRole('button', { name: /^USD/ })).toHaveClass('active');
     expect(card('Total Spent')).toHaveTextContent('$200.00');
@@ -172,7 +173,7 @@ describe('Dashboard', () => {
     // The legend is plain markup rather than recharts' <Legend> precisely so it
     // can wrap: recharts sizes that box up front, so on a 375px phone the
     // categories overflowed it and pushed the page sideways.
-    const { container } = render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} settings={settings('PLN')} rates={rates} />);
+    const { container } = render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
     const entries = [...container.querySelectorAll('.chart-legend li')].map(li => li.textContent);
     expect(entries).toEqual(['Groceries', 'Transport', 'Media']); // largest first
@@ -180,7 +181,7 @@ describe('Dashboard', () => {
   });
 
   it('renders the combined empty state when there are no expenses at all', () => {
-    render(<Dashboard expenses={[]} categories={TEST_CATEGORIES} settings={settings('PLN')} rates={rates} />);
+    render(<Dashboard expenses={[]} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
     expect(screen.getByText('No expenses yet. Add some to see your dashboard.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^All → PLN/ })).toHaveClass('active');
@@ -202,7 +203,7 @@ describe('Dashboard wires up the insights strip', () => {
   const lastProps = () => insightsProps.mock.calls[insightsProps.mock.calls.length - 1][0];
 
   it('mounts the strip ahead of everything else on the page', () => {
-    const { container } = render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} settings={settings('PLN')} rates={rates} />);
+    const { container } = render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
     const strip = screen.getByTestId('insights-strip');
     const head = container.querySelector('.dashboard-head');
@@ -214,7 +215,7 @@ describe('Dashboard wires up the insights strip', () => {
   });
 
   it('hands over the ledger and the combined currency scope', () => {
-    render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} settings={settings('PLN')} rates={rates} />);
+    render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
     expect(lastProps()).toMatchObject({ view: 'primary', primary: 'PLN', rates });
     // The same array, so the strip can tell a new ledger from a re-render.
@@ -222,14 +223,14 @@ describe('Dashboard wires up the insights strip', () => {
   });
 
   it('passes the sole native currency when the dashboard defaults to one', () => {
-    render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} settings={settings('PLN')} rates={rates} />);
+    render(<Dashboard expenses={usdOnly} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
 
     // The tiles show unconverted USD here, so the strip must be told 'USD' too.
     expect(lastProps()).toMatchObject({ view: 'USD', primary: 'PLN' });
   });
 
   it('re-scopes the strip when the currency buttons are used', () => {
-    render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} settings={settings('PLN')} rates={rates} />);
+    render(<Dashboard expenses={mixed} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('PLN')} rates={rates} />);
     expect(lastProps().view).toBe('primary');
 
     fireEvent.click(screen.getByRole('button', { name: /^USD/ }));
@@ -250,7 +251,7 @@ describe('Dashboard with categories that are not in the list', () => {
   ];
 
   it('counts an unknown category in the total and shows it in the legend', () => {
-    const { container } = render(<Dashboard expenses={orphanLedger} categories={TEST_CATEGORIES} settings={settings('USD')} rates={rates} />);
+    const { container } = render(<Dashboard expenses={orphanLedger} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('USD')} rates={rates} />);
 
     expect(card('Total Spent')).toHaveTextContent('$200.00');
     const entries = [...container.querySelectorAll('.chart-legend li')].map(li => li.textContent);
@@ -262,7 +263,7 @@ describe('Dashboard with categories that are not in the list', () => {
     // renders nothing inside ResponsiveContainer). The rule it depends on is
     // `stackedCategorySeries`, unit-tested in categories.util.test.ts; what is
     // checked here is that the unknown slug reaches the dashboard at all.
-    render(<Dashboard expenses={orphanLedger} categories={TEST_CATEGORIES} settings={settings('USD')} rates={rates} />);
+    render(<Dashboard expenses={orphanLedger} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} settings={settings('USD')} rates={rates} />);
 
     expect(card('Expenses')).toHaveTextContent('2');
     expect(card('Largest')).toHaveTextContent('$120.00');

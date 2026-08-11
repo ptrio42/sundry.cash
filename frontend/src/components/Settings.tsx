@@ -9,10 +9,17 @@
  */
 
 import { useState, FormEvent } from 'react';
-import { AppSettings, BtcUnit, Category, Currency, ExpenseCategory } from '../types/expense.types';
-import { updateSettings, getCategories, createCategory, updateCategory, deleteCategory } from '../services/api';
-
-const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
+import { AppSettings, BtcUnit, Category, Currency, CurrencyInfo, ExpenseCategory } from '../types/expense.types';
+import {
+  updateSettings,
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  getCurrencies,
+  setCurrencyEnabled,
+} from '../services/api';
+import { offeredCurrencies } from '../utils/currencies';
 const BTC_UNITS: BtcUnit[] = ['BTC', 'sats'];
 
 // Slugs are what every expense row stores, so the field is derived from the
@@ -33,7 +40,10 @@ const NEW_CATEGORY_COLOR = '#38bdf8';
 interface SettingsProps {
   settings: AppSettings;
   categories: Category[];
+  currencies: CurrencyInfo[];
   onSaved: (settings: AppSettings) => void;
+  /** Hand the fresh catalogue back to App, which also feeds the formatter. */
+  onCurrenciesChanged: (currencies: CurrencyInfo[]) => void;
   /** Hand the fresh list back to App, which owns it for the whole app. */
   onCategoriesChanged: (categories: Category[]) => void;
   /** Deleting with a reassignment target rewrites expense rows server-side. */
@@ -43,7 +53,9 @@ interface SettingsProps {
 export default function Settings({
   settings,
   categories,
+  currencies,
   onSaved,
+  onCurrenciesChanged,
   onCategoriesChanged,
   onExpensesStale,
 }: SettingsProps) {
@@ -63,6 +75,24 @@ export default function Settings({
   // The slug awaiting a "where should its rows go?" answer, and the answer.
   const [pendingDelete, setPendingDelete] = useState<string>('');
   const [reassignTo, setReassignTo] = useState<string>('other');
+
+  // --- Currency management -------------------------------------------------
+  const [currencyError, setCurrencyError] = useState<string>('');
+  const [currencyBusy, setCurrencyBusy] = useState<string>('');
+  const [showAllCurrencies, setShowAllCurrencies] = useState<boolean>(false);
+
+  const toggleCurrency = async (code: string, enabled: boolean) => {
+    setCurrencyError('');
+    setCurrencyBusy(code);
+    try {
+      await setCurrencyEnabled(code, enabled);
+      onCurrenciesChanged(await getCurrencies());
+    } catch (err) {
+      setCurrencyError(err instanceof Error ? err.message : 'Failed to update the currency');
+    } finally {
+      setCurrencyBusy('');
+    }
+  };
 
   const dirty =
     defaultCurrency !== settings.defaultCurrency ||
@@ -159,7 +189,7 @@ export default function Settings({
             value={defaultCurrency}
             onChange={(e) => { setDefaultCurrency(e.target.value as Currency); setSaved(false); }}
           >
-            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {offeredCurrencies(currencies).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
           </select>
           <p className="field-hint">Pre-selected when adding an expense, scanning a receipt, or importing.</p>
         </div>
@@ -198,7 +228,7 @@ export default function Settings({
             value={primaryCurrency}
             onChange={(e) => { setPrimaryCurrency(e.target.value as Currency); setSaved(false); }}
           >
-            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {offeredCurrencies(currencies).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
           </select>
           <p className="field-hint">The dashboard can combine all spending into this currency using your FX rates.</p>
         </div>
@@ -210,6 +240,42 @@ export default function Settings({
           {saved && !dirty && <span className="settings-saved" role="status">✓ Saved</span>}
         </div>
       </form>
+
+      <section className="settings-section" aria-labelledby="currencies-heading">
+        <h3 id="currencies-heading">Currencies</h3>
+        <p className="settings-intro">
+          Switch on the currencies you spend in. Turning one off only stops it being offered
+          for new expenses — everything already recorded in it stays exactly where it is.
+        </p>
+
+        {currencyError && <div className="error-message">{currencyError}</div>}
+
+        <ul className="currency-manager">
+          {(showAllCurrencies ? currencies : currencies.filter(c => c.enabled)).map((currency) => (
+            <li key={currency.code} className="currency-manager-row">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={currency.enabled}
+                  disabled={currencyBusy === currency.code}
+                  onChange={(e) => toggleCurrency(currency.code, e.target.checked)}
+                />
+                <strong>{currency.code}</strong>
+                <span className="currency-symbol-badge">{currency.symbol}</span>
+              </label>
+              {/* The exponent is shown because it is the one thing about a
+                  currency that cannot be changed once it has been used. */}
+              <span className="currency-decimals muted-text">
+                {Math.round(Math.log10(currency.minorUnits))} decimal places
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <button type="button" className="btn-link" onClick={() => setShowAllCurrencies(s => !s)}>
+          {showAllCurrencies ? 'Show only the ones I use' : `Show all ${currencies.length} currencies`}
+        </button>
+      </section>
 
       <section className="settings-section" aria-labelledby="categories-heading">
         <h3 id="categories-heading">Categories</h3>

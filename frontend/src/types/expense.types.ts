@@ -19,8 +19,20 @@ export interface Category {
   isBuiltin: boolean; // shipped by us; cannot be deleted
 }
 
-// Available currencies
-export type Currency = 'USD' | 'PLN' | 'BTC';
+// A currency code. A row the backend owns, like ExpenseCategory — but the row
+// carries the minor-unit exponent that decides how amounts are stored, so the
+// user can only enable or disable catalogue entries, never invent one.
+export type Currency = string;
+
+// A currency the app knows about. Mirrors backend/src/types/expense.types.ts.
+export interface CurrencyInfo {
+  code: string;
+  minorUnits: number;
+  symbol: string;
+  locale: string | null;
+  isIso: boolean;   // false for BTC: Intl accepts the code but formats it wrongly
+  enabled: boolean; // offered for new entries; disabled ones stay readable
+}
 
 // Display/entry unit for BTC amounts
 export type BtcUnit = 'BTC' | 'sats';
@@ -151,11 +163,13 @@ export interface ExpenseFormProps {
   onExpenseAdded: (expense: Expense) => void;
   settings: AppSettings;
   categories: Category[];
+  currencies: CurrencyInfo[];
 }
 
 export interface ExpenseTableProps {
   expenses: Expense[];
   categories: Category[];
+  currencies: CurrencyInfo[];
   onEdit: (expense: Expense) => void;
   onDelete: (id: number) => void;
   onUpdate: (id: number, updates: Partial<Expense>) => Promise<void>;
@@ -165,16 +179,19 @@ export interface DashboardProps {
   expenses: Expense[];
   settings: AppSettings;
   categories: Category[];
+  currencies: CurrencyInfo[];
   rates: FxRates;
 }
 
 export interface BudgetsProps {
   expenses: Expense[];
   categories: Category[];
+  currencies: CurrencyInfo[];
 }
 
 export interface FxProps {
   expenses: Expense[];
+  currencies: CurrencyInfo[];
   rates: FxRates;
   onRatesChanged: (rates: FxRates) => void;
 }

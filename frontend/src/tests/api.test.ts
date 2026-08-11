@@ -21,7 +21,9 @@ import {
   getCategories,
   createCategory,
   updateCategory,
-  deleteCategory
+  deleteCategory,
+  getCurrencies,
+  setCurrencyEnabled
 } from '../services/api';
 
 const TOKEN_KEY = 'sundry-token';
@@ -331,5 +333,32 @@ describe('categories', () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: '"Pet food" is still in use — pass reassignTo to move what uses it' }, 409));
 
     await expect(deleteCategory('pet-food')).rejects.toThrow(/still in use/);
+  });
+});
+
+describe('currencies', () => {
+  it('reads the catalogue from /api/currencies', async () => {
+    const payload = [{ code: 'USD', minorUnits: 100, symbol: '$', locale: 'en-US', isIso: true, enabled: true }];
+    fetchMock.mockResolvedValue(jsonResponse(payload));
+
+    await expect(getCurrencies()).resolves.toEqual(payload);
+    expect(requestedUrl()).toBe('/api/currencies');
+  });
+
+  it('sends enabled as a boolean body, and nothing else', async () => {
+    // The exponent is not editable by design, so there is no other field.
+    fetchMock.mockResolvedValue(jsonResponse({ code: 'EUR', enabled: true }));
+
+    await setCurrencyEnabled('EUR', true);
+
+    expect(requestedUrl()).toBe('/api/currencies/EUR');
+    expect(fetchMock.mock.calls[0][1].method).toBe('PUT');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ enabled: true });
+  });
+
+  it('surfaces the 409 that guards the currency the settings point at', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'USD is still your default currency — change that first' }, 409));
+
+    await expect(setCurrencyEnabled('USD', false)).rejects.toThrow(/default currency/);
   });
 });

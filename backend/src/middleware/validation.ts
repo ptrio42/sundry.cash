@@ -4,11 +4,8 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { Currency } from '../types/expense.types';
 import * as CategoryModel from '../models/category';
-
-// Valid currencies
-const VALID_CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
+import * as CurrencyModel from '../models/currency';
 
 /**
  * Categories are rows now, so the valid set is read per request instead of
@@ -17,6 +14,10 @@ const VALID_CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
  */
 function categoryError(): string {
   return `Category must be one of: ${CategoryModel.allSlugs().join(', ')}`;
+}
+
+function currencyError(): string {
+  return `Currency must be one of: ${CurrencyModel.enabledCodes().join(', ')}`;
 }
 
 /**
@@ -77,12 +78,17 @@ export function validateExpense(req: Request, res: Response, next: NextFunction)
     errors.push('Category is required');
   }
 
-  // Validate currency
+  // Validate currency.
+  //
+  // A *new* expense must use an enabled currency; an edit only needs the code
+  // to exist. Disabling means "stop offering this for new entries", never
+  // "hide the history" — an old expense in a since-disabled currency has to
+  // stay editable, and rejecting the PUT would strand it.
   if (currency !== undefined) {
     if (typeof currency !== 'string') {
       errors.push('Currency must be a string');
-    } else if (!VALID_CURRENCIES.includes(currency as Currency)) {
-      errors.push(`Currency must be one of: ${VALID_CURRENCIES.join(', ')}`);
+    } else if (req.method === 'POST' ? !CurrencyModel.isEnabled(currency) : !CurrencyModel.exists(currency)) {
+      errors.push(currencyError());
     }
   } else if (req.method === 'POST') {
     // Currency is required for POST (create)

@@ -72,8 +72,10 @@ as a full-screen PWA, and **Scan Receipt** opens the camera directly.
   seven built-ins stay put because auto-categorization depends on them.
 - **Budgets** — a monthly limit per category and currency, with per-category progress bars and a
   cumulative burn-down against the month's total.
-- **Multi-currency** — USD, PLN and BTC (stored to satoshi precision). Totals are grouped per currency by
-  default; set a primary currency and the dashboard converts everything into it using your own rates.
+- **Multi-currency** — 60 currencies to choose from, three enabled to start (USD, PLN and BTC, the last
+  stored to satoshi precision). Each carries its own decimal count, so ¥1,480 is stored and shown as
+  whole yen rather than as cents. Totals are grouped per currency by default; set a primary currency and
+  the dashboard converts everything into it using your own rates.
 - **Analytics & dashboard** — category donut with a running total, stacked day/week/month trend, and a
   13-week daily-spend heatmap.
 - **Insights** — three sentences at the top of the dashboard answering "what changed?": the biggest
@@ -166,12 +168,15 @@ Base URL `http://localhost:5000/api`. Everything except `/health` and `/auth/*` 
 | `DELETE` | `/categories/:slug` | Delete one — 403 for a built-in, 409 if in use without `?reassignTo=` |
 | `GET` | `/insights/comparison` | Spend per category vs the period before — `window`, `period`, `anchor`, `currency` |
 | `GET` | `/insights/recurring` | Repeating charges and what each costs per month — `since`, `minOccurrences` |
+| `GET` | `/currencies` | The currency catalogue, enabled entries first |
+| `PUT` | `/currencies/:code` | Enable or disable one — `{ enabled }` is the only field |
 | `GET`, `PUT` | `/fx` | Read / set manual exchange rates |
 | `GET`, `PUT` | `/settings` | Read / update preferences |
 
 ## Data model
 
-Five tables — `expenses`, `budgets`, `categories`, `fx_rates`, `settings` — created idempotently on boot.
+Six tables — `expenses`, `budgets`, `categories`, `currencies`, `fx_rates`, `settings` — created
+idempotently on boot.
 
 **Categories** are rows, not an enum. `expenses.category` and `budgets.category` are foreign keys into
 `categories(slug)`, so adding one is a `POST`, not a migration. Seven ship built-in — `groceries`,
@@ -180,10 +185,17 @@ a colour and a sort order you can edit. Built-ins cannot be deleted: the keyword
 emit any of them, and the importer falls back to `other`. Deleting a category that is still in use
 requires naming where its rows should go.
 
-**Currencies** (still CHECK-constrained): `USD` (2dp), `PLN` (2dp), `BTC` (8dp). Adding one means a
-migration in [`config/database.ts`](backend/src/config/database.ts), not just a type change —
-a currency row would carry its minor-unit exponent, and getting that wrong silently reinterprets every
-stored amount. See [`docs/categories-currencies-spec.md`](docs/categories-currencies-spec.md).
+**Currencies** are rows too, but you can only switch them on and off — never invent one. The row
+carries the **minor-unit exponent**, and that is what decides how every amount is stored: a wrong
+exponent does not fail, it silently reinterprets your history (5099 cents becoming 5.099 of
+something). So the app ships a catalogue of 60 currencies with the exponent already right — including
+every ISO 4217 currency that is *not* two decimals, because those are the ones a guess gets wrong
+(JPY has none, KWD has three, CLF has four) — plus BTC as an explicit non-ISO entry with its satoshi
+handling. `USD`, `PLN` and `BTC` are enabled out of the box; enabling EUR is one click.
+
+Once anything is recorded in a currency its exponent is frozen, enforced in the model rather than
+just the UI. Disabling a currency stops it being offered for new entries and never touches the
+history already in it. See [`docs/categories-currencies-spec.md`](docs/categories-currencies-spec.md).
 
 **Exchange rates** are manual and user-editable — there is no live feed, because the app is meant to run
 offline. A rate is the value of one unit in USD; seeds are `USD 1`, `PLN 0.25`, `BTC 65000`.

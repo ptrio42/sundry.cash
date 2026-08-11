@@ -7,10 +7,10 @@
 import { Router, Request, Response } from 'express';
 import { AppSettings, BtcUnit, Currency, ExpenseCategory } from '../types/expense.types';
 import * as CategoryModel from '../models/category';
+import * as CurrencyModel from '../models/currency';
 import {
   getSettings,
   updateSettings,
-  VALID_CURRENCIES,
   VALID_BTC_UNITS,
 } from '../models/settings';
 
@@ -32,7 +32,7 @@ router.put('/', (req: Request, res: Response) => {
     const partial: Partial<AppSettings> = {};
 
     if (defaultCurrency !== undefined) {
-      if (!VALID_CURRENCIES.includes(defaultCurrency)) errors.push(`defaultCurrency must be one of: ${VALID_CURRENCIES.join(', ')}`);
+      if (!CurrencyModel.isEnabled(defaultCurrency)) errors.push(`defaultCurrency must be one of: ${CurrencyModel.enabledCodes().join(', ')}`);
       else partial.defaultCurrency = defaultCurrency as Currency;
     }
     if (defaultCategory !== undefined) {
@@ -44,7 +44,7 @@ router.put('/', (req: Request, res: Response) => {
       else partial.defaultBtcUnit = defaultBtcUnit as BtcUnit;
     }
     if (primaryCurrency !== undefined) {
-      if (!VALID_CURRENCIES.includes(primaryCurrency)) errors.push(`primaryCurrency must be one of: ${VALID_CURRENCIES.join(', ')}`);
+      if (!CurrencyModel.isEnabled(primaryCurrency)) errors.push(`primaryCurrency must be one of: ${CurrencyModel.enabledCodes().join(', ')}`);
       else partial.primaryCurrency = primaryCurrency as Currency;
     }
 

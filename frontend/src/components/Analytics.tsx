@@ -5,12 +5,11 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getAnalytics } from '../services/api';
-import { Category, ExpenseCategory, Currency, AppSettings, FxRates } from '../types/expense.types';
-import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
+import { Category, CurrencyInfo, ExpenseCategory, Currency, AppSettings, FxRates } from '../types/expense.types';
+import { formatCurrency } from '../utils/format';
 import { categoryColor, categoryLabel } from '../utils/categories';
+import { relevantCurrencies } from '../utils/currencies';
 import { convertAmount } from '../utils/fx';
-
-const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
 type TimePeriod = 'week' | 'month' | 'year' | 'custom';
 
@@ -25,10 +24,11 @@ interface AnalyticsData {
 interface AnalyticsProps {
   settings: AppSettings;
   categories: Category[];
+  currencies: CurrencyInfo[];
   rates: FxRates;
 }
 
-export default function Analytics({ settings, categories, rates }: AnalyticsProps) {
+export default function Analytics({ settings, categories, currencies, rates }: AnalyticsProps) {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('month');
   // The filter tracks what has been *deselected* rather than what is selected.
   // Categories are data now, so the list can change underneath this component:
@@ -323,13 +323,15 @@ export default function Analytics({ settings, categories, rates }: AnalyticsProp
             >
               All Currencies
             </button>
-            {CURRENCIES.map(currency => (
+            {/* Enabled currencies, plus any the results are already in — a
+                currency switched off after the fact still has history to slice. */}
+            {relevantCurrencies(currencies, (analytics?.byCurrency ?? []).map(c => c.currency)).map(currency => (
               <button
-                key={currency}
-                className={selectedCurrency === currency ? 'active' : ''}
-                onClick={() => setSelectedCurrency(currency)}
+                key={currency.code}
+                className={selectedCurrency === currency.code ? 'active' : ''}
+                onClick={() => setSelectedCurrency(currency.code)}
               >
-                {currency} ({CURRENCY_SYMBOLS[currency]})
+                {currency.code} ({currency.symbol})
               </button>
             ))}
           </div>

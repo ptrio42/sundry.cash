@@ -8,11 +8,11 @@
 import { Router, Request, Response } from 'express';
 import * as BudgetModel from '../models/budget';
 import * as CategoryModel from '../models/category';
+import * as CurrencyModel from '../models/currency';
 import { ExpenseCategory, Currency } from '../types/expense.types';
 
 const router = Router();
 
-const VALID_CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
 router.get('/', (_req: Request, res: Response) => {
   try {
@@ -29,7 +29,7 @@ router.put('/', (req: Request, res: Response) => {
     const errors: string[] = [];
 
     if (!CategoryModel.exists(category)) errors.push('Category must be one of: ' + CategoryModel.allSlugs().join(', '));
-    if (!VALID_CURRENCIES.includes(currency)) errors.push('Currency must be one of: ' + VALID_CURRENCIES.join(', '));
+    if (!CurrencyModel.isEnabled(currency)) errors.push('Currency must be one of: ' + CurrencyModel.enabledCodes().join(', '));
     if (typeof amount !== 'number' || !isFinite(amount) || amount <= 0) errors.push('Amount must be a positive number');
 
     if (errors.length > 0) {
@@ -49,7 +49,9 @@ router.delete('/:category', (req: Request, res: Response) => {
     const category = req.params.category as ExpenseCategory;
     const currency = req.query.currency as Currency;
 
-    if (!CategoryModel.exists(category) || !VALID_CURRENCIES.includes(currency)) {
+    // `exists`, not `isEnabled`: an existing budget in a since-disabled
+    // currency still has to be removable.
+    if (!CategoryModel.exists(category) || !CurrencyModel.exists(currency)) {
       res.status(400).json({ error: 'Invalid category or currency' });
       return;
     }

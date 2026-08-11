@@ -7,12 +7,11 @@
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { scanReceipt, createReceiptExpense } from '../services/api';
 import { ExpenseFormProps, ExpenseCategory, Currency, ReceiptExtraction } from '../types/expense.types';
-
-const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
+import { offeredCurrencies } from '../utils/currencies';
 
 type Phase = 'capture' | 'review';
 
-export default function ReceiptScan({ onExpenseAdded, settings, categories }: ExpenseFormProps) {
+export default function ReceiptScan({ onExpenseAdded, settings, categories, currencies }: ExpenseFormProps) {
   const [phase, setPhase] = useState<Phase>('capture');
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
@@ -209,8 +208,8 @@ export default function ReceiptScan({ onExpenseAdded, settings, categories }: Ex
                     onChange={(e) => setCurrency(e.target.value as Currency)}
                     required
                   >
-                    {CURRENCIES.map((curr) => (
-                      <option key={curr} value={curr}>{curr}</option>
+                    {offeredCurrencies(currencies).map((curr) => (
+                      <option key={curr.code} value={curr.code}>{curr.code}</option>
                     ))}
                   </select>
                 </div>

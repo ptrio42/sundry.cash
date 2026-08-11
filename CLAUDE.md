@@ -37,27 +37,30 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   change is not finished until all three pass — do not assert success without evidence.
 - **Money is stored as integer minor units** (cents / satoshis) via `backend/src/config/money.ts`.
   Convert only at the model boundary — never put a float in the `amount` column.
-- **Categories are rows; currencies are still a CHECK-constrained enum.** `categories(slug)` is a real
-  table that `expenses` and `budgets` reference by foreign key, so adding a category is a `POST
-  /api/categories` and validation must query the table (`models/category.ts`), never a literal array.
-  The seven built-ins are undeletable because `services/categorize.ts` can emit any of them. Adding a
-  **currency** still requires a migration in `backend/src/config/database.ts` (follow the existing
-  table-recreate pattern) — see `docs/categories-currencies-spec.md` for why that half was deferred.
+- **Categories and currencies are rows, not enums.** Both are real tables that `expenses` and
+  `budgets` reference by foreign key, so validation must query them (`models/category.ts`,
+  `models/currency.ts`) and never a literal array. The seven built-in categories are undeletable
+  because `services/categorize.ts` can emit any of them.
+- **A currency's `minor_units` is immutable once anything references it.** It is what
+  `config/money.ts` multiplies by, so changing it reinterprets stored amounts rather than converting
+  them. Users may only enable/disable entries from the shipped catalogue in
+  `config/currencies.ts` — there is no POST, and adding a currency to the catalogue is a code change
+  on purpose. `setMinorUnits` enforces this in the model so no caller can route around it.
 
 ## Code map
 
 **backend/** — Express + TypeScript, layered:
 - `src/server.ts` — app wiring, middleware, route mounts, graceful shutdown. Exports `app`; binds a
   port only when `NODE_ENV !== 'test'`.
-- `src/routes/` — Express routers: `expenses`, `import`, `budgets`, `categories`, `fx`, `auth`,
-  `settings`, `receipts`, `insights`. New endpoints go here.
-- `src/models/` — better-sqlite3 prepared statements (`expense`, `budget`, `category`, `fx`,
-  `settings`, `insights`). All SQL lives here.
-- `src/config/` — `database.ts` (schema + idempotent migrations + FX seed), `auth.ts` (HMAC tokens),
-  `money.ts` (minor-unit conversion).
+- `src/routes/` — Express routers: `expenses`, `import`, `budgets`, `categories`, `currencies`, `fx`,
+  `auth`, `settings`, `receipts`, `insights`. New endpoints go here.
+- `src/models/` — better-sqlite3 prepared statements (`expense`, `budget`, `category`, `currency`,
+  `fx`, `settings`, `insights`). All SQL lives here.
+- `src/config/` — `database.ts` (schema + idempotent migrations + seeds), `currencies.ts` (the shipped
+  ISO catalogue), `auth.ts` (HMAC tokens), `money.ts` (minor-unit conversion, via the currency table).
 - `src/middleware/` — `auth` (`requireAuth`), `validation`.
 - `src/services/` — `categorize.ts` (keyword auto-categorization, EN + PL); `receipt/` (OCR factory — see gotchas).
-- `src/tests/` — Jest + supertest, 158 cases across 12 files (plus `env.ts` / `paths.ts` /
+- `src/tests/` — Jest + supertest, 184 cases across 13 files (plus `env.ts` / `paths.ts` /
   `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
 
 **frontend/** — React 18 + Vite, single-page tabbed UI (no router, no state library — plain hooks):
@@ -67,8 +70,9 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   deliberately not a tab).
 - `src/services/api.ts` — central `apiFetch` wrapper (base `/api`, bearer from localStorage key
   `sundry-token`, 401 -> `auth-expired` window event). Add API calls here.
-- `src/utils/` — `format.ts`, `categories.ts` (slug -> label/colour), `export.ts` (client-side .xlsx).
-  Charts: recharts. Styling: single dark-first `src/App.css`.
+- `src/utils/` — `format.ts` (currency/date display, backed by a registry App refreshes),
+  `categories.ts` (slug -> label/colour), `currencies.ts` (which currencies a control should offer),
+  `export.ts` (client-side .xlsx). Charts: recharts. Styling: single dark-first `src/App.css`.
 
 ## Key design decisions (the non-obvious "why")
 
@@ -79,10 +83,14 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   deliberate for self-hosting.
 - **Types are duplicated per package** (`src/types/expense.types.ts` in each), not shared across the
   boundary — keep them in sync manually.
-- **Categories are fetched once in `App.tsx` and prop-drilled**, exactly like `settings` and `fxRates`.
-  Nine components need the list; a context or a store would be the third state mechanism in a codebase
-  that deliberately has none. `ExpenseCategory` is therefore just `string` — the compiler cannot check
-  a set the database owns, so `models/category.ts` does it at runtime.
+- **Categories and currencies are fetched once in `App.tsx` and prop-drilled**, exactly like
+  `settings` and `fxRates`. A context or a store would be the third state mechanism in a codebase that
+  deliberately has none. `ExpenseCategory` and `Currency` are therefore just `string` — the compiler
+  cannot check a set the database owns, so the models do it at runtime.
+- **`utils/format.ts` keeps a module-level currency registry** rather than taking the catalogue as an
+  argument: it is called once per rendered amount, and threading it through every call site would be
+  noise. `App` refreshes it (`setCurrencyRegistry`) before the setState that re-renders. Decimal places
+  come from `minorUnits`, so the display can never imply more precision than the column holds.
 - **Receipt OCR is pluggable and live** — `services/receipt/` selects an engine via
   `RECEIPT_OCR_PROVIDER` (default `tesseract`, `stub` under test). The router is mounted at
   `server.ts` (`app.use('/api/receipts', requireAuth, receiptRoutes)`) and drives a real two-step
@@ -108,7 +116,7 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (158 backend + 149 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (184 backend + 174 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).

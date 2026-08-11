@@ -4,20 +4,20 @@
  */
 
 import { useState, useEffect, useRef, FormEvent } from 'react';
-import { Category, Expense, ExpenseCategory, Currency } from '../types/expense.types';
+import { Category, CurrencyInfo, Expense, ExpenseCategory, Currency } from '../types/expense.types';
 import { SATS_PER_BTC } from '../utils/format';
 import { categoryLabel } from '../utils/categories';
+import { offeredCurrencies } from '../utils/currencies';
 
 interface EditExpenseModalProps {
   expense: Expense | null;
   categories: Category[];
+  currencies: CurrencyInfo[];
   onSave: (id: number, updates: Partial<Expense>) => Promise<void>;
   onClose: () => void;
 }
 
-const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
-
-export default function EditExpenseModal({ expense, categories, onSave, onClose }: EditExpenseModalProps) {
+export default function EditExpenseModal({ expense, categories, currencies, onSave, onClose }: EditExpenseModalProps) {
   const [amount, setAmount] = useState<string>('');
   const [date, setDate] = useState<string>('');
   const [description, setDescription] = useState<string>('');
@@ -271,9 +271,15 @@ export default function EditExpenseModal({ expense, categories, onSave, onClose 
               onChange={(e) => setCurrency(e.target.value as Currency)}
               required
             >
-              {CURRENCIES.map(curr => (
-                <option key={curr} value={curr}>
-                  {curr}
+              {/* Same reason as the category select above: an expense in a
+                  since-disabled currency must not be silently re-denominated
+                  by the select falling back to its first option. */}
+              {!offeredCurrencies(currencies).some(c => c.code === currency) && (
+                <option value={currency}>{currency}</option>
+              )}
+              {offeredCurrencies(currencies).map(curr => (
+                <option key={curr.code} value={curr.code}>
+                  {curr.code}
                 </option>
               ))}
             </select>

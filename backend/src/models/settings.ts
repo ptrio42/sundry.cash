@@ -7,7 +7,8 @@
 
 import { db } from '../config/database';
 import * as CategoryModel from '../models/category';
-import { AppSettings, BtcUnit, Currency } from '../types/expense.types';
+import * as CurrencyModel from '../models/currency';
+import { AppSettings, BtcUnit } from '../types/expense.types';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   // 'groceries' is safe as a fallback because it is a built-in and built-ins
@@ -18,8 +19,25 @@ export const DEFAULT_SETTINGS: AppSettings = {
   primaryCurrency: 'USD',
 };
 
-export const VALID_CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 export const VALID_BTC_UNITS: BtcUnit[] = ['BTC', 'sats'];
+
+/**
+ * `defaultBtcUnit` stays special-cased rather than generalised into the
+ * currency catalogue: satoshis are a Bitcoin display convention, not a property
+ * every currency has, and inventing a "sub-unit name" column to hold one row's
+ * worth of truth would be worse than this.
+ */
+
+/**
+ * The code-side default currency, unless the user has disabled it — in which
+ * case the first enabled one. Unlike categories there is no undeletable
+ * built-in to fall back on: USD can be switched off, so the default has to be
+ * derived rather than assumed.
+ */
+function fallbackCurrency(preferred: string): string {
+  if (CurrencyModel.isEnabled(preferred)) return preferred;
+  return CurrencyModel.enabledCodes()[0] ?? preferred;
+}
 
 /** Read all settings, applying defaults for anything missing or invalid. */
 export function getSettings(): AppSettings {
@@ -32,12 +50,13 @@ export function getSettings(): AppSettings {
   const primaryCurrency = map.get('primaryCurrency');
 
   return {
-    defaultCurrency: VALID_CURRENCIES.includes(currency as Currency) ? (currency as Currency) : DEFAULT_SETTINGS.defaultCurrency,
-    // Re-checked against the table on every read, so a saved default that has
-    // since been deleted falls back instead of handing the UI a dead slug.
+    // All three re-checked against their tables on every read, so a saved
+    // default whose category was deleted — or whose currency was disabled —
+    // falls back instead of handing the UI something it cannot offer.
+    defaultCurrency: CurrencyModel.isEnabled(currency) ? (currency as string) : fallbackCurrency(DEFAULT_SETTINGS.defaultCurrency),
     defaultCategory: CategoryModel.exists(category) ? (category as string) : DEFAULT_SETTINGS.defaultCategory,
     defaultBtcUnit: VALID_BTC_UNITS.includes(btcUnit as BtcUnit) ? (btcUnit as BtcUnit) : DEFAULT_SETTINGS.defaultBtcUnit,
-    primaryCurrency: VALID_CURRENCIES.includes(primaryCurrency as Currency) ? (primaryCurrency as Currency) : DEFAULT_SETTINGS.primaryCurrency,
+    primaryCurrency: CurrencyModel.isEnabled(primaryCurrency) ? (primaryCurrency as string) : fallbackCurrency(DEFAULT_SETTINGS.primaryCurrency),
   };
 }
 

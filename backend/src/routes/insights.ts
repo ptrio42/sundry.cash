@@ -11,12 +11,12 @@ import * as insightsModel from '../models/insights';
 import { ComparisonWindow, ComparisonPeriod } from '../models/insights';
 import { isValidDate } from '../middleware/validation';
 import { Currency } from '../types/expense.types';
+import * as CurrencyModel from '../models/currency';
 
 const router = Router();
 
 const VALID_WINDOWS: ComparisonWindow[] = ['rolling', 'calendar'];
 const VALID_PERIODS: ComparisonPeriod[] = ['week', 'month', 'year'];
-const VALID_CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
 /**
  * GET /api/insights/comparison
@@ -46,8 +46,10 @@ router.get('/comparison', (req: Request, res: Response) => {
       errors.push('Anchor must be a valid ISO date (YYYY-MM-DD) from year 1000 onward');
     }
 
-    if (currency !== undefined && !VALID_CURRENCIES.includes(currency as Currency)) {
-      errors.push(`Currency must be one of: ${VALID_CURRENCIES.join(', ')}`);
+    // `exists`, not `isEnabled`: insights read history, and a disabled
+    // currency's history is still there to be reported on.
+    if (currency !== undefined && !CurrencyModel.exists(currency)) {
+      errors.push(`Currency must be one of: ${CurrencyModel.getAll().map(c => c.code).join(', ')}`);
     }
 
     if (errors.length > 0) {
