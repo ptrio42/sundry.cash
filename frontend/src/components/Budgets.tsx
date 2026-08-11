@@ -16,8 +16,15 @@ function currentMonthKey(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export default function Budgets({ expenses, categories, currencies }: BudgetsProps) {
-  const [currency, setCurrency] = useState<Currency>('USD');
+export default function Budgets({ expenses, settings, categories, currencies }: BudgetsProps) {
+  // Open on the currency the user actually spends in, like every other currency
+  // control (ExpenseForm, ExcelImport, ReceiptScan). Hardcoding USD greeted a
+  // PLN-only ledger with "Budgeted $0.00 / no limits" until the reader noticed
+  // the buttons above. The backend re-derives `defaultCurrency` against the
+  // catalogue on every read, so it is always an enabled currency — and
+  // `relevantCurrencies` always offers those, so this selection always has a
+  // button to match it.
+  const [currency, setCurrency] = useState<Currency>(settings.defaultCurrency);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<boolean>(true);

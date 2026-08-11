@@ -5,7 +5,8 @@
  * computed client-side from the `expenses` prop. The behaviour worth pinning
  * down is therefore the scoping: only expenses in the selected currency and in
  * the current month count towards a limit, and every write (set / clear) has to
- * carry the selected currency, not a hardcoded one.
+ * carry the selected currency, not a hardcoded one — starting with which
+ * currency the tab opens on.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -14,7 +15,7 @@ import Budgets from '../components/Budgets';
 import { TEST_CATEGORIES } from './categories.fixture';
 import { TEST_CURRENCIES } from './currencies.fixture';
 import { getBudgets, setBudget, deleteBudget } from '../services/api';
-import { Budget, Expense } from '../types/expense.types';
+import { AppSettings, Budget, Expense } from '../types/expense.types';
 
 vi.mock('../services/api', () => ({
   getBudgets: vi.fn(),
@@ -53,6 +54,13 @@ const expenses: Expense[] = [
   expense({ id: 4, amount: 999, category: 'groceries', currency: 'USD', date: lastMonth(3) }),
 ];
 
+const settings = (defaultCurrency: AppSettings['defaultCurrency']): AppSettings => ({
+  defaultCurrency,
+  defaultCategory: 'groceries',
+  defaultBtcUnit: 'BTC',
+  primaryCurrency: 'USD',
+});
+
 const budgets: Budget[] = [
   { category: 'groceries', currency: 'USD', amount: 200 },
   { category: 'transport', currency: 'USD', amount: 20 },
@@ -73,8 +81,15 @@ const card = (heading: string): HTMLElement => {
   return el as HTMLElement;
 };
 
-const renderBudgets = async () => {
-  const result = render(<Budgets expenses={expenses} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} />);
+const renderBudgets = async (defaultCurrency = 'USD') => {
+  const result = render(
+    <Budgets
+      expenses={expenses}
+      settings={settings(defaultCurrency)}
+      categories={TEST_CATEGORIES}
+      currencies={TEST_CURRENCIES}
+    />
+  );
   await waitFor(() => expect(screen.queryByText(/loading budgets/i)).not.toBeInTheDocument());
   return result;
 };
@@ -137,6 +152,18 @@ describe('Budgets', () => {
     expect(card('Spent so far')).toHaveTextContent(/400,00\s*zł/);
   });
 
+  it('opens on the default currency from settings, with no click needed', async () => {
+    await renderBudgets('PLN');
+
+    expect(screen.getByRole('button', { name: /^PLN/ }).className).toMatch(/\bactive\b/);
+    expect(card('Budgeted')).toHaveTextContent(/1\s*000,00\s*zł/);
+    expect(card('Spent so far')).toHaveTextContent(/400,00\s*zł/);
+    // Not the "$0.00 budgeted, no limits" a hardcoded USD used to show a
+    // PLN-only ledger.
+    expect(card('Budgeted')).not.toHaveTextContent('$0.00');
+    expect(row(/Groceries/)).toHaveTextContent(/1\s*000,00\s*zł/);
+  });
+
   it('saves a typed limit for the selected currency and shows it once reloaded', async () => {
     await renderBudgets();
 
@@ -185,7 +212,14 @@ describe('Budgets', () => {
 
   it('surfaces a load failure instead of an empty budget list', async () => {
     mockGetBudgets.mockRejectedValue(new Error('budgets unavailable'));
-    render(<Budgets expenses={expenses} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} />);
+    render(
+      <Budgets
+        expenses={expenses}
+        settings={settings('USD')}
+        categories={TEST_CATEGORIES}
+        currencies={TEST_CURRENCIES}
+      />
+    );
 
     expect(await screen.findByText('budgets unavailable')).toBeInTheDocument();
     // The rows still render, just without any limits attached.

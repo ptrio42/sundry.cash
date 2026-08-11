@@ -12,7 +12,7 @@ import { convertAmount } from '../utils/fx';
 import { formatCurrency } from '../utils/format';
 import { relevantCurrencies } from '../utils/currencies';
 
-export default function Fx({ expenses, currencies, rates, onRatesChanged }: FxProps) {
+export default function Fx({ expenses, settings, currencies, rates, onRatesChanged }: FxProps) {
   // Enabled currencies plus any the ledger already holds. A rate is what
   // converts *history*, so a currency you have stopped using still needs a row
   // here — the backend applies the same rule to PUT /api/fx.
@@ -21,7 +21,12 @@ export default function Fx({ expenses, currencies, rates, onRatesChanged }: FxPr
     [currencies, expenses]
   );
 
-  const [base, setBase] = useState<Currency>('USD');
+  // The base is a display choice — which currency the *combined* figures are
+  // expressed in — and that is what `primaryCurrency` means everywhere else
+  // (Dashboard's "All → X"), so it follows the setting rather than USD. The rate
+  // rows below stay USD-anchored either way: they are stored as "value of 1 unit
+  // in USD" and the base buttons do not touch them.
+  const [base, setBase] = useState<Currency>(settings.primaryCurrency);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string>('');
 

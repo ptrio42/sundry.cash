@@ -21,6 +21,11 @@ export default function EditExpenseModal({ expense, categories, currencies, onSa
   const [amount, setAmount] = useState<string>('');
   const [date, setDate] = useState<string>('');
   const [description, setDescription] = useState<string>('');
+  // Placeholders, not defaults: the effect below fills both from the expense
+  // before anything is shown (the component renders nothing without one). They
+  // deliberately do *not* follow `settings` the way the entry forms do — an edit
+  // has to open on what the row is denominated in, not on what a new expense
+  // would be, or saving would silently re-denominate it.
   const [category, setCategory] = useState<ExpenseCategory>('other');
   const [currency, setCurrency] = useState<Currency>('USD');
   const [btcUnit, setBtcUnit] = useState<'BTC' | 'sats'>('BTC');
