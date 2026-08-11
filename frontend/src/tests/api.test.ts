@@ -15,7 +15,9 @@ import {
   deleteExpense,
   login,
   getSettings,
-  getToken
+  getToken,
+  getInsightsComparison,
+  getInsightsRecurring
 } from '../services/api';
 
 const TOKEN_KEY = 'sundry-token';
@@ -231,5 +233,54 @@ describe('happy paths', () => {
 
     await expect(login('wrong')).rejects.toThrow('Invalid password');
     expect(getToken()).toBeNull();
+  });
+});
+
+describe('insights', () => {
+  it('sends no query string when no options are given, leaving the defaults to the backend', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ byCategory: [] }));
+
+    await getInsightsComparison();
+
+    expect(requestedUrl()).toBe('/api/insights/comparison');
+  });
+
+  it('puts the comparison options in the query string', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ byCategory: [] }));
+
+    await getInsightsComparison({ window: 'calendar', period: 'week', anchor: '2026-08-10', currency: 'PLN' });
+
+    expect(requestedUrl()).toBe('/api/insights/comparison?window=calendar&period=week&anchor=2026-08-10&currency=PLN');
+  });
+
+  it('returns the parsed comparison payload', async () => {
+    const payload = {
+      window: 'rolling',
+      period: 'month',
+      current: { start: '2026-07-12', end: '2026-08-10' },
+      previous: { start: '2026-06-12', end: '2026-07-11' },
+      byCategory: [
+        { category: 'groceries', currency: 'PLN', current: 1412, previous: 1053.5, delta: 358.5, deltaPct: 34, currentCount: 22, previousCount: 19, isNew: false }
+      ]
+    };
+    fetchMock.mockResolvedValue(jsonResponse(payload));
+
+    await expect(getInsightsComparison()).resolves.toEqual(payload);
+  });
+
+  it('requests recurring charges with and without options', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ recurring: [] }));
+
+    await getInsightsRecurring();
+    expect(requestedUrl()).toBe('/api/insights/recurring');
+
+    await getInsightsRecurring({ since: '2025-01-01', minOccurrences: 2 });
+    expect(requestedUrl(1)).toBe('/api/insights/recurring?since=2025-01-01&minOccurrences=2');
+  });
+
+  it('surfaces a rejected insight request as an error', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Validation failed' }, 400));
+
+    await expect(getInsightsComparison({ anchor: 'nope' })).rejects.toThrow('Validation failed');
   });
 });

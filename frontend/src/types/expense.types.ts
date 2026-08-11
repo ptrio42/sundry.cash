@@ -75,6 +75,56 @@ export interface DateStats {
   count: number;
 }
 
+// --- Insights -------------------------------------------------------------
+// Mirrors the exports of backend/src/models/insights.ts. Types are duplicated
+// per package rather than shared across the boundary — keep the two in sync.
+
+export type ComparisonWindow = 'rolling' | 'calendar';
+export type ComparisonPeriod = 'week' | 'month' | 'year';
+export type Cadence = 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+export type AmountStability = 'stable' | 'variable';
+
+export interface DateRange {
+  start: string; // inclusive, YYYY-MM-DD
+  end: string;   // inclusive, YYYY-MM-DD
+}
+
+// One category in one currency, this period against the one before it.
+export interface CategoryComparison {
+  category: ExpenseCategory;
+  currency: Currency;
+  current: number;
+  previous: number;
+  delta: number;
+  deltaPct: number | null; // null when there was no previous spend to divide by
+  currentCount: number;
+  previousCount: number;
+  isNew: boolean;
+}
+
+export interface ComparisonResult {
+  window: ComparisonWindow;
+  period: ComparisonPeriod;
+  current: DateRange;
+  previous: DateRange;
+  byCategory: CategoryComparison[];
+}
+
+// A charge that repeats on a schedule — the forgotten-subscription report.
+export interface RecurringCharge {
+  label: string;
+  currency: Currency;
+  cadence: Cadence;
+  medianAmount: number;
+  monthlyCost: number;
+  totalPaid: number;
+  occurrences: number;
+  firstSeen: string;
+  lastSeen: string;
+  amountStability: AmountStability;
+  likelyCancelled: boolean;
+}
+
 // A monthly spending limit for a category in a given currency
 export interface Budget {
   category: ExpenseCategory;
