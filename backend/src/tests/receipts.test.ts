@@ -17,6 +17,7 @@ process.env.RECEIPTS_DIR = TEST_RECEIPTS_DIR;
 
 import request from 'supertest';
 import app from '../server';
+import { db } from '../config/database';
 import { isSafeReceiptFilename, receiptImagePath } from '../services/receipt/storage';
 
 const RECEIPT_TEXT = `Biedronka
@@ -101,6 +102,45 @@ describe('POST /api/receipts (save with image)', () => {
 
     expect(res.body.receiptImage).toBeNull();
     createdIds.push(res.body.id);
+  });
+
+  it('stores the detected merchant beside a description the user rewrote', async () => {
+    const res = await request(app)
+      .post('/api/receipts')
+      .field('amount', '11.18')
+      .field('date', '2024-01-15')
+      .field('description', "beer for Ada's party")
+      .field('category', 'groceries')
+      .field('currency', 'PLN')
+      .field('merchant', '  Żabka  ')
+      .expect(201);
+    createdIds.push(res.body.id);
+
+    // Read back from the column rather than the response: `merchant` is never
+    // returned, because it is the scanner's observation and not a field of the
+    // expense the user owns. Trimmed on the way in; the description is
+    // untouched. `models/insights.ts` is what reads it.
+    const stored = db.prepare('SELECT description, merchant FROM expenses WHERE id = ?').get(res.body.id) as
+      { description: string; merchant: string | null };
+    expect(stored).toEqual({ description: "beer for Ada's party", merchant: 'Żabka' });
+    expect(res.body.merchant).toBeUndefined();
+  });
+
+  it('leaves the merchant NULL when the scan found none', async () => {
+    const res = await request(app)
+      .post('/api/receipts')
+      .field('amount', '3.50')
+      .field('date', '2024-01-16')
+      .field('description', 'Unknown shop')
+      .field('category', 'other')
+      .field('currency', 'PLN')
+      .field('merchant', '   ')
+      .expect(201);
+    createdIds.push(res.body.id);
+
+    // Whitespace is not a merchant. NULL means "group me by my description".
+    const stored = db.prepare('SELECT merchant FROM expenses WHERE id = ?').get(res.body.id) as { merchant: string | null };
+    expect(stored.merchant).toBeNull();
   });
 
   it('rejects invalid fields with 400', async () => {

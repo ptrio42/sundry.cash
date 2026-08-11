@@ -168,6 +168,8 @@ Base URL `http://localhost:5000/api`. Everything except `/health` and `/auth/*` 
 | `DELETE` | `/categories/:slug` | Delete one — 403 for a built-in, 409 if in use without `?reassignTo=` |
 | `GET` | `/insights/comparison` | Spend per category vs the period before — `window`, `period`, `anchor`, `currency` |
 | `GET` | `/insights/recurring` | Repeating charges and what each costs per month — `since`, `minOccurrences` |
+| `GET` | `/insights/merchants` | Spend per merchant, small purchases included — `since`, `until`, `currency`, `limit` (per currency) |
+| `GET` | `/insights/patterns` | Weekend against weekday spend, per day — `since`, `until`, `currency` |
 | `GET` | `/currencies` | The currency catalogue, enabled entries first |
 | `PUT` | `/currencies/:code` | Enable or disable one — `{ enabled }` is the only field |
 | `GET`, `PUT` | `/fx` | Read / set manual exchange rates |

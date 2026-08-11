@@ -310,6 +310,21 @@ describe('migration from the CHECK-constrained schema', () => {
   function restoreLegacySchema(): void {
     db.exec('PRAGMA foreign_keys = OFF');
     db.exec('BEGIN TRANSACTION');
+    try {
+      rebuildLegacyTables();
+      db.exec('COMMIT');
+    } catch (error) {
+      // Without the rollback a failed rebuild leaves the transaction open, and
+      // every later suite in the run dies on "database is locked" rather than
+      // showing what actually broke here.
+      db.exec('ROLLBACK');
+      throw error;
+    } finally {
+      db.exec('PRAGMA foreign_keys = ON');
+    }
+  }
+
+  function rebuildLegacyTables(): void {
     db.exec(`
       CREATE TABLE expenses_legacy (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -334,14 +349,24 @@ describe('migration from the CHECK-constrained schema', () => {
     `);
     // Only rows the old CHECK would have allowed — a real legacy DB can hold
     // nothing else.
-    db.exec(`INSERT INTO expenses_legacy SELECT * FROM expenses WHERE category IN (${BUILTIN_SLUGS.map(s => `'${s}'`).join(', ')})`);
-    db.exec(`INSERT INTO budgets_legacy SELECT * FROM budgets WHERE category IN (${BUILTIN_SLUGS.map(s => `'${s}'`).join(', ')})`);
+    //
+    // Columns are listed rather than `SELECT *`: today's `expenses` carries
+    // columns this shape predates (`merchant` is the current one), and a star
+    // would supply more values than the legacy table has and abort the rebuild.
+    const builtins = BUILTIN_SLUGS.map(s => `'${s}'`).join(', ');
+    db.exec(`
+      INSERT INTO expenses_legacy (id, amount, date, description, category, currency, created_at, receipt_image)
+      SELECT id, amount, date, description, category, currency, created_at, receipt_image
+      FROM expenses WHERE category IN (${builtins})
+    `);
+    db.exec(`
+      INSERT INTO budgets_legacy (id, category, currency, amount, created_at)
+      SELECT id, category, currency, amount, created_at FROM budgets WHERE category IN (${builtins})
+    `);
     db.exec('DROP TABLE expenses');
     db.exec('DROP TABLE budgets');
     db.exec('ALTER TABLE expenses_legacy RENAME TO expenses');
     db.exec('ALTER TABLE budgets_legacy RENAME TO budgets');
-    db.exec('COMMIT');
-    db.exec('PRAGMA foreign_keys = ON');
   }
 
   it('drops the constraint, keeps every row, and adds the foreign key', () => {
@@ -352,7 +377,11 @@ describe('migration from the CHECK-constrained schema', () => {
     ).run();
     db.prepare(`INSERT INTO budgets (category, currency, amount) VALUES ('transport', 'PLN', 30000)`).run();
 
-    const expensesBefore = db.prepare('SELECT * FROM expenses ORDER BY id').all();
+    // The columns the legacy shape had. Read by name rather than with a star so
+    // that a column the migration *adds* (today: `merchant`) does not read as a
+    // rewritten row — what this asserts is that the existing data is untouched.
+    const legacyColumns = 'id, amount, date, description, category, currency, created_at, receipt_image';
+    const expensesBefore = db.prepare(`SELECT ${legacyColumns} FROM expenses ORDER BY id`).all();
     const budgetsBefore = db.prepare('SELECT * FROM budgets ORDER BY id').all();
     expect(
       (db.prepare(`SELECT sql FROM sqlite_master WHERE name='expenses'`).get() as { sql: string }).sql
@@ -368,7 +397,7 @@ describe('migration from the CHECK-constrained schema', () => {
 
     // Not one row rewritten — including the receipt link, which the two older
     // table-recreate migrations do not carry across.
-    expect(db.prepare('SELECT * FROM expenses ORDER BY id').all()).toEqual(expensesBefore);
+    expect(db.prepare(`SELECT ${legacyColumns} FROM expenses ORDER BY id`).all()).toEqual(expensesBefore);
     expect(db.prepare('SELECT * FROM budgets ORDER BY id').all()).toEqual(budgetsBefore);
 
     db.prepare(`DELETE FROM expenses WHERE description = 'Legacy row'`).run();

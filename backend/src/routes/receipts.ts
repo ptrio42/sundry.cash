@@ -97,15 +97,36 @@ router.post('/scan', uploadReceipt, async (req: Request, res: Response) => {
   }
 });
 
+/** Longest merchant name worth storing; a receipt header is a shop name, not a paragraph. */
+const MAX_MERCHANT_LENGTH = 120;
+
+/**
+ * The merchant the scan detected, as it should be stored.
+ *
+ * Not a user-facing field and never validated into a 400: the client echoes
+ * back what `/scan` returned, so a missing or unusable value simply means the
+ * row groups by its description instead — which is what every manually entered
+ * expense already does. Truncated rather than rejected for the same reason.
+ */
+function detectedMerchant(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed.slice(0, MAX_MERCHANT_LENGTH);
+}
+
 /**
  * POST /api/receipts
  * Create an expense from reviewed fields, attaching the uploaded photo.
  * Sent as multipart/form-data: the image in `receipt`, the fields alongside.
+ *
+ * `merchant` rides along as the scanner saw it, never as something the user
+ * typed: the description box is theirs to rewrite, and the insights layer still
+ * needs to know which shop the row came from. See docs/insights-spec.md.
  */
 router.post('/', uploadReceipt, (req: Request, res: Response) => {
   try {
     const amount = parseFloat(String(req.body.amount ?? ''));
-    const { date, description, category, currency } = req.body as Record<string, string>;
+    const { date, description, category, currency, merchant } = req.body as Record<string, string>;
 
     const errors: string[] = [];
     if (!isFinite(amount) || amount <= 0) errors.push('Amount must be a positive number');
@@ -131,6 +152,7 @@ router.post('/', uploadReceipt, (req: Request, res: Response) => {
         category: category as ExpenseCategory,
         currency: currency as Currency,
         receiptImage,
+        merchant: detectedMerchant(merchant),
       });
       res.status(201).json(expense);
     } catch (dbError) {

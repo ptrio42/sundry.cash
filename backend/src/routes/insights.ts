@@ -2,6 +2,8 @@
  * Insight routes — /api/insights
  *   GET /comparison  spend per category for a period vs the one before it
  *   GET /recurring   repeating charges, with what each one costs per month
+ *   GET /merchants   where the money goes, small frequent purchases included
+ *   GET /patterns    when it goes — weekend against weekday, per day
  *
  * Read-only: nothing here writes, so there is no POST/PUT counterpart.
  */
@@ -17,6 +19,46 @@ const router = Router();
 
 const VALID_WINDOWS: ComparisonWindow[] = ['rolling', 'calendar'];
 const VALID_PERIODS: ComparisonPeriod[] = ['week', 'month', 'year'];
+
+/**
+ * `since` / `until`, shared by the two window reports below.
+ *
+ * The year floor is the same one `anchor` carries, for the same reason:
+ * `getPatterns` divides by how many of each weekday the window holds, and
+ * `Date.UTC` maps years 0-99 onto 1900-1999, so a two-digit year would be
+ * counted against the wrong century. Applied to both endpoints so this router
+ * does not end up with two different notions of a valid date.
+ */
+function windowErrors(since: unknown, until: unknown): string[] {
+  const errors: string[] = [];
+
+  const check = (value: unknown, name: string): void => {
+    if (value === undefined) return;
+    if (typeof value !== 'string' || !isValidDate(value) || value < '1000-01-01') {
+      errors.push(`${name} must be a valid ISO date (YYYY-MM-DD) from year 1000 onward`);
+    }
+  };
+
+  check(since, 'Since');
+  check(until, 'Until');
+
+  // ISO dates sort lexicographically, so this is a real chronological check —
+  // but only once both are known to be well-formed.
+  if (errors.length === 0 && typeof since === 'string' && typeof until === 'string' && since > until) {
+    errors.push('Since must be before or equal to until');
+  }
+
+  return errors;
+}
+
+/**
+ * `exists`, not `isEnabled`: insights read history, and a disabled currency's
+ * history is still there to be reported on.
+ */
+function currencyErrors(currency: unknown): string[] {
+  if (currency === undefined || CurrencyModel.exists(currency)) return [];
+  return [`Currency must be one of: ${CurrencyModel.getAll().map(c => c.code).join(', ')}`];
+}
 
 /**
  * GET /api/insights/comparison
@@ -46,11 +88,7 @@ router.get('/comparison', (req: Request, res: Response) => {
       errors.push('Anchor must be a valid ISO date (YYYY-MM-DD) from year 1000 onward');
     }
 
-    // `exists`, not `isEnabled`: insights read history, and a disabled
-    // currency's history is still there to be reported on.
-    if (currency !== undefined && !CurrencyModel.exists(currency)) {
-      errors.push(`Currency must be one of: ${CurrencyModel.getAll().map(c => c.code).join(', ')}`);
-    }
+    errors.push(...currencyErrors(currency));
 
     if (errors.length > 0) {
       res.status(400).json({ error: 'Validation failed', details: errors });
@@ -105,6 +143,73 @@ router.get('/recurring', (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error building recurring insight:', error);
     res.status(500).json({ error: 'Failed to build recurring charges' });
+  }
+});
+
+/**
+ * GET /api/insights/merchants
+ * Query params: since, until (YYYY-MM-DD), currency, limit (1..100, default 20)
+ *
+ * Answers "twenty coffees at 15 zł is 300 zł a month" — spend that no category
+ * total makes visible because every single charge looks trivial.
+ */
+router.get('/merchants', (req: Request, res: Response) => {
+  try {
+    const { since, until, currency, limit } = req.query;
+    const errors: string[] = [...windowErrors(since, until), ...currencyErrors(currency)];
+
+    // Clamping silently would answer a different question than the one asked,
+    // so an out-of-range limit is refused rather than quietly reduced.
+    let rowLimit: number | undefined;
+    if (limit !== undefined) {
+      rowLimit = Number(limit);
+      if (!Number.isInteger(rowLimit) || rowLimit < 1 || rowLimit > insightsModel.MAX_MERCHANT_LIMIT) {
+        errors.push(`limit must be an integer between 1 and ${insightsModel.MAX_MERCHANT_LIMIT}`);
+      }
+    }
+
+    if (errors.length > 0) {
+      res.status(400).json({ error: 'Validation failed', details: errors });
+      return;
+    }
+
+    res.json(insightsModel.getMerchants({
+      since: since as string | undefined,
+      until: until as string | undefined,
+      currency: currency as Currency | undefined,
+      limit: rowLimit
+    }));
+  } catch (error) {
+    console.error('Error building merchants insight:', error);
+    res.status(500).json({ error: 'Failed to build merchant totals' });
+  }
+});
+
+/**
+ * GET /api/insights/patterns
+ * Query params: since, until (YYYY-MM-DD), currency
+ *
+ * When the money goes out rather than what on. Every figure is per day, so a
+ * week's 5:2 split of weekdays to weekend days cannot masquerade as a habit.
+ */
+router.get('/patterns', (req: Request, res: Response) => {
+  try {
+    const { since, until, currency } = req.query;
+    const errors: string[] = [...windowErrors(since, until), ...currencyErrors(currency)];
+
+    if (errors.length > 0) {
+      res.status(400).json({ error: 'Validation failed', details: errors });
+      return;
+    }
+
+    res.json(insightsModel.getPatterns({
+      since: since as string | undefined,
+      until: until as string | undefined,
+      currency: currency as Currency | undefined
+    }));
+  } catch (error) {
+    console.error('Error building patterns insight:', error);
+    res.status(500).json({ error: 'Failed to build spending patterns' });
   }
 });
 

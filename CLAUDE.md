@@ -60,7 +60,7 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   ISO catalogue), `auth.ts` (HMAC tokens), `money.ts` (minor-unit conversion, via the currency table).
 - `src/middleware/` — `auth` (`requireAuth`), `validation`.
 - `src/services/` — `categorize.ts` (keyword auto-categorization, EN + PL); `receipt/` (OCR factory — see gotchas).
-- `src/tests/` — Jest + supertest, 184 cases across 13 files (plus `env.ts` / `paths.ts` /
+- `src/tests/` — Jest + supertest, 209 cases across 13 files (plus `env.ts` / `paths.ts` /
   `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
 
 **frontend/** — React 18 + Vite, single-page tabbed UI (no router, no state library — plain hooks):
@@ -96,6 +96,12 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   `server.ts` (`app.use('/api/receipts', requireAuth, receiptRoutes)`) and drives a real two-step
   UI: scan -> review/edit -> save. The provider seam exists so Claude Vision can replace Tesseract
   without touching routes or frontend — don't collapse it.
+- **`expenses.merchant` is write-only and has no UI** — the scanner detects a shop, `ReceiptScan`
+  sends it alongside the description the user is free to rewrite, and only `models/insights.ts` ever
+  reads it (`getMerchants` falls back to the description when it is NULL). It is deliberately absent
+  from `Expense`, so no second "Merchant" box appears in a product whose pitch is simplicity, and an
+  edit cannot overwrite what the receipt said. Nullable, never backfilled; its `ALTER TABLE` runs
+  *after* the enum migrations in `database.ts`, which rebuild `expenses` from an explicit column list.
 - **Dark-first UI** — `index.html` sets the dark background before React mounts to avoid a flash.
 
 ## Gotchas
@@ -116,7 +122,7 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (184 backend + 174 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (209 backend + 178 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).

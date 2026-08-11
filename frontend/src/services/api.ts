@@ -422,6 +422,12 @@ export async function createReceiptExpense(
     description: string;
     category: ExpenseCategory;
     currency: Currency;
+    /**
+     * The merchant the scan detected, passed through untouched. Never an input:
+     * the user edits the description, and this records what was on the receipt
+     * so insights can still group the row by shop.
+     */
+    merchant?: string | null;
   },
   file?: File | null
 ): Promise<Expense> {
@@ -432,6 +438,9 @@ export async function createReceiptExpense(
   formData.append('description', fields.description);
   formData.append('category', fields.category);
   formData.append('currency', fields.currency);
+  // Omitted rather than sent empty when OCR found no merchant: the column is
+  // nullable and the backend falls back to the description.
+  if (fields.merchant) formData.append('merchant', fields.merchant);
 
   const response = await apiFetch('/receipts', {
     method: 'POST',

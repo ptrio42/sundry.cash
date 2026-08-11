@@ -109,8 +109,19 @@ export default function ReceiptScan({ onExpenseAdded, settings, categories, curr
 
     setSaving(true);
     try {
+      // `extraction.merchant` goes along with whatever the user made of the
+      // description. There is deliberately no field for it: the shop the
+      // receipt named is an observation, and rewriting "Żabka" to "beer for
+      // Ada's party" should not erase which shop it was. Insights group on it.
       const expense = await createReceiptExpense(
-        { amount: amountNum, date, description: description.trim(), category, currency },
+        {
+          amount: amountNum,
+          date,
+          description: description.trim(),
+          category,
+          currency,
+          merchant: extraction?.merchant ?? null
+        },
         file
       );
       onExpenseAdded(expense);

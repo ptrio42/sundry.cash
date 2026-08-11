@@ -60,10 +60,24 @@ export interface Expense {
 }
 
 // DTO for creating a new expense (excludes id and createdAt)
-export type CreateExpenseDTO = Omit<Expense, 'id' | 'createdAt'>;
+export type CreateExpenseDTO = Omit<Expense, 'id' | 'createdAt'> & {
+  /**
+   * The merchant a receipt scan detected, captured silently at scan time.
+   *
+   * Write-only on purpose, and deliberately not part of `Expense`: it is never
+   * shown, never entered by hand and never returned, so the product gains no
+   * second "Merchant" box for the sake of a report. It exists only so
+   * `models/insights.ts` can group rows whose description the user has since
+   * rewritten; NULL (every manual and historical row) falls back to the
+   * description. See docs/insights-spec.md.
+   */
+  merchant?: string | null;
+};
 
-// DTO for updating an expense (all fields optional)
-export type UpdateExpenseDTO = Partial<CreateExpenseDTO>;
+// DTO for updating an expense (all fields optional).
+// Built from `Expense`, not from `CreateExpenseDTO`: `merchant` is what the
+// scan saw, so an edit to the description must not be able to rewrite it.
+export type UpdateExpenseDTO = Partial<Omit<Expense, 'id' | 'createdAt'>>;
 
 // Filters for querying expenses
 export interface ExpenseFilters {
