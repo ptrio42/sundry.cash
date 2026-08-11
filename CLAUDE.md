@@ -60,7 +60,7 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   ISO catalogue), `auth.ts` (HMAC tokens), `money.ts` (minor-unit conversion, via the currency table).
 - `src/middleware/` — `auth` (`requireAuth`), `validation`.
 - `src/services/` — `categorize.ts` (keyword auto-categorization, EN + PL); `receipt/` (OCR factory — see gotchas).
-- `src/tests/` — Jest + supertest, 260 cases across 15 files (plus `env.ts` / `paths.ts` /
+- `src/tests/` — Jest + supertest, 267 cases across 15 files (plus `env.ts` / `paths.ts` /
   `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
 
 **frontend/** — React 18 + Vite, single-page UI (no state library — plain hooks). Four destinations
@@ -68,16 +68,19 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 router in ~80 lines with **no routing dependency**. Hash rather than `pushState` on purpose — the
 latter needs every path answered with `index.html`, and nothing promises a self-hoster's static
 server does, so `/expenses` would 404 on reload:
-- `src/main.tsx` -> `src/components/App.tsx`. Feature components: `Dashboard`, `Analytics`, `Budgets`,
-  `Fx`, `ExpenseForm`, `ExpenseTable`, `ExcelImport`, `EditExpenseModal`, `Login`, `Settings`,
-  `ReceiptScan`, `InsightsStrip` (three sentences at the top of `Dashboard` — it renders what
-  `/insights/summary` ranked and picks nothing itself), `Insights` (the tab behind those sentences:
-  four blocks over the four data endpoints, no filters — see below).
+- `src/main.tsx` -> `src/components/App.tsx`. Feature components: `Home` (the boot screen — six
+  sections over six endpoints, findings as section headings; `Dashboard`, `Insights` and
+  `InsightsStrip` merged into it in wave 2), `Analytics`, `Budgets`, `Fx`, `ExpenseForm`,
+  `ExpenseTable`, `ExcelImport`, `EditExpenseModal`, `Login`, `Settings`, `ReceiptScan`,
+  `CurrencyScope`. `Analytics`, `Fx` and `ReceiptScan` have no nav entry until waves 3–4 re-enter them
+  from their new homes; `ExcelImport` is reached from Home's empty-ledger Start card.
 - `src/services/api.ts` — central `apiFetch` wrapper (base `/api`, bearer from localStorage key
   `sundry-token`, 401 -> `auth-expired` window event). Add API calls here.
 - `src/utils/` — `format.ts` (currency/date display, backed by a registry App refreshes),
-  `categories.ts` (slug -> label/colour), `currencies.ts` (which currencies a control should offer),
-  `export.ts` (client-side .xlsx). Charts: recharts. Styling: single dark-first `src/App.css`.
+  `categories.ts` (slug -> label/colour), `currencies.ts` (which currencies a control should offer —
+  three different questions, see the file header), `insights.ts` (currency scoping for the four data
+  endpoints), `home.ts` (Home's windows, its section arithmetic, and the sentence one finding becomes),
+  `route.ts`, `export.ts` (client-side .xlsx). Charts: recharts. Styling: single dark-first `src/App.css`.
 
 ## Key design decisions (the non-obvious "why")
 
@@ -107,23 +110,36 @@ server does, so `/expenses` would 404 on reload:
   from `Expense`, so no second "Merchant" box appears in a product whose pitch is simplicity, and an
   edit cannot overwrite what the receipt said. Nullable, never backfilled; its `ALTER TABLE` runs
   *after* the enum migrations in `database.ts`, which rebuild `expenses` from an explicit column list.
-- **Insight selection lives on the server, and the strip refetches per currency** —
-  `/insights/summary?scope=primary|<code>` scores every candidate finding against the user's own
-  window spend (`SCORING` in `models/insights.ts`, one exported block on purpose) and returns at most
-  three. Ranking a PLN finding against a USD one requires converting first, so the scope is part of
-  the question: clicking a currency button costs a round trip instead of a re-render, and buys one
-  implementation of the merge instead of two. Findings carry numbers and identifiers, **never
-  sentences** — PL/EN is a roadmap item and an API that emitted English would have to be redone.
-- **The Insights *tab* scopes currency client-side, unlike the strip** — it only displays per-currency
-  lists and totals, which is what `Dashboard` already converts with `convertAmount`, so `utils/insights.ts`
-  does the merge and a currency switch is a re-render. Nothing is ranked across currencies there, which
-  is the whole reason the strip needs the server. It asks `/insights/merchants` for the maximum 100 rows
+- **Insight selection lives on the server, and Home refetches findings per currency** —
+  `/insights/summary?scope=primary|<code>&period=&window=` scores every candidate finding against the
+  user's own window spend (`SCORING` in `models/insights.ts`, one exported block on purpose) and
+  returns at most three. Ranking a PLN finding against a USD one requires converting first, so the
+  scope is part of the question: clicking a currency button costs a round trip instead of a re-render,
+  and buys one implementation of the merge instead of two. `period`/`window` are `/comparison`'s own
+  pair, forwarded verbatim, so the findings measure the same window the sections they head do. Findings
+  carry numbers and identifiers, **never sentences** — PL/EN is a roadmap item and an API that emitted
+  English would have to be redone. The templates live in `utils/home.ts`.
+- **The four data endpoints are scoped client-side, unlike the summary** — they only feed per-currency
+  lists and totals, which Home already converts with `convertAmount`, so `utils/insights.ts` does the
+  merge and a currency switch is a re-render. Nothing is ranked across currencies there, which is the
+  whole reason the summary needs the server. `/insights/merchants` is asked for the maximum 100 rows
   because that endpoint's limit is a top-N *per currency* — a merchant dropped server-side cannot
   reappear in a client-side merge, and the UI says so when `truncated` comes back true.
-- **Insights is not Analytics** — Analytics answers "how much on X between A and B?" and is driven by
-  the user's filters; Insights answers "what should I know that I did not ask about?" and is driven by
-  the data. Insights therefore has **no filter wall**, at most a currency scope. A block that needs
-  configuring before it says anything belongs in Analytics. Stated in both component headers; keep it.
+- **Home carries two clocks and every section states its own** (ruling R2 of the UX report). The page
+  control (`Last 30 days · This month · Last 12 months`, default 30 days) moves the headline, "Where it
+  went" and the budget verdict; subscriptions, merchants and weekdays keep their own twelve months.
+  Neither may be collapsed into the other: over 30 days a weekday has about four samples and the
+  merchant list goes thin, and mixing a 12-month numerator with a 1-month denominator breaks
+  `materiality`. Printing both windows is what makes this safe — do not "simplify" it to one control.
+- **Home is not Analytics** — Analytics answers "how much on X between A and B?" and is driven by the
+  user's filters; Home answers "what should I know that I did not ask about?" and is driven by the
+  data. Home therefore has **no filter wall**: a default window, no category checkboxes, no required
+  currency, no custom range. A section that needs configuring before it says anything belongs in
+  Analytics (wave 3 folds that into Expenses). Stated in the component header; keep it.
+- **Budget limits have no month dimension**, so Home scales them: the allowance is the standing monthly
+  limit times `monthsInWindow(days)` (1 for both month-length windows, 12 for the year), and the
+  section says which limits it compared against. Comparing a year of spending with one monthly limit
+  would report everybody as 1100% over.
 - **Dark-first UI** — `index.html` sets the dark background before React mounts to avoid a flash.
 
 ## Gotchas
@@ -144,7 +160,7 @@ server does, so `/expenses` would 404 on reload:
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (260 backend + 248 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (267 backend + 316 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).

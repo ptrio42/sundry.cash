@@ -58,6 +58,16 @@ vi.mock('../services/api', () => ({
   deleteExpense: vi.fn(),
   deleteAllExpenses: vi.fn(),
   getInsightsSummary: vi.fn(),
+  // Home's five other calls, and the two the importer inside its Start card
+  // makes. Nothing here has a ledger to report on, so they are never called —
+  // but a missing export would fail as `undefined is not a function` the day one
+  // of these cases does load expenses.
+  getInsightsComparison: vi.fn(),
+  getInsightsRecurring: vi.fn(),
+  getInsightsMerchants: vi.fn(),
+  getInsightsPatterns: vi.fn(),
+  previewImport: vi.fn(),
+  confirmImport: vi.fn(),
   exportExpensesXlsx: vi.fn(),
   fetchReceiptObjectUrl: vi.fn(),
   updateSettings: vi.fn(),
@@ -253,19 +263,21 @@ describe('App — routing', () => {
   });
 
   it('names the boot destination in the URL when the URL names nothing', async () => {
-    // Still the Add form: opening on Home is worthless until Home is worth
-    // opening (end of wave 2). What changed is that the URL now says where you are.
+    // Home, as of wave 2 (change 2) — a product that tells you things must not
+    // open on a blank form and ask you to work before it says anything. This is
+    // the last line of that wave, not the first: the flip is worthless until
+    // Home is worth opening.
     await renderApp();
 
-    expect(window.location.hash).toBe('#/add');
-    expect(title()).toHaveTextContent('Add expense');
+    expect(window.location.hash).toBe('#/home');
+    expect(title()).toHaveTextContent('Home');
   });
 
   it('falls back to the boot destination for a route that does not exist', async () => {
     window.history.replaceState(null, '', '#/analytics');
     await renderApp();
 
-    expect(title()).toHaveTextContent('Add expense');
+    expect(title()).toHaveTextContent('Home');
   });
 
   it('moves Back between destinations instead of leaving the app', async () => {

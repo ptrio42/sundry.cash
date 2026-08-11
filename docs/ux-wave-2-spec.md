@@ -183,4 +183,26 @@ Nothing under `data/`, no `*.db`, no `.env*` staged.
 
 ## Follow-ups found while implementing — not in this batch
 
-*(add here; do not build them)*
+- **`stackedCategorySeries` in `utils/categories.ts` is now dead code.** Its only caller was the
+  stacked "Trend by Category" chart, which went with `Dashboard`. It still has a unit suite
+  (`categories.util.test.ts`), and deleting a tested util is not one of the 28 changes — so it stays.
+  Wave 3 owns Analytics and should settle it there.
+- **The one shared currency-scope option set is only half done.** `scopeCurrencies` (added here) is the
+  rule — "offer what this screen has numbers in" — and Home uses it. Budgets still calls
+  `relevantCurrencies` and offers everything enabled, which for that screen is nearly right (a limit
+  can exist in a currency nothing has been spent in yet) but is a different list. Wave 4 rebuilds
+  Budgets and should pass `[...ledger, ...limits]` to the same function.
+- **The two clocks print the same words when the page window is 12 months.** "Last 12 months ·
+  12 sie 2025 – 11 sie 2026" over the spending sections, "Last 12 months · 11 sie 2025 – 11 sie 2026"
+  over the habit ones — a rolling 365 days against twelve calendar months, one day apart. Both are
+  stated exactly, so nothing is ambiguous, but the labels stop distinguishing the two clocks in that
+  one window. Any fix invents vocabulary; leaving it.
+- **A category that fell to zero is named only by a finding.** "Where it went" decomposes the window's
+  spend, so a category with nothing in it is not a row. The demo shows the case working — "Maintenance
+  is down 100% … 0,00 zł, against 380,00 zł before" heads a list that does not contain Maintenance.
+  Correct, and worth a second look if the finding does not win a slot.
+- **Dates are still locale-by-accident** (F19): the demo prints "11 sie 2025" and "sierpień 2026" in an
+  English UI. Already on the backlog, already scoped to before any public asset ships.
+- **`ExcelImport` gained an optional `onImported` callback** so Home's inline picker refreshes the
+  ledger it is standing on. Its heading ("Import Expenses from Excel") is still a screen's heading
+  inside a card; wave 3 moves it into the Expenses toolbar and should restyle it there.

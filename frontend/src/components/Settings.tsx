@@ -255,7 +255,7 @@ export default function Settings({
           >
             {offeredCurrencies(currencies).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
           </select>
-          <p className="field-hint">The dashboard can combine all spending into this currency using your FX rates.</p>
+          <p className="field-hint">Home can combine all spending into this currency using your FX rates.</p>
         </div>
 
         <div className="settings-actions">

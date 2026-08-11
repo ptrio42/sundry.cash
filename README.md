@@ -79,19 +79,19 @@ multi-tenant; each instance stays one container pair with its own SQLite file.
 - **Multi-currency** — 60 currencies to choose from, three enabled to start (USD, PLN and BTC, the last
   stored to satoshi precision). Each carries its own decimal count, so ¥1,480 is stored and shown as
   whole yen rather than as cents. Totals are grouped per currency by default; set a primary currency and
-  the dashboard converts everything into it using your own rates.
-- **Analytics & dashboard** — category donut with a running total, stacked day/week/month trend, and a
-  13-week daily-spend heatmap.
-- **Insights** — three sentences at the top of the dashboard answering "what changed?". The server
-  ranks six kinds of finding — the biggest mover against the previous 30 days, anything you started
-  spending on, what your recurring charges cost, one that stopped, a shop you visit more than you
-  think, and a weekend habit — scoring each against your own spending rather than against a fixed
-  amount, and returns only the ones worth reading. Nothing is shown when there is nothing to say.
-- **Insights tab** — the detail behind those sentences, for when you do want to dig: every
-  subscription with its cadence, monthly cost and lifetime total (the stopped ones listed separately),
-  where the money actually goes per merchant, what you spend per day of the week, and the full
-  category comparison the strip only ever quotes one row of. No filters — Analytics is the screen you
-  drive, this is the one that talks back.
+  Home converts everything into it using your own rates.
+- **Home** — the boot screen, and the whole point of the product: what you spent over a window you pick
+  (`Last 30 days · This month · Last 12 months`), the categories ranked with their share and their
+  change, whether any budget is blown, and then the habits — subscriptions, the shops you keep going
+  back to, and when in the week the money goes. Every section prints the window it measured over,
+  because the habit sections deliberately use a much longer one than the page control: 30 days leaves
+  about four samples per weekday.
+- **Findings are the headlines** — the server ranks six kinds of finding (the biggest mover against the
+  previous window, anything you started spending on, what your recurring charges cost, one that
+  stopped, a shop you visit more than you think, a weekend habit), scoring each against your own
+  spending rather than against a fixed amount. Each one it keeps becomes the heading of the section
+  that proves it, and the section with a finding far ahead of the rest moves to the top. Nothing is
+  shown where there is nothing to say — no empty boxes, no "0" tiles.
 - **Export** — the whole ledger as `.xlsx` from the server, or CSV generated in the browser.
 - **Optional login** — set `APP_PASSWORD` and the app gates behind a 7-day HMAC bearer token.
 - **Dark-first UI, mobile layout, installable PWA** — with a light theme toggle.
@@ -238,7 +238,7 @@ Worth knowing before you rely on it:
 
 - **Single user.** One password, one ledger. No accounts, no sharing model, no per-user data.
 - **The whole ledger is fetched in one request.** The table pages 50 rows at a time so the DOM stays
-  small, but the dashboard and analytics need every row to draw their charts, so there is no
+  small, but Home's heatmap and the analytics charts need every row to draw, so there is no
   server-side paging. Fine for the thousands of expenses a person actually records; not built for a
   hundred thousand.
 - **Manual FX rates.** No live feed by design.

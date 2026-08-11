@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { offeredCurrencies, relevantCurrencies } from '../utils/currencies';
+import { offeredCurrencies, relevantCurrencies, scopeCurrencies } from '../utils/currencies';
 import { TEST_CURRENCIES } from './currencies.fixture';
 
 describe('offeredCurrencies', () => {
@@ -36,5 +36,27 @@ describe('relevantCurrencies', () => {
   it('deduplicates and does not care how often a code appears in the data', () => {
     const codes = relevantCurrencies(TEST_CURRENCIES, ['EUR', 'EUR', 'USD']).map(c => c.code);
     expect(codes.filter(c => c === 'EUR')).toHaveLength(1);
+  });
+});
+
+describe('scopeCurrencies', () => {
+  it('offers only what the report has numbers in, so every button leads somewhere', () => {
+    // The narrow one. Offering an *enabled* currency the data never used is a
+    // guaranteed blank screen behind a button — F9's complaint about Analytics.
+    expect(scopeCurrencies(TEST_CURRENCIES, ['PLN']).map(c => c.code)).toEqual(['PLN']);
+    expect(scopeCurrencies(TEST_CURRENCIES, ['USD', 'PLN']).map(c => c.code)).toEqual(['PLN', 'USD']);
+  });
+
+  it('still offers a disabled currency the data uses', () => {
+    // Disabling means "stop offering it for new entries", never "hide the history".
+    expect(scopeCurrencies(TEST_CURRENCIES, ['EUR']).map(c => c.code)).toEqual(['EUR']);
+  });
+
+  it('keeps a code the catalogue does not know', () => {
+    expect(scopeCurrencies(TEST_CURRENCIES, ['ZZZ']).map(c => c.code)).toEqual(['ZZZ']);
+  });
+
+  it('offers nothing when there is nothing to scope', () => {
+    expect(scopeCurrencies(TEST_CURRENCIES, [])).toEqual([]);
   });
 });
