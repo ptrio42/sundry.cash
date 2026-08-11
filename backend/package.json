@@ -7,6 +7,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "seed": "ts-node src/scripts/seed.ts",
     "test": "jest --runInBand",
     "lint": "eslint src"
   },
