@@ -9,7 +9,7 @@
  * visible output of that choice, so they are what these tests pin down.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Dashboard from '../components/Dashboard';
 import { AppSettings, Expense, FxRates } from '../types/expense.types';
@@ -17,7 +17,18 @@ import { AppSettings, Expense, FxRates } from '../types/expense.types';
 // The dashboard renders the insights strip above everything else, and that
 // strip fetches on mount. It has its own suite; stubbing it here keeps these
 // tests about the charts and free of network doubles.
-vi.mock('../components/InsightsStrip', () => ({ default: () => null }));
+//
+// The stub renders a marker and records its props rather than returning null:
+// a stub that renders nothing makes the whole suite pass even if the strip is
+// deleted from Dashboard entirely, so the one thing these tests could check —
+// that the two are wired together at all — would go unchecked.
+const { insightsProps } = vi.hoisted(() => ({ insightsProps: vi.fn() }));
+vi.mock('../components/InsightsStrip', () => ({
+  default: (props: Record<string, unknown>) => {
+    insightsProps(props);
+    return <div data-testid="insights-strip" />;
+  }
+}));
 
 // Value of one unit in USD: 1 PLN = 0.25 USD (so 1 USD = 4 PLN), 1 BTC = 65000 USD.
 const rates: FxRates = { USD: 1, PLN: 0.25, BTC: 65000 };
@@ -163,5 +174,56 @@ describe('Dashboard', () => {
     expect(screen.getByRole('button', { name: /^All → PLN/ })).toHaveClass('active');
     expect(screen.queryByText('Expenses')).not.toBeInTheDocument();
     expect(screen.queryByText(/Daily Spend/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The strip's own behaviour is covered by InsightsStrip.test.tsx. What only the
+ * dashboard can prove is that the two are connected: that the strip is mounted,
+ * that it sits above the charts, and that it is handed the same currency scope
+ * the tiles below it are using — otherwise the sentences would describe one
+ * currency while the numbers described another.
+ */
+describe('Dashboard wires up the insights strip', () => {
+  beforeEach(() => insightsProps.mockClear());
+
+  const lastProps = () => insightsProps.mock.calls[insightsProps.mock.calls.length - 1][0];
+
+  it('mounts the strip ahead of everything else on the page', () => {
+    const { container } = render(<Dashboard expenses={mixed} settings={settings('PLN')} rates={rates} />);
+
+    const strip = screen.getByTestId('insights-strip');
+    const head = container.querySelector('.dashboard-head');
+
+    expect(strip).toBeInTheDocument();
+    expect(head).not.toBeNull();
+    // DOCUMENT_POSITION_FOLLOWING: the head comes after the strip.
+    expect(strip.compareDocumentPosition(head as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('hands over the ledger and the combined currency scope', () => {
+    render(<Dashboard expenses={mixed} settings={settings('PLN')} rates={rates} />);
+
+    expect(lastProps()).toMatchObject({ view: 'primary', primary: 'PLN', rates });
+    // The same array, so the strip can tell a new ledger from a re-render.
+    expect(lastProps().expenses).toBe(mixed);
+  });
+
+  it('passes the sole native currency when the dashboard defaults to one', () => {
+    render(<Dashboard expenses={usdOnly} settings={settings('PLN')} rates={rates} />);
+
+    // The tiles show unconverted USD here, so the strip must be told 'USD' too.
+    expect(lastProps()).toMatchObject({ view: 'USD', primary: 'PLN' });
+  });
+
+  it('re-scopes the strip when the currency buttons are used', () => {
+    render(<Dashboard expenses={mixed} settings={settings('PLN')} rates={rates} />);
+    expect(lastProps().view).toBe('primary');
+
+    fireEvent.click(screen.getByRole('button', { name: /^USD/ }));
+    expect(lastProps().view).toBe('USD');
+
+    fireEvent.click(screen.getByRole('button', { name: /^All → PLN/ }));
+    expect(lastProps().view).toBe('primary');
   });
 });
