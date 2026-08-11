@@ -268,3 +268,33 @@ Extend the existing suites rather than adding a parallel structure.
 Lint, build and tests green with output shown. Both preview instances clicked through, including the
 empty one. Nothing under `data/`, no `*.db`, no `.env*` staged. The intermediate state — new shell,
 old screens — is fully working; no destination is a dead end.
+
+## Follow-ups found while implementing wave 1 — *not* in this batch
+
+Recorded 2026-08-11, per the rule at the top of this file.
+
+1. **Five screens are unreachable until the wave that rehomes them.** `Analytics`, `Insights`, `Fx`,
+   `ExcelImport` and `ReceiptScan` lost their nav entries here, as §1.1 orders, and nothing else opens
+   them yet: no receipt scanning, no Excel import, no editing FX rates (the rates are still *used* —
+   Home converts with them — just not editable), and wave 0's "Last 30 Days" fix is only visible to
+   its tests until change 4 folds Analytics into Expenses. The components and their suites are
+   untouched. This is the intermediate state the spec says to expect, but it is worth naming: **do not
+   ship this branch to the demo instance on its own.**
+2. **The theme toggle and Logout needed a home the mobile bar does not have.** Deleting the "More"
+   sheet took the only phone-side route to both. They are now a **This device** block in Settings, and
+   the desktop sidebar keeps them as shortcuts. Not an addition to the 28: it is the consequence of
+   §1.1 removing the sheet, and the alternative was deleting two working controls on mobile.
+3. **`instance.receiptsEnabled` has no consumer** between here and wave 3, which puts Scan behind the
+   Add sheet where the flag gates it again. `App.test.tsx` pins that expectation with a comment saying
+   it should invert.
+4. **`README.md` still describes the ten-tab product** — the gallery, "Analytics & dashboard", the
+   Insights tab, and `RECEIPTS_ENABLED` "hides the tab". Realigning the docs once per wave would be
+   four rounds of churn on a description that is wrong until the last one lands. **One documentation
+   pass at the end of the rebuild**, not per wave.
+5. **`preview_start` cannot verify a worktree.** It resolves `.claude/launch.json` *and runs the dev
+   server* from the main checkout, so `demo-preview` served the other branch's code — verified here by
+   reading ten nav items off a page whose branch has four. Both waves' DoD asks for a click-through;
+   from a worktree that has to be either a merge first, or a substitute. This wave used a static render
+   of the real markup with the real stylesheet, plus contrast computed from the tokens.
+6. **The root `package-lock.json` is still out of sync with `package.json`** (wave 0's follow-up 8).
+   `npm run install:all` rewrote it again; reverted again to keep this diff to wave 1.

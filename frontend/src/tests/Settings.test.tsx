@@ -39,25 +39,42 @@ const CUSTOM: Category = { slug: 'pet-food', label: 'Pet food', color: '#f472b6'
 
 interface Overrides {
   categories?: Category[];
+  theme?: 'dark' | 'light';
+  authRequired?: boolean;
   onCategoriesChanged?: ReturnType<typeof vi.fn>;
   onCurrenciesChanged?: ReturnType<typeof vi.fn>;
   onExpensesStale?: ReturnType<typeof vi.fn>;
 }
 
-const renderSettings = ({ categories = TEST_CATEGORIES, onCategoriesChanged = vi.fn(), onCurrenciesChanged = vi.fn(), onExpensesStale = vi.fn() }: Overrides = {}) => {
+const renderSettings = ({
+  categories = TEST_CATEGORIES,
+  theme = 'dark',
+  authRequired = false,
+  onCategoriesChanged = vi.fn(),
+  onCurrenciesChanged = vi.fn(),
+  onExpensesStale = vi.fn(),
+}: Overrides = {}) => {
   const onSaved = vi.fn();
+  const onToggleTheme = vi.fn();
+  const onLogout = vi.fn();
+  const onWipeDatabase = vi.fn();
   const view = render(
     <Settings
       settings={settings}
       categories={categories}
       currencies={TEST_CURRENCIES}
+      theme={theme}
+      authRequired={authRequired}
       onSaved={onSaved}
       onCurrenciesChanged={onCurrenciesChanged}
       onCategoriesChanged={onCategoriesChanged}
       onExpensesStale={onExpensesStale}
+      onToggleTheme={onToggleTheme}
+      onLogout={onLogout}
+      onWipeDatabase={onWipeDatabase}
     />
   );
-  return { ...view, onSaved, onCategoriesChanged, onCurrenciesChanged, onExpensesStale };
+  return { ...view, onSaved, onCategoriesChanged, onCurrenciesChanged, onExpensesStale, onToggleTheme, onLogout, onWipeDatabase };
 };
 
 /** The name field of the category currently labelled `label`. */
@@ -253,5 +270,64 @@ describe('Settings currency manager', () => {
     fireEvent.click(currencyCheckbox('USD'));
 
     expect(await screen.findByText(/still your default currency/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * Both blocks arrived with the navigation shell. The mobile bar has five slots
+ * and no overflow sheet, so Settings is the only route on a phone to the theme,
+ * to signing out, and to the one irreversible action in the product.
+ */
+describe('Settings — this device', () => {
+  it('offers the theme the user is not currently on, and reports the toggle up', () => {
+    const { onToggleTheme } = renderSettings({ theme: 'dark' });
+
+    const button = screen.getByRole('button', { name: /switch to light mode/i });
+    fireEvent.click(button);
+
+    expect(onToggleTheme).toHaveBeenCalledTimes(1);
+  });
+
+  it('names the other theme when the user is already on light', () => {
+    renderSettings({ theme: 'light' });
+
+    expect(screen.getByRole('button', { name: /switch to dark mode/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /switch to light mode/i })).not.toBeInTheDocument();
+  });
+
+  it('offers Sign out only where there is a session to end', () => {
+    const { unmount } = renderSettings({ authRequired: false });
+    expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument();
+    unmount();
+
+    const { onLogout } = renderSettings({ authRequired: true });
+    fireEvent.click(screen.getByRole('button', { name: /sign out/i }));
+    expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Settings — danger zone', () => {
+  it('holds Wipe database, and says what it destroys and what it keeps', () => {
+    renderSettings();
+
+    const zone = screen.getByRole('button', { name: /wipe database/i }).closest('.danger-zone');
+    expect(zone).not.toBeNull();
+    expect(within(zone as HTMLElement).getByText(/no undo/i)).toBeInTheDocument();
+    expect(within(zone as HTMLElement).getByText(/budgets, categories and preferences stay/i)).toBeInTheDocument();
+  });
+
+  it('hands the wipe to App, which owns the ledger and both confirmations', () => {
+    const { onWipeDatabase } = renderSettings();
+
+    fireEvent.click(screen.getByRole('button', { name: /wipe database/i }));
+
+    expect(onWipeDatabase).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the confirm style that had no caller — .btn-danger', () => {
+    // F14 named `.btn-danger` and wave 0 fixed its contrast, then found nothing
+    // rendered it. This is the element the fix was for.
+    renderSettings();
+    expect(screen.getByRole('button', { name: /wipe database/i })).toHaveClass('btn-danger');
   });
 });

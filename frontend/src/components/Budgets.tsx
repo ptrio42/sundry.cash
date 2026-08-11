@@ -8,14 +8,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
 import { BudgetsProps, Budget, ExpenseCategory, Currency } from '../types/expense.types';
 import { getBudgets, setBudget as apiSetBudget, deleteBudget as apiDeleteBudget } from '../services/api';
-import { formatCurrency, currencySymbol } from '../utils/format';
+import { formatCurrency, currencySymbol, currentMonthKey, monthLabel } from '../utils/format';
 import { relevantCurrencies } from '../utils/currencies';
 import CurrencyScope from './CurrencyScope';
-
-function currentMonthKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
 
 export default function Budgets({ expenses, settings, categories, currencies }: BudgetsProps) {
   // Open on the currency the user actually spends in, like every other currency
@@ -48,11 +43,9 @@ export default function Budgets({ expenses, settings, categories, currencies }: 
   }, []);
 
   const monthKey = currentMonthKey();
-  const monthLabel = new Intl.DateTimeFormat(undefined, {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC'
-  }).format(new Date(`${monthKey}-01T00:00:00Z`));
+  // Same month, same spelling as the shell's status line — both read it from
+  // `utils/format.ts` rather than each formatting their own.
+  const month = monthLabel(monthKey);
 
   // Spend this month per category, in the selected currency
   const spentByCategory = useMemo(() => {
@@ -135,11 +128,10 @@ export default function Budgets({ expenses, settings, categories, currencies }: 
 
   return (
     <div className="budgets">
+      {/* No heading and no month line: the page title says "Budgets" and the
+          status line under it states the month (change 28's second half, and
+          change 16). What is left in this row is the scope control. */}
       <div className="budgets-head">
-        <div>
-          <h2>Monthly Budgets</h2>
-          <p className="muted-text">{monthLabel} · spending vs. limits</p>
-        </div>
         {/* No combined option here, as today: this screen is silently
             single-currency and giving it an "All" that cannot be edited is the
             job of the wave that rebuilds it. */}
@@ -165,7 +157,7 @@ export default function Budgets({ expenses, settings, categories, currencies }: 
             <div className="summary-card">
               <h3>Spent so far</h3>
               <p className="value">{formatCurrency(totalSpent, currency)}</p>
-              <p className="subtitle">{monthLabel}</p>
+              <p className="subtitle">{month}</p>
             </div>
             {/* With no limits set there is nothing to be remaining from, and
                 nothing to be over. Subtracting spend from a budget of zero put a
