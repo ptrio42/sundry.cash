@@ -42,5 +42,3 @@ build/
 logs/
 *.log
 
-# Working notes for unshipped work (kept local until the feature lands)
-docs/insights-spec.md
