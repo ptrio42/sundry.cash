@@ -7,11 +7,9 @@ import { useState, FormEvent } from 'react';
 import { createExpense } from '../services/api';
 import { ExpenseFormProps, ExpenseCategory, Currency } from '../types/expense.types';
 import { SATS_PER_BTC } from '../utils/format';
+import { offeredCurrencies } from '../utils/currencies';
 
-// Available currencies for the dropdown
-const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
-
-export default function ExpenseForm({ onExpenseAdded, settings, categories }: ExpenseFormProps) {
+export default function ExpenseForm({ onExpenseAdded, settings, categories, currencies }: ExpenseFormProps) {
   const [amount, setAmount] = useState<string>('');
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState<string>('');
@@ -174,9 +172,9 @@ export default function ExpenseForm({ onExpenseAdded, settings, categories }: Ex
             onChange={(e) => setCurrency(e.target.value as Currency)}
             required
           >
-            {CURRENCIES.map((curr) => (
-              <option key={curr} value={curr}>
-                {curr}
+            {offeredCurrencies(currencies).map((curr) => (
+              <option key={curr.code} value={curr.code}>
+                {curr.code}
               </option>
             ))}
           </select>

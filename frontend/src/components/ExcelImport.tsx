@@ -4,7 +4,8 @@
  */
 
 import { useState, FormEvent, ChangeEvent } from 'react';
-import { Currency, AppSettings } from '../types/expense.types';
+import { Currency, AppSettings, CurrencyInfo } from '../types/expense.types';
+import { offeredCurrencies } from '../utils/currencies';
 import { previewImport, confirmImport } from '../services/api';
 
 interface PreviewData {
@@ -21,9 +22,7 @@ interface ImportResults {
   errors: Array<{ row: number; error: string; data: unknown }>;
 }
 
-const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
-
-export default function ExcelImport({ settings }: { settings: AppSettings }) {
+export default function ExcelImport({ settings, currencies }: { settings: AppSettings; currencies: CurrencyInfo[] }) {
   const [file, setFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [dateColumn, setDateColumn] = useState<string>('');
@@ -256,9 +255,9 @@ export default function ExcelImport({ settings }: { settings: AppSettings }) {
                 onChange={(e) => setCurrency(e.target.value as Currency)}
                 required
               >
-                {CURRENCIES.map((curr) => (
-                  <option key={curr} value={curr}>
-                    {curr}
+                {offeredCurrencies(currencies).map((curr) => (
+                  <option key={curr.code} value={curr.code}>
+                    {curr.code}
                   </option>
                 ))}
               </select>

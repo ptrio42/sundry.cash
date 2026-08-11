@@ -218,8 +218,19 @@ describe('GET /api/insights/comparison', () => {
     await request(app).get('/api/insights/comparison?period=decade').expect(400);
     await request(app).get('/api/insights/comparison?anchor=2026-13-01').expect(400);
     await request(app).get('/api/insights/comparison?anchor=last-tuesday').expect(400);
-    const res = await request(app).get('/api/insights/comparison?currency=GBP').expect(400);
+    // A code the shipped catalogue does not carry at all. GBP used to belong
+    // here; it is a real (if disabled) currency now, so it is answerable —
+    // see the case below.
+    const res = await request(app).get('/api/insights/comparison?currency=ZZZ').expect(400);
     expect(res.body.error).toBe('Validation failed');
+  });
+
+  it('answers for a real but disabled currency instead of rejecting it', async () => {
+    // Insights read history, and disabling a currency never removes the
+    // expenses recorded in it — so the question is valid, the answer is just
+    // empty for a currency that was never used.
+    const res = await request(app).get('/api/insights/comparison?currency=GBP').expect(200);
+    expect(res.body.byCategory).toEqual([]);
   });
 
   it('refuses anchors from before year 1000 instead of answering wrongly', async () => {

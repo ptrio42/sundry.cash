@@ -9,6 +9,7 @@ import xlsx from 'xlsx';
 import { Currency, ExpenseCategory } from '../types/expense.types';
 import * as ExpenseModel from '../models/expense';
 import * as CategoryModel from '../models/category';
+import * as CurrencyModel from '../models/currency';
 import { autoCategorizeByKeywords } from '../services/categorize';
 import { parseMoneyToken } from '../services/receipt/parse';
 
@@ -254,12 +255,11 @@ router.post('/confirm', upload.single('file'), async (req: Request, res: Respons
       return;
     }
 
-    // Validate currency (must stay in sync with VALID_CURRENCIES in middleware/validation.ts)
-    const validCurrencies: Currency[] = ['USD', 'PLN', 'BTC'];
-    if (!validCurrencies.includes(currency as Currency)) {
+    // Every imported row is a new entry, so the currency has to be enabled.
+    if (!CurrencyModel.isEnabled(currency)) {
       res.status(400).json({
         error: 'Invalid currency',
-        details: `Currency must be one of: ${validCurrencies.join(', ')}`
+        details: `Currency must be one of: ${CurrencyModel.enabledCodes().join(', ')}`
       });
       return;
     }

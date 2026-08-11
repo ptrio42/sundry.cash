@@ -18,8 +18,23 @@ export interface Category {
   isBuiltin: boolean; // shipped by us: `services/categorize.ts` can emit it, so it cannot be deleted
 }
 
-// Available currencies
-export type Currency = 'USD' | 'PLN' | 'BTC';
+// A currency code. Like ExpenseCategory this is now a row, not a closed set —
+// but for a different and sharper reason: the row carries the minor-unit
+// exponent that decides how every amount under this code is stored. Users can
+// only enable or disable catalogue entries, never invent one; see
+// `config/currencies.ts` and docs/categories-currencies-spec.md.
+export type Currency = string;
+
+// A currency the app knows about. Enabled ones are offered for new entries;
+// disabled ones stay readable in history.
+export interface CurrencyInfo {
+  code: string;
+  minorUnits: number; // 100 for cents, 100_000_000 for satoshis
+  symbol: string;
+  locale: string | null; // formatting locale; see frontend utils/format.ts
+  isIso: boolean;        // false for BTC: Intl accepts the code but formats it wrongly
+  enabled: boolean;
+}
 
 // Display/entry unit for BTC amounts
 export type BtcUnit = 'BTC' | 'sats';

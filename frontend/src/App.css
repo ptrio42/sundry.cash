@@ -1060,3 +1060,19 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 }
 .pagination-count { color: var(--text-dim); }
 .pagination button[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+/* ---------- Currency manager (Settings) ---------- */
+.currency-manager { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; margin: 0 0 12px; padding: 0; }
+.currency-manager-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+}
+.currency-manager-row .checkbox-label { margin: 0; gap: 8px; }
+.currency-symbol-badge { color: var(--text-muted); font-size: 0.85rem; }
+.currency-decimals { font-size: 0.72rem; white-space: nowrap; }

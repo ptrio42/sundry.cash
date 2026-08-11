@@ -5,16 +5,34 @@
  */
 
 import { db } from '../config/database';
-import { Currency } from '../types/expense.types';
+import * as CurrencyModel from './currency';
 
-export function getRates(): Record<Currency, number> {
-  const rows = db.prepare('SELECT currency, rate FROM fx_rates').all() as any[];
-  const rates: Record<Currency, number> = { USD: 1, PLN: 0, BTC: 0 };
-  for (const row of rows) rates[row.currency as Currency] = row.rate;
+/**
+ * Every rate the UI needs to draw the conversion table.
+ *
+ * Enabled currencies always appear, at 0 when no rate has been set — a freshly
+ * enabled EUR has none until the user types one. `utils/fx.convertAmount`
+ * reads 0 as "cannot convert" and returns 0 rather than NaN or Infinity, so an
+ * unset rate is visibly empty instead of quietly wrong.
+ *
+ * Stored rates for *disabled* currencies are included too: they are what
+ * converts the history recorded in them, which disabling never removes.
+ */
+export function getRates(): Record<string, number> {
+  const rates: Record<string, number> = {};
+
+  for (const code of CurrencyModel.enabledCodes()) rates[code] = 0;
+
+  const rows = db.prepare('SELECT currency, rate FROM fx_rates').all() as { currency: string; rate: number }[];
+  for (const row of rows) rates[row.currency] = row.rate;
+
+  // USD is the base by definition, whether or not it is enabled for new entries.
+  rates.USD = 1;
+
   return rates;
 }
 
-export function setRate(currency: Currency, rate: number): void {
+export function setRate(currency: string, rate: number): void {
   db.prepare(
     `INSERT INTO fx_rates (currency, rate)
      VALUES (?, ?)

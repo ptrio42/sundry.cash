@@ -17,6 +17,7 @@ import { Currency, ExpenseCategory } from '../types/expense.types';
 import { isValidDate } from '../middleware/validation';
 import * as ExpenseModel from '../models/expense';
 import * as CategoryModel from '../models/category';
+import * as CurrencyModel from '../models/currency';
 import { getExtractor } from '../services/receipt';
 import {
   saveReceiptImage,
@@ -28,7 +29,6 @@ import fs from 'fs';
 
 const router = Router();
 
-const VALID_CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
 // Bound concurrent OCR jobs: each scan holds a multi-MB image in memory and runs
 // CPU-heavy recognition, so cap in-flight work to avoid memory/CPU exhaustion.
@@ -112,7 +112,7 @@ router.post('/', uploadReceipt, (req: Request, res: Response) => {
     if (!date || !isValidDate(date)) errors.push('Date must be a valid ISO date (YYYY-MM-DD)');
     if (!description || description.trim().length === 0) errors.push('Description is required');
     if (!CategoryModel.exists(category)) errors.push(`Category must be one of: ${CategoryModel.allSlugs().join(', ')}`);
-    if (!VALID_CURRENCIES.includes(currency as Currency)) errors.push(`Currency must be one of: ${VALID_CURRENCIES.join(', ')}`);
+    if (!CurrencyModel.isEnabled(currency)) errors.push(`Currency must be one of: ${CurrencyModel.enabledCodes().join(', ')}`);
 
     if (errors.length > 0) {
       res.status(400).json({ error: 'Validation failed', details: errors });

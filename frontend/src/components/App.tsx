@@ -15,8 +15,9 @@ import Fx from './Fx';
 import Settings from './Settings';
 import EditExpenseModal from './EditExpenseModal';
 import Login from './Login';
-import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getToken, logout, getSettings, getFxRates, getCategories } from '../services/api';
-import { Expense, AppSettings, Category, FxRates } from '../types/expense.types';
+import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getToken, logout, getSettings, getFxRates, getCategories, getCurrencies } from '../services/api';
+import { Expense, AppSettings, Category, CurrencyInfo, FxRates } from '../types/expense.types';
+import { setCurrencyRegistry } from '../utils/format';
 import '../App.css';
 
 type View = 'form' | 'receipt' | 'table' | 'dashboard' | 'import' | 'analytics' | 'budgets' | 'fx' | 'settings';
@@ -34,6 +35,14 @@ const DEFAULT_FX_RATES: FxRates = { USD: 1, PLN: 0.25, BTC: 65000 };
 // The built-ins the backend seeds, mirrored here for the same reason as the FX
 // rates above: the category fetch is non-fatal, and an empty list would leave
 // every category dropdown in the app blank. These seven always exist server-side.
+// Same idea for currencies: the three the backend enables out of the box, so a
+// failed catalogue fetch narrows what is on offer rather than emptying it.
+const DEFAULT_CURRENCIES: CurrencyInfo[] = [
+  { code: 'USD', minorUnits: 100, symbol: '$', locale: 'en-US', isIso: true, enabled: true },
+  { code: 'PLN', minorUnits: 100, symbol: 'zł', locale: 'pl-PL', isIso: true, enabled: true },
+  { code: 'BTC', minorUnits: 100_000_000, symbol: '₿', locale: 'en-US', isIso: false, enabled: true },
+];
+
 const DEFAULT_CATEGORIES: Category[] = [
   { slug: 'groceries', label: 'Groceries', color: '#34d399', sortOrder: 0, isBuiltin: true },
   { slug: 'transport', label: 'Transport', color: '#60a5fa', sortOrder: 1, isBuiltin: true },
@@ -48,6 +57,7 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [currencies, setCurrencies] = useState<CurrencyInfo[]>(DEFAULT_CURRENCIES);
   const [fxRates, setFxRates] = useState<FxRates>(DEFAULT_FX_RATES);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
@@ -127,15 +137,17 @@ export default function App() {
       // Expenses are required; settings, categories and FX rates are non-fatal
       // (fall back). Loaded here rather than per component so the whole app
       // agrees on one list, the same way settings and rates already do.
-      const [data, loadedSettings, loadedCategories, fx] = await Promise.all([
+      const [data, loadedSettings, loadedCategories, loadedCurrencies, fx] = await Promise.all([
         getExpenses(),
         getSettings().catch(() => settings),
         getCategories().catch(() => categories),
+        getCurrencies().catch(() => currencies),
         getFxRates().then(f => f.rates as FxRates).catch(() => fxRates),
       ]);
       setExpenses(data);
       setSettings(loadedSettings);
       setCategories(loadedCategories);
+      applyCurrencies(loadedCurrencies);
       setFxRates(fx);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load expenses');
@@ -221,6 +233,20 @@ export default function App() {
 
   const handleSettingsSaved = (updated: AppSettings) => {
     setSettings(updated);
+  };
+
+  /**
+   * Hold the catalogue in state *and* hand it to the formatter.
+   *
+   * `utils/format.ts` keeps a module-level registry rather than taking the
+   * catalogue as an argument — it is called once per rendered amount, and
+   * threading it through every call site would be noise. Updating it here,
+   * before the setState that triggers the re-render, is what keeps the two in
+   * step.
+   */
+  const applyCurrencies = (loaded: CurrencyInfo[]) => {
+    setCurrencyRegistry(loaded);
+    setCurrencies(loaded);
   };
 
   /**
@@ -343,27 +369,30 @@ export default function App() {
             <div className="loading">Loading expenses…</div>
           ) : (
             <>
-              {currentView === 'form' && <ExpenseForm onExpenseAdded={handleExpenseAdded} settings={settings} categories={categories} />}
-              {currentView === 'receipt' && <ReceiptScan onExpenseAdded={handleExpenseAdded} settings={settings} categories={categories} />}
-              {currentView === 'import' && <ExcelImport settings={settings} />}
+              {currentView === 'form' && <ExpenseForm onExpenseAdded={handleExpenseAdded} settings={settings} categories={categories} currencies={currencies} />}
+              {currentView === 'receipt' && <ReceiptScan onExpenseAdded={handleExpenseAdded} settings={settings} categories={categories} currencies={currencies} />}
+              {currentView === 'import' && <ExcelImport settings={settings} currencies={currencies} />}
               {currentView === 'table' && (
                 <ExpenseTable
                   expenses={expenses}
                   categories={categories}
+                  currencies={currencies}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onUpdate={handleUpdateExpense}
                 />
               )}
-              {currentView === 'dashboard' && <Dashboard expenses={expenses} settings={settings} categories={categories} rates={fxRates} />}
-              {currentView === 'analytics' && <Analytics settings={settings} categories={categories} rates={fxRates} />}
-              {currentView === 'budgets' && <Budgets expenses={expenses} categories={categories} />}
-              {currentView === 'fx' && <Fx expenses={expenses} rates={fxRates} onRatesChanged={setFxRates} />}
+              {currentView === 'dashboard' && <Dashboard expenses={expenses} settings={settings} categories={categories} currencies={currencies} rates={fxRates} />}
+              {currentView === 'analytics' && <Analytics settings={settings} categories={categories} currencies={currencies} rates={fxRates} />}
+              {currentView === 'budgets' && <Budgets expenses={expenses} categories={categories} currencies={currencies} />}
+              {currentView === 'fx' && <Fx expenses={expenses} currencies={currencies} rates={fxRates} onRatesChanged={setFxRates} />}
               {currentView === 'settings' && (
                 <Settings
                   settings={settings}
                   categories={categories}
+                  currencies={currencies}
                   onSaved={handleSettingsSaved}
+                  onCurrenciesChanged={applyCurrencies}
                   onCategoriesChanged={setCategories}
                   onExpensesStale={refreshExpenses}
                 />
@@ -452,6 +481,7 @@ export default function App() {
       <EditExpenseModal
         expense={editingExpense}
         categories={categories}
+        currencies={currencies}
         onSave={handleUpdateExpense}
         onClose={handleCloseEditModal}
       />

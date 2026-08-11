@@ -7,12 +7,11 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { DashboardProps, Currency } from '../types/expense.types';
-import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
+import { formatCurrency } from '../utils/format';
 import { categoryColor, categoryLabel, stackedCategorySeries } from '../utils/categories';
+import { relevantCurrencies } from '../utils/currencies';
 import { convertAmount } from '../utils/fx';
 import InsightsStrip from './InsightsStrip';
-
-const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
 type TimeGrouping = 'day' | 'week' | 'month';
 
@@ -26,7 +25,7 @@ function formatPeriodTick(key: string): string {
     : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(d);
 }
 
-export default function Dashboard({ expenses, settings, categories, rates }: DashboardProps) {
+export default function Dashboard({ expenses, settings, categories, currencies, rates }: DashboardProps) {
   const primary = settings.primaryCurrency;
   const label = (slug: string) => categoryLabel(categories, slug);
   const color = (slug: string) => categoryColor(categories, slug);
@@ -155,11 +154,15 @@ export default function Dashboard({ expenses, settings, categories, rates }: Das
             >
               All → {primary}
             </button>
-            {CURRENCIES.filter(c => presentCurrencies.includes(c)).map(c => (
-              <button key={c} className={view === c ? 'active' : ''} onClick={() => setView(c)}>
-                {c} ({CURRENCY_SYMBOLS[c]})
-              </button>
-            ))}
+            {/* Only the currencies actually in the ledger get a button —
+                including ones since disabled, whose history is still here. */}
+            {relevantCurrencies(currencies, presentCurrencies)
+              .filter(c => presentCurrencies.includes(c.code))
+              .map(c => (
+                <button key={c.code} className={view === c.code ? 'active' : ''} onClick={() => setView(c.code)}>
+                  {c.code} ({c.symbol})
+                </button>
+              ))}
           </div>
           {converted && (
             <p className="dashboard-note muted-text">

@@ -5,20 +5,18 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { ExpenseTableProps, ExpenseCategory, SortField, SortOrder, Currency } from '../types/expense.types';
-import { formatCurrency, formatDate, CURRENCY_SYMBOLS } from '../utils/format';
+import { formatCurrency, formatDate } from '../utils/format';
 import { categoryColor, categoryLabel } from '../utils/categories';
+import { relevantCurrencies } from '../utils/currencies';
 import { exportExpensesCsv } from '../utils/export';
 import { exportExpensesXlsx, fetchReceiptObjectUrl } from '../services/api';
-
-// Available currencies for filtering
-const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
 
 // Rows rendered at once. The whole ledger is still fetched — the charts need
 // it — but an unwindowed <tbody> of several thousand <tr>s is what actually
 // makes the page crawl, so only a slice reaches the DOM.
 const PAGE_SIZE = 50;
 
-export default function ExpenseTable({ expenses, categories, onEdit, onDelete, onUpdate }: ExpenseTableProps) {
+export default function ExpenseTable({ expenses, categories, currencies, onEdit, onDelete, onUpdate }: ExpenseTableProps) {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -370,9 +368,9 @@ export default function ExpenseTable({ expenses, categories, onEdit, onDelete, o
             onChange={(e) => setFilterCurrency(e.target.value)}
           >
             <option value="all">All Currencies</option>
-            {CURRENCIES.map((curr) => (
-              <option key={curr} value={curr}>
-                {curr} ({CURRENCY_SYMBOLS[curr]})
+            {relevantCurrencies(currencies, expenses.map(e => e.currency)).map((curr) => (
+              <option key={curr.code} value={curr.code}>
+                {curr.code} ({curr.symbol})
               </option>
             ))}
           </select>

@@ -6,6 +6,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { CURRENCY_CATALOGUE, DEFAULT_ENABLED_CURRENCIES } from './currencies';
 
 // Database file path - shared between local development and Docker
 // Uses process.cwd() to reference from project root
@@ -44,10 +45,6 @@ db.function('lower_unicode', { deterministic: true }, (value: unknown) =>
 );
 
 /**
- * Initialize database schema
- * Creates the expenses table if it doesn't exist
- */
-/**
  * The categories we ship. Seeded on every start with INSERT OR IGNORE, so they
  * always exist but the user's edits to label/colour/order are never overwritten.
  *
@@ -66,6 +63,12 @@ const BUILTIN_CATEGORIES: Array<[slug: string, label: string, color: string]> = 
   ['other', 'Other', '#94a3b8'],
 ];
 
+/**
+ * Create the schema and bring an existing database up to date.
+ *
+ * Safe to call repeatedly: every step is either `IF NOT EXISTS`, an
+ * `INSERT OR IGNORE`, or a migration gated on a marker in the table's own DDL.
+ */
 export function initializeDatabase(): void {
   // Categories first: `expenses` and `budgets` both hold a foreign key into it.
   db.exec(`
@@ -87,6 +90,20 @@ export function initializeDatabase(): void {
   );
   BUILTIN_CATEGORIES.forEach(([slug, label, color], index) => seedCategory.run(slug, label, color, index));
 
+  // Currencies, for the same reason as categories: `expenses`, `budgets` and
+  // `fx_rates` all reference this table.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS currencies (
+      code        TEXT PRIMARY KEY,
+      minor_units INTEGER NOT NULL CHECK(minor_units > 0),
+      symbol      TEXT NOT NULL,
+      locale      TEXT,
+      is_iso      INTEGER NOT NULL DEFAULT 1,
+      enabled     INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  seedCurrencies();
+
   const createTableSQL = `
     CREATE TABLE IF NOT EXISTS expenses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,10 +111,11 @@ export function initializeDatabase(): void {
       date TEXT NOT NULL,
       description TEXT NOT NULL CHECK(length(description) > 0),
       category TEXT NOT NULL,
-      currency TEXT DEFAULT 'USD' CHECK(currency IN ('USD', 'PLN', 'BTC')),
+      currency TEXT NOT NULL DEFAULT 'USD',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       receipt_image TEXT,
-      FOREIGN KEY(category) REFERENCES categories(slug)
+      FOREIGN KEY(category) REFERENCES categories(slug),
+      FOREIGN KEY(currency) REFERENCES currencies(code)
     )
   `;
 
@@ -108,19 +126,21 @@ export function initializeDatabase(): void {
     CREATE TABLE IF NOT EXISTS budgets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       category TEXT NOT NULL,
-      currency TEXT NOT NULL CHECK(currency IN ('USD', 'PLN', 'BTC')),
+      currency TEXT NOT NULL,
       amount INTEGER NOT NULL CHECK(amount > 0),
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(category, currency),
-      FOREIGN KEY(category) REFERENCES categories(slug)
+      FOREIGN KEY(category) REFERENCES categories(slug),
+      FOREIGN KEY(currency) REFERENCES currencies(code)
     )
   `);
 
   // FX rates: value of 1 unit of each currency in the USD base (user-editable)
   db.exec(`
     CREATE TABLE IF NOT EXISTS fx_rates (
-      currency TEXT PRIMARY KEY CHECK(currency IN ('USD', 'PLN', 'BTC')),
-      rate REAL NOT NULL CHECK(rate > 0)
+      currency TEXT PRIMARY KEY,
+      rate REAL NOT NULL CHECK(rate > 0),
+      FOREIGN KEY(currency) REFERENCES currencies(code)
     )
   `);
   db.exec(`INSERT OR IGNORE INTO fx_rates (currency, rate) VALUES ('USD', 1), ('PLN', 0.25), ('BTC', 65000)`);
@@ -297,7 +317,182 @@ export function initializeDatabase(): void {
   // recreations further up predate that column and do not.)
   migrateCategoryEnumToTable();
 
+  // Migration: the same move for currencies. Kept separate from the categories
+  // one — they land in different releases, and a database can arrive needing
+  // either, both, or neither.
+  migrateCurrencyEnumToTable();
+
+  // Last: needs `expenses` and `budgets` to exist, and needs the migration
+  // above to have finished rebuilding them.
+  reconcileCurrencyExponents();
+
   console.log('Database initialized successfully');
+}
+
+/**
+ * Put the shipped catalogue into `currencies`, without ever overwriting what
+ * the user has chosen.
+ *
+ * Three different rules, because the columns differ in how dangerous they are:
+ *   - `enabled` is the user's decision. Set on insert, never touched again —
+ *     re-enabling a currency they disabled on every restart would be maddening.
+ *   - `symbol` / `locale` are presentation, and no API lets the user change
+ *     them, so a corrected catalogue entry is applied.
+ *   - `minor_units` decides what stored integers mean. A corrected value is
+ *     applied only while nothing references the code; otherwise it is refused
+ *     and reported, because changing it would reinterpret existing rows rather
+ *     than convert them.
+ */
+function seedCurrencies(): void {
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO currencies (code, minor_units, symbol, locale, is_iso, enabled) VALUES (?, ?, ?, ?, ?, ?)`
+  );
+  const updatePresentation = db.prepare('UPDATE currencies SET symbol = ?, locale = ?, is_iso = ? WHERE code = ?');
+
+  for (const entry of CURRENCY_CATALOGUE) {
+    insert.run(
+      entry.code,
+      entry.minorUnits,
+      entry.symbol,
+      entry.locale,
+      entry.iso ? 1 : 0,
+      DEFAULT_ENABLED_CURRENCIES.includes(entry.code) ? 1 : 0
+    );
+    updatePresentation.run(entry.symbol, entry.locale, entry.iso ? 1 : 0, entry.code);
+  }
+}
+
+/**
+ * Apply a corrected exponent from the shipped catalogue — but only to codes
+ * nothing has been recorded in yet.
+ *
+ * This is the seeding rule that could not live in `seedCurrencies`: it has to
+ * count rows in `expenses` and `budgets`, and better-sqlite3 validates SQL when
+ * a statement is prepared, so on a fresh database those tables do not exist
+ * yet. It runs at the end of initialization instead, once they do.
+ *
+ * A refusal is loud rather than silent because the alternative is worse than a
+ * wrong symbol: the stored integers were written under the old exponent, so
+ * changing it reinterprets them (5099 cents becoming 5.099 of something)
+ * instead of converting them.
+ */
+function reconcileCurrencyExponents(): void {
+  const readExponent = db.prepare('SELECT minor_units FROM currencies WHERE code = ?');
+  const updateExponent = db.prepare('UPDATE currencies SET minor_units = ? WHERE code = ?');
+  const countReferences = db.prepare(
+    `SELECT (SELECT COUNT(*) FROM expenses WHERE currency = @code)
+          + (SELECT COUNT(*) FROM budgets  WHERE currency = @code) AS n`
+  );
+
+  for (const entry of CURRENCY_CATALOGUE) {
+    const stored = readExponent.get(entry.code) as { minor_units: number } | undefined;
+    if (!stored || stored.minor_units === entry.minorUnits) continue;
+
+    const references = (countReferences.get({ code: entry.code }) as { n: number }).n;
+    if (references === 0) {
+      updateExponent.run(entry.minorUnits, entry.code);
+      console.log(`Corrected minor_units for ${entry.code}: ${stored.minor_units} -> ${entry.minorUnits}`);
+    } else {
+      console.error(
+        `Refusing to change minor_units for ${entry.code} from ${stored.minor_units} to ${entry.minorUnits}: ` +
+        `${references} row(s) were stored under the current value and would be reinterpreted, not converted.`
+      );
+    }
+  }
+}
+
+/**
+ * Drop `CHECK(currency IN (...))` from `expenses`, `budgets` and `fx_rates`,
+ * replacing it with a foreign key into `currencies`.
+ *
+ * Same shape and same marker as the categories migration above: the seeds reuse
+ * today's three codes, so no row is rewritten — only the constraint goes.
+ */
+function migrateCurrencyEnumToTable(): void {
+  const tableSQL = (name: string): string => {
+    const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name=?`).get(name) as
+      | { sql: string | null }
+      | undefined;
+    return row?.sql ?? '';
+  };
+
+  const needs = {
+    expenses: tableSQL('expenses').includes('CHECK(currency IN'),
+    budgets: tableSQL('budgets').includes('CHECK(currency IN'),
+    fx_rates: tableSQL('fx_rates').includes('CHECK(currency IN'),
+  };
+  if (!needs.expenses && !needs.budgets && !needs.fx_rates) return;
+
+  console.log('Migrating database to make currencies data rather than an enum...');
+
+  db.exec('BEGIN TRANSACTION');
+  try {
+    if (needs.expenses) {
+      db.exec(`
+        CREATE TABLE expenses_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          amount INTEGER NOT NULL CHECK(amount > 0),
+          date TEXT NOT NULL,
+          description TEXT NOT NULL CHECK(length(description) > 0),
+          category TEXT NOT NULL,
+          currency TEXT NOT NULL DEFAULT 'USD',
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          receipt_image TEXT,
+          FOREIGN KEY(category) REFERENCES categories(slug),
+          FOREIGN KEY(currency) REFERENCES currencies(code)
+        )
+      `);
+      // COALESCE because the column was nullable before this change: the very
+      // old "add currency column" migration above adds it without NOT NULL and
+      // backfills best-effort.
+      db.exec(`
+        INSERT INTO expenses_new (id, amount, date, description, category, currency, created_at, receipt_image)
+        SELECT id, amount, date, description, category, COALESCE(currency, 'USD'), created_at, receipt_image FROM expenses
+      `);
+      db.exec('DROP TABLE expenses');
+      db.exec('ALTER TABLE expenses_new RENAME TO expenses');
+    }
+
+    if (needs.budgets) {
+      db.exec(`
+        CREATE TABLE budgets_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          category TEXT NOT NULL,
+          currency TEXT NOT NULL,
+          amount INTEGER NOT NULL CHECK(amount > 0),
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(category, currency),
+          FOREIGN KEY(category) REFERENCES categories(slug),
+          FOREIGN KEY(currency) REFERENCES currencies(code)
+        )
+      `);
+      db.exec(`
+        INSERT INTO budgets_new (id, category, currency, amount, created_at)
+        SELECT id, category, currency, amount, created_at FROM budgets
+      `);
+      db.exec('DROP TABLE budgets');
+      db.exec('ALTER TABLE budgets_new RENAME TO budgets');
+    }
+
+    if (needs.fx_rates) {
+      db.exec(`
+        CREATE TABLE fx_rates_new (
+          currency TEXT PRIMARY KEY,
+          rate REAL NOT NULL CHECK(rate > 0),
+          FOREIGN KEY(currency) REFERENCES currencies(code)
+        )
+      `);
+      db.exec(`INSERT INTO fx_rates_new (currency, rate) SELECT currency, rate FROM fx_rates`);
+      db.exec('DROP TABLE fx_rates');
+      db.exec('ALTER TABLE fx_rates_new RENAME TO fx_rates');
+    }
+
+    db.exec('COMMIT');
+    console.log('Successfully migrated currencies to the currencies table');
+  } catch (migrationError) {
+    db.exec('ROLLBACK');
+    throw migrationError;
+  }
 }
 
 /**

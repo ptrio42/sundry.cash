@@ -9,11 +9,18 @@ import { useState, useMemo } from 'react';
 import { FxProps, Currency, FxRates } from '../types/expense.types';
 import { setFxRate } from '../services/api';
 import { convertAmount } from '../utils/fx';
-import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
+import { formatCurrency } from '../utils/format';
+import { relevantCurrencies } from '../utils/currencies';
 
-const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
+export default function Fx({ expenses, currencies, rates, onRatesChanged }: FxProps) {
+  // Enabled currencies plus any the ledger already holds. A rate is what
+  // converts *history*, so a currency you have stopped using still needs a row
+  // here — the backend applies the same rule to PUT /api/fx.
+  const rows = useMemo(
+    () => relevantCurrencies(currencies, expenses.map(e => e.currency)),
+    [currencies, expenses]
+  );
 
-export default function Fx({ expenses, rates, onRatesChanged }: FxProps) {
   const [base, setBase] = useState<Currency>('USD');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string>('');
@@ -63,9 +70,9 @@ export default function Fx({ expenses, rates, onRatesChanged }: FxProps) {
           <p className="muted-text">Normalize all spending into one base currency</p>
         </div>
         <div className="currency-buttons">
-          {CURRENCIES.map(c => (
-            <button key={c} className={base === c ? 'active' : ''} onClick={() => setBase(c)}>
-              Base: {c}
+          {rows.map(c => (
+            <button key={c.code} className={base === c.code ? 'active' : ''} onClick={() => setBase(c.code)}>
+              Base: {c.code}
             </button>
           ))}
         </div>
@@ -86,12 +93,12 @@ export default function Fx({ expenses, rates, onRatesChanged }: FxProps) {
           Exchange rates <span className="muted-text">(value of 1 unit in USD)</span>
         </h3>
         <div className="fx-rates">
-          {CURRENCIES.map(cur => {
+          {rows.map(({ code: cur, symbol }) => {
             const draftVal = drafts[cur] !== undefined ? drafts[cur] : String(rates[cur] ?? '');
             return (
               <div className="fx-rate-row" key={cur}>
                 <span className="fx-cur">
-                  {cur} ({CURRENCY_SYMBOLS[cur]})
+                  {cur} ({symbol})
                 </span>
                 <span className="fx-eq">1 {cur} =</span>
                 <div className="budget-input">
@@ -129,7 +136,7 @@ export default function Fx({ expenses, rates, onRatesChanged }: FxProps) {
               </tr>
             </thead>
             <tbody>
-              {CURRENCIES.filter(c => perCurrency[c]).map(cur => (
+              {rows.filter(c => perCurrency[c.code]).map(({ code: cur }) => (
                 <tr key={cur}>
                   <td>{cur}</td>
                   <td>{perCurrency[cur].count}</td>
@@ -137,7 +144,7 @@ export default function Fx({ expenses, rates, onRatesChanged }: FxProps) {
                   <td className="amount">{formatCurrency(convertAmount(perCurrency[cur].total, cur, base, rates), base)}</td>
                 </tr>
               ))}
-              {CURRENCIES.filter(c => perCurrency[c]).length === 0 && (
+              {rows.filter(c => perCurrency[c.code]).length === 0 && (
                 <tr>
                   <td colSpan={4} className="no-data" style={{ padding: '24px' }}>
                     No expenses yet.

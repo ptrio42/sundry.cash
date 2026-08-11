@@ -5,38 +5,90 @@
  * toFixed) and duplicated across every component, which rendered PLN as
  * "zł1234.56" instead of the correct "1234,56 zł". These use Intl so symbol
  * placement, decimal separator, and grouping are locale-correct.
+ *
+ * The symbol, locale and decimal count used to be three hardcoded maps here.
+ * They are columns on the `currencies` table now, held in a module-level
+ * registry that App refreshes when it loads the catalogue — the same shape as
+ * the backend's `models/currency.ts` cache, and for the same reason: this is
+ * called once per rendered amount, and threading the catalogue through every
+ * call site would be a lot of noise for a value that changes about never.
+ *
+ * The registry starts populated with the currencies enabled out of the box, so
+ * a first render (or a test) formats correctly before anything is fetched.
  */
 
-import { Currency } from '../types/expense.types';
+import { Currency, CurrencyInfo } from '../types/expense.types';
 
 export const SATS_PER_BTC = 100_000_000;
 
-export const CURRENCY_SYMBOLS: Record<Currency, string> = {
-  USD: '$',
-  PLN: 'zł',
-  BTC: '₿',
-};
+/** Matches the backend seed, so the pre-fetch render is not wrong, just narrow. */
+const DEFAULT_REGISTRY: CurrencyInfo[] = [
+  { code: 'USD', minorUnits: 100, symbol: '$', locale: 'en-US', isIso: true, enabled: true },
+  { code: 'PLN', minorUnits: 100, symbol: 'zł', locale: 'pl-PL', isIso: true, enabled: true },
+  { code: 'BTC', minorUnits: 100_000_000, symbol: '₿', locale: 'en-US', isIso: false, enabled: true },
+];
 
-// Intl.NumberFormat picks symbol placement/separators from the locale, so pair
-// each currency with an idiomatic one. BTC is not an ISO 4217 currency.
-const LOCALE_BY_CURRENCY: Record<Currency, string> = {
-  USD: 'en-US',
-  PLN: 'pl-PL',
-  BTC: 'en-US',
-};
+let registry = new Map<string, CurrencyInfo>(DEFAULT_REGISTRY.map(c => [c.code, c]));
 
-/** Format a major-unit amount (e.g. 50.99) with locale-aware currency formatting. */
+/** Point the formatter at the catalogue the backend actually holds. */
+export function setCurrencyRegistry(currencies: CurrencyInfo[]): void {
+  if (currencies.length === 0) return;
+  registry = new Map(currencies.map(c => [c.code, c]));
+}
+
+/** What the formatter knows about `code`, or undefined for an unknown one. */
+export function currencyInfo(code: Currency): CurrencyInfo | undefined {
+  return registry.get(code);
+}
+
+/** The symbol for `code`, falling back to the code itself. */
+export function currencySymbol(code: Currency): string {
+  return registry.get(code)?.symbol ?? code;
+}
+
+/** Decimal places implied by the minor-unit exponent: 100 -> 2, 1 -> 0. */
+function decimalsFor(info: CurrencyInfo): number {
+  return Math.max(0, Math.round(Math.log10(info.minorUnits)));
+}
+
+/**
+ * Format a major-unit amount (e.g. 50.99) with locale-aware currency formatting.
+ *
+ * Two paths, chosen by `isIso` rather than by a hardcoded currency check:
+ * Intl accepts any well-formed three-letter code, so `style: 'currency'` with
+ * 'BTC' does not throw — it renders "BTC 1.00", which is why the flag has to
+ * come from the catalogue.
+ *
+ * The decimal count comes from `minorUnits`, the same number the backend stores
+ * with. That is deliberate: it means the display can never imply more precision
+ * than the column holds, and JPY shows ¥1,500 rather than ¥1,500.00.
+ */
 export function formatCurrency(amount: number, currency: Currency): string {
-  if (currency === 'BTC') {
-    const n = new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 8,
-    }).format(amount);
-    return `${CURRENCY_SYMBOLS.BTC}${n}`;
+  const info = registry.get(currency);
+
+  // Unknown code: show the number and the code, rather than guessing at a
+  // symbol or silently formatting it as something else.
+  if (!info) {
+    return `${new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)} ${currency}`;
   }
-  return new Intl.NumberFormat(LOCALE_BY_CURRENCY[currency], {
+
+  const decimals = decimalsFor(info);
+
+  if (!info.isIso) {
+    // Non-ISO (BTC): Intl has no symbol for it, so prefix ours. Keeps the
+    // long-standing "at least 2, at most 8" rendering for satoshi amounts.
+    const n = new Intl.NumberFormat(info.locale ?? undefined, {
+      minimumFractionDigits: Math.min(2, decimals),
+      maximumFractionDigits: decimals,
+    }).format(amount);
+    return `${info.symbol}${n}`;
+  }
+
+  return new Intl.NumberFormat(info.locale ?? undefined, {
     style: 'currency',
-    currency,
+    currency: info.code,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   }).format(amount);
 }
 

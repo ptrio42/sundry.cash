@@ -14,6 +14,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import ExcelImport from '../components/ExcelImport';
+import { TEST_CURRENCIES } from './currencies.fixture';
 import { previewImport, confirmImport } from '../services/api';
 import { AppSettings } from '../types/expense.types';
 
@@ -85,7 +86,7 @@ beforeEach(() => {
 
 describe('ExcelImport', () => {
   it('previews the selected file and renders its columns and rows', async () => {
-    render(<ExcelImport settings={settings} />);
+    render(<ExcelImport settings={settings} currencies={TEST_CURRENCIES} />);
 
     // Nothing to preview until a file is chosen.
     expect(screen.getByRole('button', { name: /preview file/i })).toBeDisabled();
@@ -119,7 +120,7 @@ describe('ExcelImport', () => {
   });
 
   it('populates the mapping controls from the returned columns and pre-selects the obvious ones', async () => {
-    render(<ExcelImport settings={settings} />);
+    render(<ExcelImport settings={settings} currencies={TEST_CURRENCIES} />);
     await previewFile();
 
     const dateSelect = select(/date column/i);
@@ -146,7 +147,7 @@ describe('ExcelImport', () => {
   });
 
   it('imports with the chosen mapping and currency and reports the counts it gets back', async () => {
-    render(<ExcelImport settings={settings} />);
+    render(<ExcelImport settings={settings} currencies={TEST_CURRENCIES} />);
     const file = await previewFile();
 
     // Override the auto-detected mapping: use "Shop" as the description and
@@ -193,7 +194,7 @@ describe('ExcelImport', () => {
       results: { total: 135, success: 130, failed: 5, skipped: 0, errors: [] },
     });
 
-    render(<ExcelImport settings={settings} />);
+    render(<ExcelImport settings={settings} currencies={TEST_CURRENCIES} />);
     await previewFile();
     fireEvent.click(screen.getByRole('button', { name: /import expenses/i }));
     await screen.findByRole('heading', { name: /import results/i });
@@ -219,7 +220,7 @@ describe('ExcelImport', () => {
       },
     });
 
-    render(<ExcelImport settings={settings} />);
+    render(<ExcelImport settings={settings} currencies={TEST_CURRENCIES} />);
     await previewFile();
     fireEvent.click(screen.getByRole('button', { name: /import expenses/i }));
 
@@ -234,7 +235,7 @@ describe('ExcelImport', () => {
 
   it('surfaces a failed preview and keeps the upload form usable', async () => {
     mockPreviewImport.mockRejectedValue(new Error('Unsupported file format'));
-    render(<ExcelImport settings={settings} />);
+    render(<ExcelImport settings={settings} currencies={TEST_CURRENCIES} />);
 
     submitUpload(xlsx());
 
@@ -248,7 +249,7 @@ describe('ExcelImport', () => {
   it('surfaces a failed import and leaves the mapping form in place', async () => {
     mockConfirmImport.mockRejectedValue(new Error('Import failed: column out of range'));
 
-    render(<ExcelImport settings={settings} />);
+    render(<ExcelImport settings={settings} currencies={TEST_CURRENCIES} />);
     await previewFile();
     fireEvent.click(screen.getByRole('button', { name: /import expenses/i }));
 

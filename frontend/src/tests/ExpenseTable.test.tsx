@@ -15,6 +15,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import ExpenseTable from '../components/ExpenseTable';
 import { TEST_CATEGORIES } from './categories.fixture';
+import { TEST_CURRENCIES } from './currencies.fixture';
 import { Category, Expense } from '../types/expense.types';
 
 vi.mock('../services/api', () => ({
@@ -52,6 +53,7 @@ const renderTable = (expenses: Expense[], categories: Category[] = TEST_CATEGORI
     <ExpenseTable
       expenses={expenses}
       categories={categories}
+      currencies={TEST_CURRENCIES}
       onEdit={vi.fn()}
       onDelete={vi.fn()}
       onUpdate={vi.fn().mockResolvedValue(undefined)}

@@ -12,6 +12,7 @@ import {
   DateStats,
   Budget,
   Category,
+  CurrencyInfo,
   ReceiptExtraction,
   ExpenseCategory,
   Currency,
@@ -257,6 +258,28 @@ export async function deleteCategory(slug: string, reassignTo?: string): Promise
     method: 'DELETE'
   });
   return handleResponse<void>(response);
+}
+
+// --- Currencies ----------------------------------------------------------
+
+/** The whole catalogue, enabled entries first. */
+export async function getCurrencies(): Promise<CurrencyInfo[]> {
+  const response = await apiFetch('/currencies');
+  return handleResponse<CurrencyInfo[]>(response);
+}
+
+/**
+ * Turn a currency on or off. The only thing about a currency that can change:
+ * its minor-unit exponent decides how stored amounts are interpreted, so it is
+ * fixed by the shipped catalogue rather than editable.
+ */
+export async function setCurrencyEnabled(code: string, enabled: boolean): Promise<CurrencyInfo> {
+  const response = await apiFetch(`/currencies/${encodeURIComponent(code)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled })
+  });
+  return handleResponse<CurrencyInfo>(response);
 }
 
 // --- FX rates ------------------------------------------------------------

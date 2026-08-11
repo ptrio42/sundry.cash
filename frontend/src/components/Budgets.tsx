@@ -8,16 +8,15 @@ import { useState, useEffect, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
 import { BudgetsProps, Budget, ExpenseCategory, Currency } from '../types/expense.types';
 import { getBudgets, setBudget as apiSetBudget, deleteBudget as apiDeleteBudget } from '../services/api';
-import { formatCurrency, CURRENCY_SYMBOLS } from '../utils/format';
-
-const CURRENCIES: Currency[] = ['USD', 'PLN', 'BTC'];
+import { formatCurrency, currencySymbol } from '../utils/format';
+import { relevantCurrencies } from '../utils/currencies';
 
 function currentMonthKey(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export default function Budgets({ expenses, categories }: BudgetsProps) {
+export default function Budgets({ expenses, categories, currencies }: BudgetsProps) {
   const [currency, setCurrency] = useState<Currency>('USD');
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -134,9 +133,9 @@ export default function Budgets({ expenses, categories }: BudgetsProps) {
           <p className="muted-text">{monthLabel} · spending vs. limits</p>
         </div>
         <div className="currency-buttons">
-          {CURRENCIES.map(c => (
-            <button key={c} className={currency === c ? 'active' : ''} onClick={() => changeCurrency(c)}>
-              {c} ({CURRENCY_SYMBOLS[c]})
+          {relevantCurrencies(currencies, [...expenses.map(e => e.currency), ...budgets.map(b => b.currency)]).map(c => (
+            <button key={c.code} className={currency === c.code ? 'active' : ''} onClick={() => changeCurrency(c.code)}>
+              {c.code} ({c.symbol})
             </button>
           ))}
         </div>
@@ -177,7 +176,7 @@ export default function Budgets({ expenses, categories }: BudgetsProps) {
                 <LineChart data={burndown}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="day" tickFormatter={(d: number) => String(d)} minTickGap={16} />
-                  <YAxis width={56} tickFormatter={(v: number) => `${CURRENCY_SYMBOLS[currency]}${Math.round(v)}`} />
+                  <YAxis width={56} tickFormatter={(v: number) => `${currencySymbol(currency)}${Math.round(v)}`} />
                   <Tooltip
                     formatter={(v: number) => formatCurrency(v, currency)}
                     labelFormatter={(d) => `Day ${d}`}
@@ -228,7 +227,7 @@ export default function Budgets({ expenses, categories }: BudgetsProps) {
 
                   <div className="budget-row-actions">
                     <div className="budget-input">
-                      <span className="budget-input-symbol">{CURRENCY_SYMBOLS[currency]}</span>
+                      <span className="budget-input-symbol">{currencySymbol(currency)}</span>
                       <input
                         type="number"
                         min="0"

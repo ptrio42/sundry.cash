@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import Analytics from '../components/Analytics';
 import { TEST_CATEGORIES } from './categories.fixture';
+import { TEST_CURRENCIES } from './currencies.fixture';
 import { getAnalytics } from '../services/api';
 import { AppSettings, FxRates } from '../types/expense.types';
 
@@ -54,7 +55,7 @@ beforeEach(() => vi.clearAllMocks());
 describe('Analytics', () => {
   it('converts mixed currencies into the primary currency instead of adding them', async () => {
     mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
-    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
+    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} rates={rates} />);
 
     // 400 PLN + (25 USD * 4) = 500 PLN. The old code produced a bare 425 and
     // labelled it "$" regardless of the underlying currencies.
@@ -67,7 +68,7 @@ describe('Analytics', () => {
 
   it('derives the averages from the converted total', async () => {
     mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
-    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
+    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} rates={rates} />);
 
     // 500 PLN over 3 transactions.
     await waitFor(() => expect(card('Average per Expense')).toHaveTextContent(/166,67\s*zł/));
@@ -76,7 +77,7 @@ describe('Analytics', () => {
 
   it('keeps the exact native subtotal for each currency alongside the converted total', async () => {
     mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
-    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
+    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} rates={rates} />);
 
     await waitFor(() => expect(card('PLN Total')).toHaveTextContent(/400,00\s*zł/));
     expect(card('USD Total')).toHaveTextContent(/\$25\.00/);
@@ -84,7 +85,7 @@ describe('Analytics', () => {
 
   it('collapses the per-currency category rows into one bar per category', async () => {
     mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
-    const { container } = render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
+    const { container } = render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} rates={rates} />);
 
     await waitFor(() =>
       expect(container.querySelector('.category-breakdown')).toBeInTheDocument()
@@ -102,7 +103,7 @@ describe('Analytics', () => {
     // An empty `categories` filter reads as *unfiltered* to the API, so
     // forwarding it would answer "show me none of it" with the whole ledger.
     mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
-    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
+    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} rates={rates} />);
 
     await waitFor(() => expect(card('Total Spent')).toBeInTheDocument());
     mockGetAnalytics.mockClear();
@@ -119,7 +120,7 @@ describe('Analytics', () => {
 
   it('reaches the same empty state by unchecking the categories one at a time', async () => {
     mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
-    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
+    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} rates={rates} />);
 
     await waitFor(() => expect(card('Total Spent')).toBeInTheDocument());
 
@@ -139,7 +140,7 @@ describe('Analytics', () => {
 
   it('goes back to querying once a category is checked again', async () => {
     mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
-    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} rates={rates} />);
+    render(<Analytics settings={settings('PLN')} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} rates={rates} />);
 
     await waitFor(() => expect(card('Total Spent')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('checkbox', { name: /all categories/i }));
@@ -154,7 +155,7 @@ describe('Analytics', () => {
 
   it('converts into USD when that is the primary currency', async () => {
     mockGetAnalytics.mockResolvedValue(mixedCurrencyResponse);
-    render(<Analytics settings={settings('USD')} categories={TEST_CATEGORIES} rates={rates} />);
+    render(<Analytics settings={settings('USD')} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} rates={rates} />);
 
     // 400 PLN * 0.25 = 100 USD, plus 25 USD = 125 USD.
     await waitFor(() => expect(card('Total Spent')).toHaveTextContent(/\$125\.00/));
