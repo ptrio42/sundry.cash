@@ -143,8 +143,14 @@ export function describeWindow(current: DateRange, previous: DateRange, calendar
   };
 }
 
-/** Add whole months, clamping the day to the target month's length. */
-function addMonths(iso: string, months: number): string {
+/**
+ * Add whole months, clamping the day to the target month's length.
+ *
+ * Exported for `utils/expenses.ts`, which needs the same "twelve months back"
+ * that `habitWindow` does. Two screens working out a window's start with two
+ * pieces of date arithmetic is how F1 and F2 happened; there is one here.
+ */
+export function addMonths(iso: string, months: number): string {
   const [year, month, day] = iso.split('-').map(Number);
   const target = new Date(Date.UTC(year, month - 1 + months, 1));
   const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();

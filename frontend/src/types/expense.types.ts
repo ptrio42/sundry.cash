@@ -291,13 +291,41 @@ export interface ExpenseFormProps {
   currencies: CurrencyInfo[];
 }
 
-export interface ExpenseTableProps {
+/**
+ * The Expenses screen: the ledger, the query tool and the door for bulk data,
+ * merged by change 4. It is handed the whole ledger and everything needed to
+ * express a mixed-currency set in one currency, because it now owns the filter,
+ * the summary and both charts as well as the table.
+ */
+export interface ExpensesProps {
   expenses: Expense[];
+  settings: AppSettings;
   categories: Category[];
   currencies: CurrencyInfo[];
+  rates: FxRates;
   onEdit: (expense: Expense) => void;
   onDelete: (id: number) => void;
   onUpdate: (id: number, updates: Partial<Expense>) => Promise<void>;
+  /** The ledger changed under us, because the toolbar imported a spreadsheet. */
+  onExpensesStale: () => void;
+}
+
+/**
+ * The table alone. `expenses` arrives **already filtered and sorted** — the
+ * screen owns the query, so the rows the table paginates are the rows an export
+ * writes and the rows both charts describe.
+ */
+export interface ExpenseTableProps {
+  expenses: Expense[];
+  categories: Category[];
+  onEdit: (expense: Expense) => void;
+  onDelete: (id: number) => void;
+  onUpdate: (id: number, updates: Partial<Expense>) => Promise<void>;
+  sortField: SortField;
+  sortOrder: SortOrder;
+  onSort: (field: SortField) => void;
+  /** Changes when the query does, and only then: that is when the page resets. */
+  queryKey: string;
 }
 
 export interface HomeProps {
