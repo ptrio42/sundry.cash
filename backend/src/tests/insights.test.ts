@@ -964,10 +964,26 @@ describe('GET /api/insights/summary', () => {
       expect(body.windowDays).toBe(30);
     });
 
-    it('takes a calendar month, which is a different number of days', async () => {
-      // August 2026 runs to the 31st, so the window is 31 days rather than 30.
+    it('measures a calendar window over the part of it that has happened', async () => {
+      // August 2026 runs to the 31st, but the anchor is the 10th, so twenty of
+      // its days have not occurred. Reporting 31 would divide eleven days of
+      // spending by a month and state a window three times too long underneath
+      // it — F10's defect, arriving through the back door.
       const body = await summary('&period=month&window=calendar&limit=10');
-      expect(body.windowDays).toBe(31);
+      expect(body.windowDays).toBe(10);
+      expect(body.findings.every((f: any) => f.data.days === undefined || f.data.days === 10)).toBe(true);
+    });
+
+    it('divides the weekend claim by the days it actually measured', async () => {
+      // Aug 1–10 2026 holds four weekend days — the 1st, 2nd, 8th and 9th — and
+      // 1000 zł of weekend spend (the 700 shop on the 1st, 300 of electricity on
+      // the 2nd). So 250 a day. The nominal month holds ten weekend days, which
+      // would report the same habit at 100 a day: two and a half times too low,
+      // under a sentence claiming a 31-day window.
+      const body = await summary('&period=month&window=calendar&limit=10');
+      const skew = finding(body, 'weekend_skew');
+      expect(skew.data.days).toBe(10);
+      expect(skew.data.weekendPerDay).toBe(250);
     });
 
     it('takes a week and a year', async () => {
