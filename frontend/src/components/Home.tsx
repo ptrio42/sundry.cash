@@ -556,7 +556,7 @@ export default function Home({
         <Section key="categories" id="home-categories" title="Where it went" window={pageWindowLine} claims={claimsFor('categories')}>
           <ul className="rank-list">
             {ranked.map(row => (
-              <li className="rank-row" key={row.category ?? ' everything-else'}>
+              <li className="rank-row" key={row.category ?? '\0everything-else'}>
                 <span className="rank-name">
                   {/* The swatch carries the colour and the text does not, per the
                       rule above `.category-dot` in App.css: a hue picked to read
