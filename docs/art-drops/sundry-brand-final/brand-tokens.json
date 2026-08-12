@@ -1,0 +1,18 @@
+{
+  "brand": "sundry.cash",
+  "symbol": "P1 receipt",
+  "typeface": "Newsreader (Production Type)",
+  "colors": {
+    "charcoal": "#1A1A1A",
+    "sage": "#7DA27D",
+    "offWhite": "#F7F7F5"
+  },
+  "wordmark": {
+    ".cash": "discreet, ~65–70% of sundry size",
+    "dot": "same color as wordmark; no green dot"
+  },
+  "minimums": {
+    "symbol_px": 16,
+    "horizontal_logo_px": 120
+  }
+}
