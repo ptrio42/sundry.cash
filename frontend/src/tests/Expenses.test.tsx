@@ -407,7 +407,7 @@ describe('Expenses — the toolbar', () => {
     const { container } = renderScreen();
     const toolbar = container.querySelector('.ledger-toolbar') as HTMLElement;
 
-    expect(within(toolbar).getByRole('button', { name: 'Import…' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: 'Import' })).toBeInTheDocument();
     expect(within(toolbar).getByRole('button', { name: /^Export/ })).toBeInTheDocument();
   });
 
@@ -415,7 +415,7 @@ describe('Expenses — the toolbar', () => {
     renderScreen();
 
     expect(screen.queryByLabelText(/Select Excel File/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Import…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
     expect(screen.getByLabelText(/Select Excel File/)).toBeInTheDocument();
   });
 

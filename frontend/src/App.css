@@ -1382,9 +1382,10 @@ td.amount { font-weight: 700; text-align: right; }
 .ledger-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
 .ledger-toolbar button { padding: 8px 14px; font-size: 0.85rem; }
 .export-menu { position: relative; }
-/* Scoped to this trigger rather than to `.btn-secondary`, which also renders
-   Import and Clear filters and would lose its inline-block baseline. */
-.export-menu > button { display: inline-flex; align-items: center; gap: 6px; }
+/* Scoped to the two disclosures rather than to `.btn-secondary`, which also
+   renders Clear filters and would lose its inline-block baseline. */
+.export-menu > button,
+.ledger-toolbar .disclosure { display: inline-flex; align-items: center; gap: 6px; }
 .export-menu-list {
   position: absolute;
   right: 0;

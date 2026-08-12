@@ -145,8 +145,18 @@ were really redrawn — so those two are the whole evidence that the size switch
 
 ### Deliberately not done
 
-`calendar`, `calendar-week`, `category`, `delete`, `edit`, `export`, `filter`, `import`, `merchant`,
-`on-track`, `recurring`, `retry`, `search`, `select-all`, `trend-down`, `trend-up` — 16 of the 39 —
+`calendar`, `calendar-week`, `category`, `delete`, `edit`, `export`, `filter`, `merchant`,
+`on-track`, `recurring`, `retry`, `search`, `select-all`, `trend-down`, `trend-up` — 15 of the 39 —
 have no call site. Every one would be a *new* decoration on a control that has no glyph today, and
-this wave replaces glyphs rather than adding pictures. The nearest one worth a follow-up: Expenses'
-`Import…` has no caret while `Export ▾` now has a crisp one, so the asymmetry got louder.
+this wave replaces glyphs rather than adding pictures. Each is a place with a *word* doing the job,
+not a place with a character pretending to be a picture: `Date range:`, `Search:`, `Categories:`,
+`Edit`, `Delete`, `Retry`, `4 on track`, and Home's six section headings. Putting a mark on any of
+them is a design decision — and it immediately asks the next one, since the three filter legends sit
+in one bar and the six headings in one column.
+
+The one exception, fixed here because it is an inconsistency rather than a matter of taste:
+**Expenses' `Import…` and `Export ▾` are two `aria-expanded` disclosures side by side in one
+toolbar**, and once Export's caret became a crisp `chevron-down`, they were promising the same thing
+two different ways. Import takes the same caret, and drops its ellipsis — two marks for one promise
+is worse than either. Home's `Import a spreadsheet` is deliberately left plain: it is the lead action
+on an empty page, not one of a pair.
