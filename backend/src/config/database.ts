@@ -156,6 +156,39 @@ export function initializeDatabase(): void {
     )
   `);
 
+  // Login throttling state, on disk rather than in the process.
+  //
+  // Not a convenience: a platform that stops idle machines (Fly's autostop —
+  // docs/hosted-security.md §2.4) restarts this process constantly, and an
+  // in-memory counter is wiped every time, so an attacker who paces their
+  // guesses around the idle timeout is never throttled at all.
+  //
+  // Deliberately NOT inside a try/catch like the enum migrations below. Those
+  // may fail and leave a working app; this one may not — a security control
+  // whose storage silently failed to appear is the fail-open shape this whole
+  // change exists to remove. A throw here stops the process at boot, which is
+  // the loud failure we want.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS auth_rate_limit (
+      key      TEXT PRIMARY KEY,
+      hits     INTEGER NOT NULL,
+      reset_at INTEGER NOT NULL
+    )
+  `);
+
+  // The per-instance backstop: one row, because a single-user product has
+  // exactly one account to protect and can therefore afford to lock globally in
+  // a way a multi-user one never could. `CHECK (id = 1)` is what makes "one
+  // row" a property of the schema rather than of every caller.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS auth_backstop (
+      id                   INTEGER PRIMARY KEY CHECK (id = 1),
+      consecutive_failures INTEGER NOT NULL DEFAULT 0,
+      blocked_until        INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  db.exec(`INSERT OR IGNORE INTO auth_backstop (id, consecutive_failures, blocked_until) VALUES (1, 0, 0)`);
+
   // Migration: Add currency column to existing tables if it doesn't exist
   try {
     // First, try to add the column (without NOT NULL to avoid SQLite limitations)

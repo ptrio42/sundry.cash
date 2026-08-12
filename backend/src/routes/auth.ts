@@ -7,6 +7,12 @@
 import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { isAuthEnabled, isAuthMisconfigured, isAuthRequired, passwordMatches, signToken } from '../config/auth';
+import {
+  SqliteRateLimitStore,
+  loginBackstop,
+  noteLoginFailure,
+  noteLoginSuccess,
+} from '../middleware/rateLimit';
 
 const router = Router();
 
@@ -20,6 +26,11 @@ const router = Router();
  *
  * `skipSuccessfulRequests` means only failures count, so a person who logs in
  * normally — even repeatedly across devices — never trips it.
+ *
+ * The store is SQLite rather than the default in-memory map: a platform that
+ * stops idle machines wipes process memory, and a counter that resets every
+ * idle period is not a counter (docs/hosted-security.md §2.4). `loginBackstop`
+ * below is the second line, for the attacker who simply changes address.
  */
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -27,6 +38,7 @@ const loginLimiter = rateLimit({
   skipSuccessfulRequests: true,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
+  store: new SqliteRateLimitStore(),
   message: { error: 'Too many login attempts. Try again later.' },
 });
 
@@ -44,7 +56,7 @@ router.get('/status', (_req: Request, res: Response) => {
   res.json({ authRequired: isAuthEnabled() || isAuthRequired() });
 });
 
-router.post('/login', loginLimiter, (req: Request, res: Response) => {
+router.post('/login', loginBackstop, loginLimiter, (req: Request, res: Response) => {
   if (isAuthMisconfigured()) {
     res.status(503).json({
       error: 'Service Unavailable',
@@ -60,10 +72,12 @@ router.post('/login', loginLimiter, (req: Request, res: Response) => {
 
   const { password } = req.body || {};
   if (typeof password !== 'string' || !passwordMatches(password)) {
+    noteLoginFailure();
     res.status(401).json({ error: 'Invalid password' });
     return;
   }
 
+  noteLoginSuccess();
   res.json({ token: signToken() });
 });
 
