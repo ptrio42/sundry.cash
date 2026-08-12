@@ -2,24 +2,42 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/icons/favicon-64.png" />
+    <link rel="icon" type="image/png" href="/icons/favicon-64.png?v=2" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="color-scheme" content="dark light" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Sundry — a self-hosted personal expense tracker built with React and TypeScript" />
 
     <!-- PWA: installable, add-to-home-screen -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#0e1013" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#F7F7F5" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=2" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Sundry" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <title>Sundry</title>
     <style>
-      html { background: #0e1013; }
+      /* Painted before React mounts, so there is no flash of the wrong page.
+         Off-white is the brand's own background — the value of --bg in the light
+         theme, which App.css makes the default. */
+      html { background: #F7F7F5; }
+      html[data-theme='dark'] { background: #1A1A1A; }
     </style>
+    <script>
+      /* The dark theme's half of the rule above, and the reason it is inline and
+         blocking rather than in the bundle: App.tsx stamps `data-theme` from an
+         effect, which runs after the first paint. Under a dark-first default
+         nobody noticed — the pre-mount colour and the stored choice agreed for
+         the majority. Light-first inverts that, and a full-white frame in front
+         of someone who deliberately chose dark is worse than the reverse.
+         `sundry-theme` is the key App.tsx reads; keep the two in step. */
+      try {
+        if (localStorage.getItem('sundry-theme') === 'dark') {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      } catch (e) { /* Safari in private mode throws on localStorage. */ }
+    </script>
   </head>
   <body>
     <div id="root"></div>

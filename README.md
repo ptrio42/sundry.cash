@@ -96,7 +96,8 @@ multi-tenant; each instance stays one container pair with its own SQLite file.
   shown where there is nothing to say — no empty boxes, no "0" tiles.
 - **Export** — the whole ledger as `.xlsx` from the server, or CSV generated in the browser.
 - **Optional login** — set `APP_PASSWORD` and the app gates behind a 7-day HMAC bearer token.
-- **Dark-first UI, mobile layout, installable PWA** — with a light theme toggle.
+- **Light-first UI, mobile layout, installable PWA** — charcoal, sage and off-white, with a dark
+  theme that is a full peer rather than a fallback.
 
 ## Design notes
 

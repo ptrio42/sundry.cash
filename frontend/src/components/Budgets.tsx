@@ -381,7 +381,10 @@ export default function Budgets({ expenses, settings, categories, currencies, ra
                       label={{ value: 'Limits', fill: 'var(--danger)', fontSize: 11, position: 'insideTopRight' }}
                     />
                   )}
-                  <Line type="monotone" dataKey="cumulative" stroke="#34d399" strokeWidth={2} dot={false} />
+                  {/* The one series in the app that was a literal — `#34d399`,
+                      the accent from before the brand, which measures 1.79:1 on
+                      the off-white the app opens on now. */}
+                  <Line type="monotone" dataKey="cumulative" stroke="var(--accent)" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

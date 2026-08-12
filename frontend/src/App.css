@@ -1,77 +1,174 @@
 /**
- * Sundry — dark-first design system.
- * Tokenized palette, typography, spacing, and elevation. A light theme is
- * available via prefers-color-scheme and the [data-theme] override.
+ * Sundry — the brand design system, light-first.
+ *
+ * Three colours are frozen by the drop (docs/art-drops/sundry-brand-final/
+ * brand-tokens.json): charcoal #1A1A1A, sage #7DA27D, off-white #F7F7F5. The UI
+ * needs about two dozen tokens, so the rest are derived here and every derived
+ * pair is measured — `src/tests/theme.test.ts` recomputes the whole matrix and
+ * fails the build on anything under 4.5:1.
  */
 
+/* Newsreader, SIL OFL 1.1 — the licence travels with the font, in
+   src/assets/fonts/OFL.txt. Self-hosted rather than linked from Google Fonts:
+   that link hands every visitor's IP to fonts.gstatic.com, from a product whose
+   pitch is that it hands your data to nobody, and the demo instance is public.
+   Two subsets because `24,90 zł` needs latin-ext; one variable file each covers
+   200..800, so the regular and the bold of a finding sentence are one download,
+   not two. */
+@font-face {
+  font-family: 'Newsreader';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('./assets/fonts/newsreader-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Newsreader';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('./assets/fonts/newsreader-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ---------- Tokens ----------
+
+   The structure inverted with the brand, and the structure is the point. Light
+   used to be the *exception* — `:root` was dark and `[data-theme='light']`
+   overrode it — which is how the light theme ended up with no `--accent`,
+   `--danger`, `--info` or `--warning` at all until wave 0 noticed. Flipping only
+   the default value would have kept that trap and aimed it at the theme most
+   people now see, so `:root` is light and dark is the override. Every token
+   carrying a colour literal is declared in both blocks; the test enforces that
+   mechanically, so a token cannot go missing from one theme again.
+
+   Dark is a full peer, not a degraded fallback: the app lived in it for its
+   whole life, the toggle still works, and expense tracking happens in the
+   evening. */
+
+/* Geometry and type — identical in both themes, so declared once. `--ring`
+   resolves per theme through `--accent-soft`, which is why it belongs here
+   rather than in the pair below. */
 :root {
-  /* Dark (default) */
-  --bg: #0e1013;
-  --bg-elevated: #14171d;
-  --surface: #171b22;
-  --surface-2: #1e222b;
-  --surface-3: #272c37;
-  --border: #2a2f3a;
-  --border-strong: #38404d;
-
-  /* Two text ranks, not three. `--text-dim` was a third at #6b7480, which
-     measured 3.36:1 on --surface-2 and 3.65:1 on --surface — below AA in all
-     nine roles that used it, so they all read --text-muted now. */
-  --text: #e7e9ee;
-  --text-muted: #9aa3b2;
-
-  --accent: #34d399;
-  --accent-contrast: #052018;
-  --accent-soft: rgba(52, 211, 153, 0.12);
-
-  --danger: #f87171;
-  --danger-soft: rgba(248, 113, 113, 0.12);
-  --warning: #fbbf24;
-  --warning-soft: rgba(251, 191, 36, 0.12);
-  --info: #60a5fa;
-
-  /* Category hues used to live here, one custom property per slug. They are
-     rows in the database now (see docs/categories-currencies-spec.md), so the
-     colour arrives with the data and is applied inline. */
-
   --radius: 14px;
   --radius-sm: 9px;
   --radius-xs: 6px;
-  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.3);
   --ring: 0 0 0 3px var(--accent-soft);
 
   --sidebar-w: 248px;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  /* Three strings wide: the wordmark, Home's headline and the finding
+     sentences. Tables, controls and every figure stay on `--font` — a serif at
+     14px in a dense column of amounts is harder to scan than the system sans,
+     and the ledger is where people actually read numbers. */
+  --font-display: 'Newsreader', Georgia, 'Times New Roman', Times, serif;
 }
 
-/* Dark-first: the app defaults to dark; light is opt-in via the theme toggle. */
-:root[data-theme='light'] {
-  --bg: #f3f5f8;
-  --bg-elevated: #ffffff;
-  --surface: #ffffff;
-  --surface-2: #f5f7fa;
-  --surface-3: #eaeef3;
-  --border: #e2e7ee;
-  --border-strong: #d3dae3;
-  --text: #1a1f2b;
-  --text-muted: #5c6675;
+/* Light — the default, and the brand's own off-white. */
+:root {
+  color-scheme: light;
 
-  /* The semantic hues are chosen to sit on a dark surface; on white they are
-     decoration, not text. Leaving them out is why the active nav label rendered
-     at 1.92:1 here. Each is the same hue taken dark enough to clear AA on
-     --surface, --surface-2, --surface-3 and the soft tint built from it. */
-  --accent: #047857;
-  --danger: #b91c1c;
-  --warning: #92400e;
-  --warning-soft: rgba(251, 191, 36, 0.22);
-  --info: #1d4ed8;
-  /* Follows --accent: near-black on a dark green would not read either. */
-  --accent-contrast: #ffffff;
-  --accent-soft: rgba(16, 185, 129, 0.12);
-  --shadow: 0 10px 30px rgba(20, 30, 50, 0.1);
-  --shadow-sm: 0 2px 10px rgba(20, 30, 50, 0.06);
+  --bg: #F7F7F5;
+  --bg-elevated: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface-2: #EFEFEB;
+  --surface-3: #E7E7E1;
+  --border: #D9D9D1;
+  --border-strong: #A8A89E;
+
+  /* Two text ranks, not three. `--text-dim` was a third at #6b7480, which
+     measured 3.36:1 on --surface-2 and 3.65:1 on --surface — below AA in all
+     nine roles that used it, so they all read --text-muted now. */
+  --text: #1A1A1A;
+  --text-muted: #565650;
+
+  /* Sage has two jobs on a light page and they cannot be the same value.
+     `#7DA27D` as *text* on `#F7F7F5` measures 2.67:1 — worse than the
+     `--text-dim` wave 0 deleted — so `--accent`, which is every accent-coloured
+     label, icon and border, is the same hue and saturation taken from 56% to
+     36% lightness: 5.56:1. `--accent-fill` keeps the frozen brand value,
+     because as a fill it is a background and the README reserves it for exactly
+     that; charcoal on it is 6.08:1. On dark the two are one value. */
+  --accent: #4D6B4D;
+  --accent-fill: #7DA27D;
+  --accent-contrast: #1A1A1A;
+  --accent-soft: rgba(125, 162, 125, 0.13);
+
+  /* The three semantic hues, each taken dark enough to clear AA on every
+     surface and on its own tint. `-border` is the same hue at an alpha that
+     reads as an edge; it exists because these were seven hardcoded rgba()
+     literals in the body of this file, frozen at the values the *dark* theme
+     wanted. */
+  --danger: #A81E17;
+  --danger-soft: rgba(168, 30, 23, 0.09);
+  --danger-border: rgba(168, 30, 23, 0.40);
+  --warning: #7A4E00;
+  --warning-soft: rgba(122, 78, 0, 0.10);
+  --warning-border: rgba(122, 78, 0, 0.40);
+  --info: #1D4ED8;
+  --info-soft: rgba(29, 78, 216, 0.08);
+  --info-border: rgba(29, 78, 216, 0.34);
+
+  /* Charcoal, not black: a modal scrim is the one place the page goes dark in
+     the light theme, and it should go the brand's dark. */
+  /* Every filled button lifts on hover with `filter: brightness()`, which is a
+     dark-theme idiom: it works because a mid-tone on a near-black page gets
+     *further* from the page. On off-white it moves the other way, so the light
+     theme darkens instead of brightening — same gesture, opposite sign. Not a
+     colour, but not geometry either: it is the one non-colour value the two
+     themes genuinely disagree about. */
+  --hover-lift: 0.94;
+
+  --scrim: rgba(26, 26, 26, 0.45);
+  --shadow: 0 10px 30px rgba(26, 26, 26, 0.10);
+  --shadow-sm: 0 2px 10px rgba(26, 26, 26, 0.07);
+
+  /* Category hues used to live here, one custom property per slug. They are
+     rows in the database now (see docs/categories-currencies-spec.md), so the
+     colour arrives with the data and is applied inline. */
+}
+
+/* Dark — charcoal, so the accent it carries is the frozen sage unaltered:
+   #7DA27D on #1A1A1A is 6.08:1. The old dark theme was a blue-black that no
+   brand colour belonged on. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #1A1A1A;
+  --bg-elevated: #1F1F1F;
+  --surface: #202020;
+  --surface-2: #242424;
+  --surface-3: #2C2C2C;
+  --border: #303030;
+  --border-strong: #565650;
+
+  --text: #F7F7F5;
+  --text-muted: #ADADA5;
+
+  /* One sage here: at 6.08:1 on charcoal the brand value carries text, and as a
+     fill it takes the same charcoal back at the same ratio. */
+  --accent: #7DA27D;
+  --accent-fill: #7DA27D;
+  --accent-contrast: #1A1A1A;
+  --accent-soft: rgba(125, 162, 125, 0.10);
+
+  --danger: #F08A82;
+  --danger-soft: rgba(240, 138, 130, 0.12);
+  --danger-border: rgba(240, 138, 130, 0.40);
+  --warning: #E8B04B;
+  --warning-soft: rgba(232, 176, 75, 0.12);
+  --warning-border: rgba(232, 176, 75, 0.40);
+  --info: #8AB4F8;
+  --info-soft: rgba(138, 180, 248, 0.11);
+  --info-border: rgba(138, 180, 248, 0.36);
+
+  --hover-lift: 1.08;
+
+  --scrim: rgba(10, 10, 10, 0.68);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 * {
@@ -82,8 +179,6 @@
 
 body {
   font-family: var(--font);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
@@ -92,6 +187,15 @@ body {
 
 h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
 .amount, .value, .result-value, td.amount { font-variant-numeric: tabular-nums; }
+
+/* Synthetic smoothing thins glyphs, which is what light text on a dark page
+   wants and the opposite of what charcoal on off-white wants — it reads as
+   washed out, and more so under a serif. It followed the default theme here for
+   the app's whole life; it still does. */
+:root[data-theme='dark'] body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -121,13 +225,13 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 1.15rem;
-  font-weight: 700;
   padding: 6px 10px 18px;
-  color: var(--text);
 }
-.sidebar-brand .logo { width: 26px; height: 26px; border-radius: 6px; display: block; }
+/* 32px tall puts the mark at 120px wide, which is the drop's stated minimum for
+   the horizontal lockup. No radius: it is a logo on the page background, not an
+   app icon in a tile. The type rules that used to sit above went with the
+   `<span>Sundry</span>` — the mark carries the wordmark itself now. */
+.sidebar-brand .logo { height: 32px; width: auto; display: block; }
 
 /* The one persistent action. Filled rather than listed, because it is not a
    place you can be: it is the thing you do from wherever you are. */
@@ -138,8 +242,9 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
   width: 100%;
   padding: 11px 13px;
   margin-bottom: 14px;
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--accent-contrast);
+  box-shadow: inset 0 0 0 1px var(--accent);
   border: none;
   border-radius: var(--radius-sm);
   font-size: 0.94rem;
@@ -148,7 +253,7 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
   text-align: left;
   transition: filter 0.15s ease;
 }
-.btn-add-expense:hover { filter: brightness(1.06); }
+.btn-add-expense:hover { filter: brightness(var(--hover-lift)); }
 .btn-add-expense .nav-icon { width: 20px; text-align: center; }
 
 .sidebar-nav {
@@ -234,8 +339,9 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
   font-size: 0.9rem;
 }
 .demo-banner-tag {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--accent-contrast);
+  box-shadow: inset 0 0 0 1px var(--accent);
   border-radius: var(--radius-xs);
   padding: 2px 8px;
   font-size: 0.72rem;
@@ -314,8 +420,16 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
   /* The action, raised out of the bar rather than sharing its row: a tab you can
      be on and an action you take are different things, and the shape says so
      before the label does. The desktop sidebar makes the same distinction with a
-     filled button above the destinations. */
-  .bottom-nav-add {
+     filled button above the destinations.
+
+     Qualified by the bar, and it has to be. `.bottom-nav button` above is a class
+     *and* a type, which outranks a lone class — so every property the two share
+     went to the tab rule and this button has been rendering as a transparent 6px
+     rounded rectangle stretched across a fifth of the bar since the day it was
+     written. Only `box-shadow`, which the tab rule does not set, ever got
+     through. Found while checking the sage fills: the inset edge landed and the
+     fill under it did not, which is what made it visible. */
+  .bottom-nav .bottom-nav-add {
     flex: 0 0 auto;
     align-self: flex-start;
     width: 54px;
@@ -323,16 +437,16 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
     margin: -20px 6px 0;
     padding: 0;
     border-radius: 999px;
-    background: var(--accent);
+    background: var(--accent-fill);
     color: var(--accent-contrast);
     /* Matches the bar, so the button reads as sitting in front of it. */
     border: 3px solid var(--bg-elevated);
-    box-shadow: var(--shadow-sm);
+    box-shadow: inset 0 0 0 1px var(--accent), var(--shadow-sm);
   }
-  .bottom-nav-add .nav-icon { font-size: 1.6rem; }
+  .bottom-nav .bottom-nav-add .nav-icon { font-size: 1.6rem; }
   /* The four tabs turn accent-coloured when active; this one already is, so it
      takes the ring instead. */
-  .bottom-nav-add.active { box-shadow: 0 0 0 3px var(--accent), var(--shadow-sm); }
+  .bottom-nav .bottom-nav-add.active { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent), var(--shadow-sm); }
 
   /* Comfortable touch targets + no iOS zoom-on-focus (needs >=16px inputs) */
   input, select, textarea { font-size: 16px; }
@@ -350,7 +464,7 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
 
 .error-banner {
   background: var(--danger-soft);
-  border: 1px solid rgba(248, 113, 113, 0.4);
+  border: 1px solid var(--danger-border);
   color: var(--danger);
   padding: 14px 16px;
   border-radius: var(--radius-sm);
@@ -431,10 +545,27 @@ h3 { font-size: 1.05rem; }
 @media (max-width: 560px) { .form-row { grid-template-columns: 1fr; } }
 
 /* Buttons */
+/* The last of the four `--accent-fill` rules, and the place to explain them.
+   Frozen `#7DA27D` is a background here, which is the job its own README
+   reserves it for, and charcoal on it is 6.08:1. What it cannot do on a light
+   page is *bound* itself: sage against off-white is 2.67:1, under the 3:1 that
+   SC 1.4.11 asks of a control's edge. So every sage fill carries a 1px inset
+   ring of `--accent` — the darker sibling, 5.55:1 — and any rule that overrides
+   `box-shadow` has to carry it too. On dark the two sages are one value, so the
+   ring is invisible and costs nothing.
+
+   Which token a green area takes is decided by whether it can carry an edge.
+   These four are *controls*: a button knows its own bounds, so it can take the
+   ring and keep the brand colour. The green things a chart draws — the bars on
+   Home and Expenses, the budget progress fill, the cumulative line — cannot,
+   because a data mark has no chrome to hang a ring on and must clear 3:1 on the
+   surface by itself. Those take `--accent` and are set inline where the data
+   is. Two greens on one screen is the intended reading, not a slip. */
 button[type='submit'],
 .btn-primary {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--accent-contrast);
+  box-shadow: inset 0 0 0 1px var(--accent);
   padding: 11px 22px;
   border: none;
   border-radius: var(--radius-sm);
@@ -445,9 +576,9 @@ button[type='submit'],
 }
 button[type='submit']:hover:not(:disabled),
 .btn-primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+  filter: brightness(var(--hover-lift));
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent), 0 6px 18px var(--accent-soft);
 }
 button[type='submit']:disabled,
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -567,6 +698,12 @@ button[type='submit']:disabled,
    deletes what greps to zero takes chart theming with it. */
 .recharts-cartesian-grid line { stroke: var(--border); }
 .recharts-text { fill: var(--text-muted); }
+/* Recharts draws the axis and its tick marks at a hardcoded #666, which nothing
+   here used to override. On the old dark default that measured about 2:1 and
+   nobody had looked; making light the default would have moved the same gap onto
+   the theme this file calls a full peer rather than fixing it. */
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line { stroke: var(--border-strong); }
 .recharts-default-tooltip {
   background: var(--surface-3) !important;
   border: 1px solid var(--border-strong) !important;
@@ -704,7 +841,7 @@ td.amount { font-weight: 700; text-align: right; }
 .btn-bulk-assign:hover { border-color: var(--accent); color: var(--accent); }
 /* The other live 2.77:1 failure — see the note on `.error-banner button`. */
 .btn-bulk-delete { border-color: transparent; background: var(--danger); color: var(--bg); }
-.btn-bulk-delete:hover { filter: brightness(1.08); }
+.btn-bulk-delete:hover { filter: brightness(var(--hover-lift)); }
 .btn-bulk-cancel:hover { background: var(--surface-2); }
 
 /* ---------- Category breakdown ----------
@@ -735,8 +872,8 @@ td.amount { font-weight: 700; text-align: right; }
 .file-name { margin-top: 8px; font-size: 0.85rem; color: var(--accent); }
 .preview-section, .import-results { margin-top: 8px; }
 .info-box {
-  background: rgba(96, 165, 250, 0.1);
-  border: 1px solid rgba(96, 165, 250, 0.35);
+  background: var(--info-soft);
+  border: 1px solid var(--info-border);
   color: var(--text);
   padding: 12px 14px;
   border-radius: var(--radius-sm);
@@ -755,7 +892,7 @@ td.amount { font-weight: 700; text-align: right; }
 /* ---------- Modal ---------- */
 .modal-backdrop {
   position: fixed; inset: 0;
-  background: rgba(5, 7, 10, 0.66);
+  background: var(--scrim);
   backdrop-filter: blur(3px);
   display: flex; align-items: center; justify-content: center;
   padding: 20px; z-index: 100;
@@ -887,8 +1024,25 @@ td.amount { font-weight: 700; text-align: right; }
   box-shadow: var(--shadow);
   padding: 40px 36px; width: 100%; max-width: 380px; text-align: center;
 }
-.login-brand { font-size: 46px; line-height: 1; }
-.login-card h1 { margin: 12px 0 4px; font-size: 1.5rem; }
+/* The symbol, not the horizontal lockup: the wordmark is the <h1> right under
+   it, and the sidebar already showed what printing the name twice looks like.
+   3:4 of its 84x112 viewBox, at the size the emoji used to occupy. */
+.login-brand {
+  width: 46px;
+  height: 61px;
+  margin: 0 auto;
+  background: url('./assets/brand/symbol-light.svg') center / contain no-repeat;
+}
+:root[data-theme='dark'] .login-brand { background-image: url('./assets/brand/symbol-dark.svg'); }
+/* The wordmark, as live text — the one place it is not the logo asset. */
+.login-card h1 {
+  font-family: var(--font-display);
+  /* The h1-h4 rule tightens by 0.01em, which is a sans-serif's setting. A serif
+     at 24px is drawn with its own fit and does not want it taken back. */
+  letter-spacing: 0;
+  margin: 12px 0 4px;
+  font-size: 1.5rem;
+}
 .login-sub { color: var(--text-muted); margin: 0 0 24px; font-size: 0.9rem; }
 .login-card .form-group { text-align: left; }
 .login-submit { width: 100%; }
@@ -903,7 +1057,7 @@ td.amount { font-weight: 700; text-align: right; }
   background: var(--danger); color: var(--bg); border: none;
   padding: 11px 22px; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer;
 }
-.btn-danger:hover { filter: brightness(1.08); }
+.btn-danger:hover { filter: brightness(var(--hover-lift)); }
 
 /* ---------- Budgets ---------- */
 /* The verdict is the screen (F4, change 6): the answer at the top in the same
@@ -971,7 +1125,7 @@ td.amount { font-weight: 700; text-align: right; }
 
 .budget-list { list-style: none; display: flex; flex-direction: column; gap: 14px; }
 .budget-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
-.budget-row.over { border-color: rgba(248, 113, 113, 0.5); }
+.budget-row.over { border-color: var(--danger-border); }
 /* One line for however many categories carry no limit. Six of them used to hold
    a full-height card each, around an empty box. */
 .budget-nolimit { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
@@ -1015,6 +1169,11 @@ td.amount { font-weight: 700; text-align: right; }
    already measured 13.11:1 against its panel. It was easy to read and easy to
    skip, and only the second mattered. */
 .headline, .finding {
+  /* The two strings Newsreader exists for in this app. These sentences are the
+     product's voice — "Weekends cost more — about 197,21 zł a day over the last
+     366 days" — and an editorial serif is what makes them read as prose instead
+     of as a caption. Everything around them stays on `--font`. */
+  font-family: var(--font-display);
   font-size: 1.4rem;
   font-weight: 600;
   line-height: 1.4;
@@ -1126,7 +1285,9 @@ td.amount { font-weight: 700; text-align: right; }
 .heatmap-scroll { overflow-x: auto; padding-bottom: 6px; }
 .heatmap { display: flex; gap: 4px; }
 .heatmap-col { display: flex; flex-direction: column; gap: 4px; }
-.heatmap-cell { width: 14px; height: 14px; border-radius: 3px; flex: none; }
+/* The empty end of the ramp, and the fallback under the `color-mix()` Home
+   paints on top (see `rampStep` there). */
+.heatmap-cell { width: 14px; height: 14px; border-radius: 3px; flex: none; background: var(--surface-3); }
 .heatmap-legend { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 0.76rem; color: var(--text-muted); }
 
 /* ---------- Expenses: the ledger screen (change 4) ---------- */
@@ -1148,7 +1309,7 @@ td.amount { font-weight: 700; text-align: right; }
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow);
   z-index: 20;
 }
 .export-menu-list button {
@@ -1316,7 +1477,7 @@ td.amount { font-weight: 700; text-align: right; }
 }
 .receipt-confidence strong { color: var(--accent); }
 
-.receipt-warnings { background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.4); }
+.receipt-warnings { background: var(--warning-soft); border-color: var(--warning-border); }
 .receipt-warnings ul { margin: 8px 0 0; padding-left: 20px; }
 .receipt-warnings li { margin: 3px 0; }
 
@@ -1362,7 +1523,7 @@ td.amount { font-weight: 700; text-align: right; }
 /* Receipt image viewer overlay */
 .receipt-modal-overlay {
   position: fixed; inset: 0;
-  background: rgba(5, 7, 10, 0.72);
+  background: var(--scrim);
   backdrop-filter: blur(3px);
   display: flex; align-items: center; justify-content: center;
   padding: 24px; z-index: 120;

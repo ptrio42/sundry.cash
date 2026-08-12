@@ -549,3 +549,87 @@ describe('App — the Add sheet', () => {
     expect(window.location.hash).toBe('#/budgets');
   });
 });
+
+/**
+ * The theme is a device preference, not an account setting, so the shell owns it
+ * and localStorage keeps it. What changed with the brand is which way round the
+ * default points: `:root` is the light theme now, so the stored value is read
+ * for the exception.
+ */
+describe('App — theme', () => {
+  /* The key App.tsx writes. Not the bare `theme` the dark-first shell used: that
+     one was stamped 'dark' on every mount for everyone, so reading it would have
+     kept every existing install dark and shipped the rebrand to new visitors
+     only. A rename is the migration. */
+  const THEME_KEY = 'sundry-theme';
+  const root = () => document.documentElement;
+  const mark = () => document.querySelector('.sidebar-brand img') as HTMLImageElement;
+
+  beforeEach(() => {
+    // jsdom keeps one localStorage for the whole file, and the shell writes the
+    // key on mount — so every case here has to start from no stored choice.
+    localStorage.removeItem(THEME_KEY);
+  });
+
+  it('opens on the brand off-white when nothing has been chosen', async () => {
+    await renderApp();
+
+    expect(root().dataset.theme).toBe('light');
+    expect(localStorage.getItem(THEME_KEY)).toBe('light');
+  });
+
+  it('opens on dark when that is what the device chose last', async () => {
+    localStorage.setItem(THEME_KEY, 'dark');
+
+    await renderApp();
+
+    expect(root().dataset.theme).toBe('dark');
+  });
+
+  it('treats a stored value it does not recognise as the default', async () => {
+    localStorage.setItem(THEME_KEY, 'sepia');
+
+    await renderApp();
+
+    expect(root().dataset.theme).toBe('light');
+  });
+
+  it('switches on the toggle and remembers the switch', async () => {
+    await renderApp();
+
+    fireEvent.click(screen.getByRole('button', { name: /dark mode/i }));
+
+    await waitFor(() => expect(root().dataset.theme).toBe('dark'));
+    expect(localStorage.getItem(THEME_KEY)).toBe('dark');
+
+    fireEvent.click(screen.getByRole('button', { name: /light mode/i }));
+
+    await waitFor(() => expect(root().dataset.theme).toBe('light'));
+    expect(localStorage.getItem(THEME_KEY)).toBe('light');
+  });
+
+  it('ignores the key the dark-first shell wrote for everyone', async () => {
+    // Every install that ever loaded Sundry has `theme: 'dark'` on disk, written
+    // by a mount rather than by a choice. Honouring it would have meant the
+    // brand wave reaching first-time visitors and nobody else.
+    localStorage.setItem('theme', 'dark');
+
+    await renderApp();
+
+    expect(root().dataset.theme).toBe('light');
+  });
+
+  it('moves the wordmark to the cut made for the theme it is on', async () => {
+    // The receipt's lower bar is painted in the *background* colour, so one mark
+    // cannot serve both themes — and picking it at build time would leave an
+    // off-white wordmark on an off-white page for anyone who toggles.
+    await renderApp();
+
+    expect(mark()).toHaveAttribute('alt', 'Sundry');
+    expect(mark().getAttribute('src')).toMatch(/logo-horizontal-light/);
+
+    fireEvent.click(screen.getByRole('button', { name: /dark mode/i }));
+
+    await waitFor(() => expect(mark().getAttribute('src')).toMatch(/logo-horizontal-dark/));
+  });
+});

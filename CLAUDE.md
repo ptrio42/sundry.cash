@@ -92,7 +92,8 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   (client-side .xlsx). **Both import their shared arithmetic from `home.ts`** — window ranges in one
   case, the over/close classification in the other — rather than re-implementing it, which is how
   the app ended up with four currency controls that disagreed. Charts: recharts. Styling: single
-  dark-first `src/App.css`.
+  light-first `src/App.css`; brand assets in `src/assets/` (the two logo cuts, the two symbol cuts,
+  the two Newsreader subsets) and PWA icons in `public/icons/`.
 
 ## Key design decisions (the non-obvious "why")
 
@@ -201,7 +202,26 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   is pressed — keep the toggle. It is also why the combined `All → primary` scope is read-only: a limit
   is stored in one currency, and writing back an edit made against a converted figure would rewrite it
   at today's rate.
-- **Dark-first UI** — `index.html` sets the dark background before React mounts to avoid a flash.
+- **Light-first, and the palette is derived, not picked.** `docs/art-drops/sundry-brand-final/`
+  freezes three colours — charcoal `#1A1A1A`, sage `#7DA27D`, off-white `#F7F7F5`. Everything else in
+  `App.css` is derived from them and measured: `src/tests/theme.test.ts` recomputes every
+  foreground/surface pair in both themes and fails under 4.5:1. **`:root` is the light theme and
+  `[data-theme='dark']` is the override**, which is the inversion of what it was — light used to be
+  structurally the exception, which is how it spent most of its life with no `--accent`, `--danger`,
+  `--info` or `--warning` at all. Dark is a full peer, not a fallback. Three consequences worth
+  keeping: **sage is a fill, never text on light** (2.67:1 on off-white, so `--accent` is a darker
+  sibling at 36% lightness and `--accent-fill` keeps the frozen value for backgrounds, which then
+  take charcoal and a 1px `--accent` edge); **no colour literal may appear outside the token blocks**
+  in `App.css` or in a component, which the same suite enforces — the exception is a category's hue,
+  which is user data; and **the anti-flash rule in `index.html` follows the default**, so it is
+  off-white now, with a blocking inline script that stamps `data-theme` from `sundry-theme` before
+  first paint. That key is deliberately not the old bare `theme`: the dark-first shell wrote `dark`
+  into it on every mount for everyone, so reading it would have shipped the whole rebrand to
+  first-time visitors only.
+- **Newsreader has exactly three strings** — the wordmark, Home's headline, the finding sentences.
+  Self-hosted (`src/assets/fonts/`, licence served at `/fonts/OFL.txt`) rather than loaded from
+  Google, because the pitch is that the app hands your data to nobody and the demo is public. Tables,
+  controls and every figure stay on `--font`.
 
 ## Gotchas
 
@@ -221,7 +241,7 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (278 backend + 434 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (278 backend + 613 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).

@@ -31,7 +31,11 @@ export default function Login({ onSuccess }: LoginProps) {
   return (
     <div className="login-screen">
       <form className="login-card" onSubmit={handleSubmit}>
-        <div className="login-brand" aria-hidden="true">💰</div>
+        {/* The receipt symbol, painted by CSS rather than passed in: it has a
+            light and a dark cut, this screen has no theme prop, and a background
+            image can follow `[data-theme]` without one. Decorative — the <h1>
+            under it is the name. */}
+        <div className="login-brand" aria-hidden="true" />
         <h1>Sundry</h1>
         <p className="login-sub">Enter your password to continue</p>
 
