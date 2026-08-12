@@ -44,7 +44,7 @@ import {
   categoryTotals,
   describeLedgerWindow,
   filterExpenses,
-  grainFor,
+  grainForWindow,
   isEmptyQuery,
   measureWindow,
   queryBounds,
@@ -88,6 +88,7 @@ export default function Expenses({
   const [exportOpen, setExportOpen] = useState<boolean>(false);
 
   const exportRef = useRef<HTMLDivElement>(null);
+  const exportButtonRef = useRef<HTMLButtonElement>(null);
 
   // Fixed for the life of the mount, as on Home: "today" moving mid-session
   // would silently shift the window every number on the screen is measured over.
@@ -116,6 +117,19 @@ export default function Expenses({
    * "All → PLN".
    */
   const single = presentCurrencies.length === 1 ? presentCurrencies[0] : null;
+
+  /**
+   * The currencies the control offers, and whether to render it at all.
+   *
+   * A scope in force counts as a currency to offer even after the ledger stops
+   * holding it — a bulk delete, or an import that reloads the ledger, can empty
+   * the currency you are standing in. Hiding the control then would leave an
+   * empty table over a filter bar that gives no reason for it, and the only way
+   * out would be a Clear button the reader has no cause to suspect. Keeping the
+   * pressed button on screen says what is filtering, and lets it be unpressed.
+   */
+  const scoped = query.currency !== 'all' ? [...presentCurrencies, query.currency] : presentCurrencies;
+  const offerScope = presentCurrencies.length > 1 || query.currency !== 'all';
   const display: Currency = query.currency !== 'all' ? query.currency : (single ?? settings.primaryCurrency);
   const scope = useMemo(() => ({ display, rates }), [display, rates]);
   const fmt = (value: number) => formatCurrency(value, display);
@@ -131,18 +145,20 @@ export default function Expenses({
     [filtered, sortField, sortOrder, categories]
   );
 
-  const window = useMemo(
+  // `measured`, not `window`: a local by that name would shadow the global one
+  // for the whole component.
+  const measured = useMemo(
     () => measureWindow(queryBounds(query, today), filtered, today),
     [query, filtered, today]
   );
 
-  const summary = useMemo(() => summarise(filtered, scope, window), [filtered, scope, window]);
+  const summary = useMemo(() => summarise(filtered, scope, measured), [filtered, scope, measured]);
   const breakdown = useMemo(() => categoryTotals(filtered, scope), [filtered, scope]);
 
-  const grain = grainFor(window?.days ?? 0);
+  const grain = grainForWindow(measured);
   const buckets = useMemo(
-    () => spendOverTime(filtered, scope, window, grain),
-    [filtered, scope, window, grain]
+    () => spendOverTime(filtered, scope, measured, grain),
+    [filtered, scope, measured, grain]
   );
 
   /**
@@ -154,7 +170,19 @@ export default function Expenses({
     query.range, query.customStart, query.customEnd, sortField, sortOrder
   ].join('|');
 
-  // A menu that stays open behind the click that dismissed it is a menu the user
+  /**
+   * Close the export list, and put focus back where it came from.
+   *
+   * Only for the paths the user drove deliberately — Escape, and picking a
+   * format. A click elsewhere on the page has already moved focus somewhere the
+   * user chose, and pulling it back here would steal it.
+   */
+  const closeExport = () => {
+    setExportOpen(false);
+    exportButtonRef.current?.focus();
+  };
+
+  // A list that stays open behind the click that dismissed it is one the user
   // has to close twice.
   useEffect(() => {
     if (!exportOpen) return;
@@ -162,7 +190,10 @@ export default function Expenses({
       if (!exportRef.current?.contains(event.target as Node)) setExportOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setExportOpen(false);
+      if (event.key === 'Escape') {
+        setExportOpen(false);
+        exportButtonRef.current?.focus();
+      }
     };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
@@ -192,12 +223,12 @@ export default function Expenses({
   };
 
   const exportCsv = () => {
-    setExportOpen(false);
+    closeExport();
     exportExpensesCsv(rows);
   };
 
   const exportExcel = async () => {
-    setExportOpen(false);
+    closeExport();
     try {
       await exportExpensesXlsx();
     } catch {
@@ -206,7 +237,7 @@ export default function Expenses({
   };
 
   const rangeLabel = RANGES.find(option => option.key === query.range)?.label ?? '';
-  const windowLine = describeLedgerWindow(rangeLabel, window);
+  const windowLine = describeLedgerWindow(rangeLabel, measured);
   // Only when something was actually converted, so a single-currency ledger is
   // never captioned with an estimate it did not make.
   const converted = summary.natives.some(native => native.currency !== display);
@@ -229,20 +260,26 @@ export default function Expenses({
           Import…
         </button>
 
+        {/* A disclosure, not an ARIA menu. `role="menu"` promises the whole
+            menu-button pattern — focus moved into the list, arrow keys between
+            items, a roving tabindex — and a screen reader that switches to
+            application mode on the strength of that promise then hands arrow
+            keys to a list that ignores them. Two buttons behind
+            `aria-expanded` owe nothing they do not deliver. */}
         <div className="export-menu" ref={exportRef}>
           <button
+            ref={exportButtonRef}
             type="button"
             className="btn-secondary"
             onClick={() => setExportOpen(open => !open)}
             aria-expanded={exportOpen}
-            aria-haspopup="menu"
           >
             Export <span aria-hidden="true">▾</span>
           </button>
           {exportOpen && (
-            <div className="export-menu-list" role="menu">
-              <button type="button" role="menuitem" onClick={exportCsv}>CSV</button>
-              <button type="button" role="menuitem" onClick={exportExcel}>Excel</button>
+            <div className="export-menu-list">
+              <button type="button" onClick={exportCsv}>CSV</button>
+              <button type="button" onClick={exportExcel}>Excel</button>
             </div>
           )}
         </div>
@@ -270,12 +307,12 @@ export default function Expenses({
 
         {/* Rendered only when there is a choice to make — the one option set the
             report asks for, and the one control (F9, change 14). */}
-        {presentCurrencies.length > 1 && (
+        {offerScope && (
           <div className="filter-group">
             <span className="filter-legend" id="ledger-currency">Currency:</span>
             <div role="group" aria-labelledby="ledger-currency">
               <CurrencyScope
-                currencies={scopeCurrencies(currencies, presentCurrencies)}
+                currencies={scopeCurrencies(currencies, scoped)}
                 value={query.currency}
                 onChange={currency => patch({ currency })}
                 combined={{
@@ -394,10 +431,10 @@ export default function Expenses({
 
         <div className="summary-card">
           <h3>Per day</h3>
-          <p className={window ? 'value' : 'value value-none'}>{window ? fmt(summary.perDay) : '—'}</p>
+          <p className={measured ? 'value' : 'value value-none'}>{measured ? fmt(summary.perDay) : '—'}</p>
           <p className="subtitle">
-            {window
-              ? `over ${window.days} ${window.days === 1 ? 'day' : 'days'}`
+            {measured
+              ? `over ${measured.days} ${measured.days === 1 ? 'day' : 'days'}`
               : 'no window to divide by'}
           </p>
         </div>

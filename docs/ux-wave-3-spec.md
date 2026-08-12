@@ -196,6 +196,12 @@ click in order to read.
 - **`.time-grouping` is unreferenced CSS.** It went unused when the Dashboard's grouping control left
   in wave 2 and nothing has claimed it since. Same class of finding as the `.btn-danger` note wave 0
   recorded; delete it with whatever sweep collects the rest.
+- **On mobile the filter bar is 603px tall, and the first number sits at 813px.** Measured at
+  375×812 on the demo: ten category chips wrap to five rows, so the summary row lands exactly one
+  scroll below the fold. That is F8's own complaint at phone width — the desktop figure is 505px,
+  which is fine. Any fix (a `Categories ▾` disclosure, or one horizontally scrolling chip row)
+  either adds a control or trades discoverability, so it is a design decision rather than a bug fix
+  and it is not one of the 28.
 - **The two exports disagree about the filter.** `Export ▾` now offers CSV and Excel from one control:
   CSV writes the rows the filter left standing, while Excel calls `/expenses/export` and writes the
   **whole ledger** regardless. Both behaviours predate this wave — they were simply 40px apart in a

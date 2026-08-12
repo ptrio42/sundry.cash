@@ -278,6 +278,34 @@ describe('Expenses — currencies', () => {
     expect(screen.queryByRole('button', { name: /^EUR/ })).not.toBeInTheDocument();
   });
 
+  it('keeps the control on screen when the ledger loses the currency it is scoped to', () => {
+    // A bulk delete, or an import that reloads the ledger, can empty the
+    // currency you are standing in. Hiding the control then would leave an empty
+    // table over a filter bar giving no reason for it.
+    const { rerender } = renderScreen();
+    fireEvent.click(screen.getByRole('button', { name: 'USD ($)' }));
+
+    rerender(
+      <Expenses
+        expenses={LEDGER.filter(expense => expense.currency !== 'USD')}
+        settings={settings()}
+        categories={TEST_CATEGORIES}
+        currencies={TEST_CURRENCIES}
+        rates={rates}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onUpdate={vi.fn().mockResolvedValue(undefined)}
+        onExpensesStale={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(/no expenses found/i)).toBeInTheDocument();
+    // Still pressed, still there to be unpressed.
+    expect(screen.getByRole('button', { name: 'USD ($)' })).toHaveClass('active');
+    fireEvent.click(screen.getByRole('button', { name: /^All →/ }));
+    expect(screen.queryByText(/no expenses found/i)).not.toBeInTheDocument();
+  });
+
   it('offers no currency control at all when the ledger holds one currency', () => {
     renderScreen(LEDGER.filter(expense => expense.currency === 'PLN'));
 
@@ -433,20 +461,35 @@ describe('Expenses — the toolbar', () => {
     try {
       renderScreen();
 
-      expect(screen.queryByRole('menuitem', { name: 'CSV' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'CSV' })).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: /^Export/ }));
 
-      fireEvent.click(screen.getByRole('menuitem', { name: 'CSV' }));
+      fireEvent.click(screen.getByRole('button', { name: 'CSV' }));
       expect(downloads.blobs).toHaveLength(1);
       // The menu closes behind the action it performed.
-      expect(screen.queryByRole('menuitem', { name: 'CSV' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'CSV' })).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByRole('button', { name: /^Export/ }));
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Excel' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
       expect(exportExpensesXlsx).toHaveBeenCalled();
+      // The list closes under the focused button, so focus has to be handed
+      // back — otherwise a keyboard user resumes from the top of the document.
+      expect(screen.getByRole('button', { name: /^Export/ })).toHaveFocus();
     } finally {
       downloads.restore();
     }
+  });
+
+  it('closes on Escape and returns focus to the control that opened it', () => {
+    renderScreen();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Export/ }));
+    expect(screen.getByRole('button', { name: 'CSV' })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByRole('button', { name: 'CSV' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Export/ })).toHaveFocus();
   });
 
   it('exports what the filter left standing, not the whole ledger', async () => {
@@ -455,7 +498,7 @@ describe('Expenses — the toolbar', () => {
       renderScreen();
       fireEvent.click(screen.getByRole('button', { name: 'Transport' }));
       fireEvent.click(screen.getByRole('button', { name: /^Export/ }));
-      fireEvent.click(screen.getByRole('menuitem', { name: 'CSV' }));
+      fireEvent.click(screen.getByRole('button', { name: 'CSV' }));
 
       const csv = await readBlob(downloads.blobs[0]);
       expect(csv).toContain('Train fare');

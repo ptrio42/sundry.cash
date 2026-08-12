@@ -374,6 +374,21 @@ export function grainFor(days: number): Grain {
   return 'month';
 }
 
+/**
+ * The grain for a window, from the **calendar** length rather than the elapsed
+ * one.
+ *
+ * `LedgerWindow.days` is the elapsed count, which is the right divisor for a
+ * per-day figure and the wrong input here: `spendOverTime` seeds a bucket for
+ * every slice of the full range, so a window running past today would be sliced
+ * by a rule that only looked at the part before it. One future-dated row is
+ * enough — the `All time` window then ends next year, three days have elapsed,
+ * and the chart draws four hundred daily bars under a caption saying "by day".
+ */
+export function grainForWindow(window: LedgerWindow | null): Grain {
+  return grainFor(window ? windowDays(window.range) : 0);
+}
+
 export interface TimeBucket {
   /** The bucket's first date, or `YYYY-MM` for a month. */
   key: string;

@@ -20,6 +20,7 @@ import {
   describeLedgerWindow,
   filterExpenses,
   grainFor,
+  grainForWindow,
   isEmptyQuery,
   measureWindow,
   presetRange,
@@ -230,6 +231,22 @@ describe('grainFor', () => {
     expect(grainFor(210)).toBe('week');
     expect(grainFor(211)).toBe('month');
     expect(grainFor(3650)).toBe('month');
+  });
+
+  it('slices a window by its calendar length, not by the part that has elapsed', () => {
+    // A window running to the end of the year has eleven elapsed days and 153
+    // calendar ones. `spendOverTime` seeds a bucket for every slice of the full
+    // range, so choosing the grain from the elapsed count would draw 153 daily
+    // bars — 142 of them empty — under a caption saying "by day".
+    const window = measureWindow({ start: '2026-08-01', end: '2026-12-31' }, LEDGER, TODAY);
+
+    expect(window!.days).toBe(11);
+    expect(grainForWindow(window)).toBe('week');
+    expect(spendOverTime([], inPLN, window, grainForWindow(window))).toHaveLength(22);
+  });
+
+  it('has no grain to choose without a window', () => {
+    expect(grainForWindow(null)).toBe('day');
   });
 });
 
