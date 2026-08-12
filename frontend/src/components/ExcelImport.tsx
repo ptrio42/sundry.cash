@@ -11,6 +11,7 @@
  */
 
 import { useState, FormEvent, ChangeEvent } from 'react';
+import { Icon } from './Icon';
 import { Currency, AppSettings, CurrencyInfo } from '../types/expense.types';
 import { offeredCurrencies } from '../utils/currencies';
 import { previewImport, confirmImport } from '../services/api';
@@ -191,7 +192,7 @@ export default function ExcelImport({ settings, currencies, onImported }: ExcelI
           <h3>File Preview</h3>
           <p>Total rows: {previewData.totalRows}</p>
           <div className="info-box">
-            <strong>ℹ️ Note:</strong> Merged cells have been automatically processed.
+            <strong><Icon name="info" size={16} /> Note:</strong> Merged cells have been automatically processed.
             Values from merged cells are filled forward to all rows in the merge.
           </div>
 
@@ -335,20 +336,26 @@ export default function ExcelImport({ settings, currencies, onImported }: ExcelI
           <h3>Import Results</h3>
           <div className="results-summary">
             <div className="result-card success">
-              <h4>✓ Successful</h4>
+              <h4><Icon name="check" size={14} /> Successful</h4>
               <p className="result-value">{importResults.success}</p>
             </div>
             <div className="result-card failed">
-              <h4>✗ Failed</h4>
+              <h4><Icon name="alert" size={14} /> Failed</h4>
               <p className="result-value">{importResults.failed}</p>
             </div>
             {/* The server counts skipped rows (blank/summary lines) separately
                 so nothing vanishes unexplained. Dropping it here put that back:
                 130 successful + 5 failed against a total of 137 left the reader
-                to wonder about the other two. */}
+                to wonder about the other two.
+
+                `undo` and not `retry`: the drop ships no skip mark, and of the
+                two arcs that could stand in, `retry` is a ring that reads as
+                "run it again" — an action this card does not offer and the
+                import cannot perform. `undo` is the arc shape the ⤼ it replaces
+                actually had, and nothing else in the app spends it. */}
             {importResults.skipped > 0 && (
               <div className="result-card skipped">
-                <h4>⤼ Skipped</h4>
+                <h4><Icon name="undo" size={14} /> Skipped</h4>
                 <p className="result-value">{importResults.skipped}</p>
               </div>
             )}

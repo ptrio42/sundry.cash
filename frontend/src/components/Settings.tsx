@@ -34,6 +34,7 @@
  */
 
 import { useState, FormEvent } from 'react';
+import { Icon } from './Icon';
 import { AppSettings, BtcUnit, Category, Currency, CurrencyInfo, Expense, ExpenseCategory, FxRates } from '../types/expense.types';
 import {
   updateSettings,
@@ -355,7 +356,7 @@ export default function Settings({
           <button type="submit" className="btn-primary" disabled={saving || !dirty}>
             {saving ? 'Saving…' : 'Save Preferences'}
           </button>
-          {saved && !dirty && <span className="settings-saved" role="status">✓ Saved</span>}
+          {saved && !dirty && <span className="settings-saved" role="status"><Icon name="check" size={14} /> Saved</span>}
         </div>
       </form>
 

@@ -32,6 +32,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Icon } from './Icon';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Currency, ExpensesProps, SortField, SortOrder } from '../types/expense.types';
 import { categoryColor, categoryLabel } from '../utils/categories';
@@ -274,7 +275,7 @@ export default function Expenses({
             onClick={() => setExportOpen(open => !open)}
             aria-expanded={exportOpen}
           >
-            Export <span aria-hidden="true">▾</span>
+            Export <Icon name="chevron-down" size={14} />
           </button>
           {exportOpen && (
             <div className="export-menu-list">

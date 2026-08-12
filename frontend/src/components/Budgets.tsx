@@ -41,6 +41,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { Icon } from './Icon';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
 import { BudgetsProps, Budget, Currency, ExpenseCategory } from '../types/expense.types';
 import { getBudgets, setBudget as apiSetBudget, deleteBudget as apiDeleteBudget } from '../services/api';
@@ -251,7 +252,7 @@ export default function Budgets({ expenses, settings, categories, currencies, ra
         */}
         <div className="month-stepper" role="group" aria-label="Month">
           <button type="button" aria-label="Previous month" onClick={() => setMonth(stepMonth(month, -1))}>
-            ‹
+            <Icon name="chevron-left" size={16} />
           </button>
           <span className="month-current">{monthLabel(month)}</span>
           <button
@@ -260,7 +261,7 @@ export default function Budgets({ expenses, settings, categories, currencies, ra
             disabled={!canStepForward(month, today)}
             onClick={() => setMonth(stepMonth(month, 1))}
           >
-            ›
+            <Icon name="chevron-right" size={16} />
           </button>
         </div>
 

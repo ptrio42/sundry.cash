@@ -17,6 +17,7 @@
  */
 
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { Icon, type IconName } from './Icon';
 import { ExpenseTableProps, ExpenseCategory, SortField } from '../types/expense.types';
 import { formatCurrency, formatDate } from '../utils/format';
 import { categoryColor, categoryLabel } from '../utils/categories';
@@ -133,11 +134,19 @@ export default function ExpenseTable({
   };
 
   /**
-   * Get sort indicator icon
+   * The sort indicator, as a name rather than a character.
+   *
+   * It stays `aria-hidden` at every call site: the state it shows is already on
+   * the `<th>` as `aria-sort`, which is the attribute a screen reader actually
+   * reports. As a font character it was announced *twice*, the second time as
+   * "up arrow".
+   *
+   * All three names ship a 14px optical cut, which is the size the headers draw
+   * them at — see `MICRO_MAX` in `Icon.tsx`.
    */
-  const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return '⇅';
-    return sortOrder === 'asc' ? '↑' : '↓';
+  const getSortIcon = (field: SortField): IconName => {
+    if (sortField !== field) return 'sort-none';
+    return sortOrder === 'asc' ? 'sort-ascending' : 'sort-descending';
   };
 
   /**
@@ -280,18 +289,18 @@ export default function ExpenseTable({
                 </th>
                 <th className="sortable" scope="col" aria-sort={ariaSort('date')}>
                   <button type="button" onClick={() => onSort('date')}>
-                    Date <span aria-hidden="true">{getSortIcon('date')}</span>
+                    Date <span className="sort-indicator" aria-hidden="true"><Icon name={getSortIcon('date')} size={14} /></span>
                   </button>
                 </th>
                 <th>Description</th>
                 <th className="sortable" scope="col" aria-sort={ariaSort('category')}>
                   <button type="button" onClick={() => onSort('category')}>
-                    Category <span aria-hidden="true">{getSortIcon('category')}</span>
+                    Category <span className="sort-indicator" aria-hidden="true"><Icon name={getSortIcon('category')} size={14} /></span>
                   </button>
                 </th>
                 <th className="sortable" scope="col" aria-sort={ariaSort('amount')}>
                   <button type="button" onClick={() => onSort('amount')}>
-                    Amount <span aria-hidden="true">{getSortIcon('amount')}</span>
+                    Amount <span className="sort-indicator" aria-hidden="true"><Icon name={getSortIcon('amount')} size={14} /></span>
                   </button>
                 </th>
                 <th>Actions</th>
@@ -320,7 +329,9 @@ export default function ExpenseTable({
                         onClick={() => viewReceipt(expense.receiptImage as string)}
                         disabled={receiptLoading}
                       >
-                        🧾
+                        {/* `receipt-view`, not `receipt-scan`: this opens an
+                            image already stored, it does not photograph one. */}
+                        <Icon name="receipt-view" size={14} />
                       </button>
                     )}
                   </td>
@@ -363,7 +374,7 @@ export default function ExpenseTable({
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
             >
-              ← Previous
+              <Icon name="chevron-left" size={16} /> Previous
             </button>
             {/* aria-live so the position is announced after the rows swap out. */}
             <span className="pagination-status" aria-live="polite">
@@ -379,7 +390,7 @@ export default function ExpenseTable({
               onClick={() => setPage(p => Math.min(pageCount, p + 1))}
               disabled={page === pageCount}
             >
-              Next →
+              Next <Icon name="chevron-right" size={16} />
             </button>
           </nav>
         )}
@@ -397,7 +408,7 @@ export default function ExpenseTable({
               close button, not on the backdrop. Escape also closes (see above). */}
           <div className="receipt-modal" role="dialog" aria-modal="true" aria-label="Receipt image">
             <button ref={closeButtonRef} type="button" className="receipt-modal-close" onClick={closeReceipt} aria-label="Close">
-              ✕
+              <Icon name="close" size={16} />
             </button>
             <img src={receiptUrl} alt="Receipt" />
           </div>

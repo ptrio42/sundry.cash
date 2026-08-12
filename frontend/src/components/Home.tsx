@@ -41,6 +41,7 @@
  */
 
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Icon } from './Icon';
 import { BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   getBudgets,
@@ -523,7 +524,7 @@ export default function Home({
 
           <p className="start-demo">
             <a href={DEMO_URL} target="_blank" rel="noopener noreferrer">
-              See it with 18 months of sample data →
+              See it with 18 months of sample data <Icon name="external-link" size={14} />
             </a>
           </p>
         </section>

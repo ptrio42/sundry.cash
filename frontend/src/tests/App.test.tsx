@@ -19,6 +19,7 @@ import { TEST_CURRENCIES } from './currencies.fixture';
 import { currentMonthKey, monthLabel } from '../utils/format';
 import {
   getAuthStatus,
+  getToken,
   getInstanceConfig,
   getExpenses,
   getSettings,
@@ -556,6 +557,93 @@ describe('App — the Add sheet', () => {
  * default points: `:root` is the light theme now, so the stored value is read
  * for the exception.
  */
+/**
+ * The icon wave (`docs/icon-wiring-spec.md`).
+ *
+ * What is worth testing here is not that a picture appeared — it is that the
+ * picture did not take the name with it. Every control in the shell was named by
+ * a word before this change, and the failure mode of an icon pass is that the
+ * word becomes a shape and a screen reader is handed a nameless button.
+ */
+describe('App — the icons', () => {
+  const iconIn = (el: HTMLElement) => el.querySelector('svg[data-icon]')?.getAttribute('data-icon');
+
+  it('gives each of the four destinations its own icon, in both navs', async () => {
+    await renderApp();
+
+    for (const [label, icon] of [['Home', 'home'], ['Expenses', 'expenses'],
+                                 ['Budgets', 'budgets'], ['Settings', 'settings']] as const) {
+      expect(iconIn(within(sidebarNav()).getByRole('button', { name: label })), label).toBe(icon);
+      expect(iconIn(within(mobileNav()).getByRole('button', { name: label })), label).toBe(icon);
+    }
+  });
+
+  it('leaves the four labels as the accessible names', async () => {
+    await renderApp();
+
+    // The same assertion the navigation block makes, repeated on purpose: it is
+    // the one this change could have broken and the reason the icons are
+    // `aria-hidden`. Four icons and four words, not four pictures.
+    const buttons = within(sidebarNav()).getAllByRole('button');
+    expect(buttons.map(b => b.textContent?.trim())).toEqual(DESTINATIONS);
+    for (const label of DESTINATIONS) {
+      expect(within(sidebarNav()).getByRole('button', { name: label })).toBeInTheDocument();
+    }
+  });
+
+  it('hides every icon from the accessibility tree', async () => {
+    await renderApp();
+
+    const icons = document.querySelectorAll('svg[data-icon]');
+    expect(icons.length).toBeGreaterThan(0);
+    for (const icon of icons) {
+      expect(icon.getAttribute('aria-hidden')).toBe('true');
+    }
+  });
+
+  it('names the mobile Add button even though it shows no word', async () => {
+    await renderApp();
+
+    // The one control in the shell whose label is visually hidden rather than
+    // absent — and the reason it must not gain an `aria-label` instead: two
+    // naming strategies in one bar is report finding R6.
+    const add = within(mobileNav()).getByRole('button', { name: 'Add expense' });
+    expect(iconIn(add)).toBe('add');
+    expect(add.querySelector('.sr-only')?.textContent).toBe('Add expense');
+    expect(add.getAttribute('aria-label')).toBeNull();
+  });
+
+  it('offers the theme the toggle would switch to, in icon and word alike', async () => {
+    localStorage.removeItem('sundry-theme');
+    await renderApp();
+
+    // Opening light: the button offers dark, so it draws the moon.
+    const toggle = () => screen.getByRole('button', { name: /mode$/i });
+    expect(toggle().textContent).toContain('Dark mode');
+    expect(iconIn(toggle())).toBe('dark-mode');
+
+    fireEvent.click(toggle());
+
+    expect(toggle().textContent).toContain('Light mode');
+    expect(iconIn(toggle())).toBe('light-mode');
+  });
+
+  it('keeps the sign-out button named by the word beside its icon', async () => {
+    // The spec calls this "the label-less sign-out button" and files it under
+    // icon-alone. It is not: `Logout` is rendered right there, so the icon is
+    // decorative and an `aria-label` here would only override a name that works.
+    // Logout only exists on an instance with a password set, and the shell
+    // renders Login instead of itself until a token is held.
+    mocked(getAuthStatus).mockResolvedValue({ authRequired: true });
+    mocked(getToken).mockReturnValue('test-token');
+    await renderApp();
+
+    const out = screen.getByRole('button', { name: 'Logout' });
+    expect(iconIn(out)).toBe('sign-out');
+    expect(out.getAttribute('aria-label')).toBeNull();
+  });
+});
+
 describe('App — theme', () => {
   /* The key App.tsx writes. Not the bare `theme` the dark-first shell used: that
      one was stamped 'dark' on every mount for everyone, so reading it would have

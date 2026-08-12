@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import { Icon } from './Icon';
 import { scanReceipt, createReceiptExpense } from '../services/api';
 import { ExpenseFormProps, ExpenseCategory, Currency, ReceiptExtraction } from '../types/expense.types';
 import { offeredCurrencies } from '../utils/currencies';
@@ -192,7 +193,7 @@ export default function ReceiptScan({ onExpenseAdded, settings, categories, curr
 
               {extraction.warnings.length > 0 && (
                 <div className="info-box receipt-warnings">
-                  <strong>⚠️ Please double-check:</strong>
+                  <strong><Icon name="alert" size={16} /> Please double-check:</strong>
                   <ul>
                     {extraction.warnings.map((w, i) => (
                       <li key={i}>{w}</li>

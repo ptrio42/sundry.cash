@@ -100,3 +100,53 @@ the wrong colour looks fine in one theme and disappears in the other. Nothing un
 
 The gallery. Six PNGs in `gallery/` date from 28 July: before the rebuild, in the old palette, on
 screens that no longer exist. This is the last change that alters what a screenshot shows.
+
+---
+
+## As built
+
+32 call sites, 20 of the 39 icons, one component, one generator.
+
+**`Icon.tsx` is generated**, by `scripts/generate-icons.mjs`, from `docs/art-drops/`. Hand-copying 46
+files is transcription work and a mistyped coordinate is a bug no test would name; re-run the script
+when a drop lands and read the diff. It is not wired into `npm run build` — the generated file is
+committed, and a build step reading from `docs/` would make that directory load-bearing for
+compilation.
+
+Two things the spec did not anticipate, both in the artwork:
+
+- **22 of the 46 drawings define a `<mask>`**, with a fixed id. The same icon twice on one page — the
+  sidebar's Add and the mobile bar's — would put that id in the document twice, so the component
+  mints a fresh one per instance from `useId`.
+- **`black` and `white` appear inside those masks**, which is alpha and not colour. The test that
+  proves every shape is `currentColor` therefore skips `mask`/`defs` subtrees, and a second case
+  asserts the skip is still safe by requiring masked drawings to actually have a mask.
+
+Five of the seven micro variants are byte-identical to their base — only `info` and `external-link`
+were really redrawn — so those two are the whole evidence that the size switch fires.
+
+### Where this departed from the spec
+
+- **The sign-out button is not label-less.** `App.tsx` renders the word *Logout* beside it, so it is
+  the decorative case: `aria-hidden` icon, no `aria-label`, because one there would override a name
+  that already works. The spec's rule is right; its example was the wrong control.
+- **`aria-sort` was already there**, correct and three-state, on all three sortable headers. The test
+  now asserts it rather than the wave adding it.
+- **`⤼ Skipped` in `ExcelImport` became `undo`, not `retry`.** The drops ship no skip mark. `retry` is
+  a ring that reads as *run it again* — an action that card does not offer. `undo` is the arc shape
+  the character actually had.
+- **`ℹ️` and `⚠️` keep a hue** (`--info`, `--warning`) rather than inheriting body text. They were
+  colour emoji; `currentColor` alone would have been a loss of signal. Both tokens are already
+  measured at AA against their own `-soft` surface, so this is the token system rather than an icon
+  spending a colour of its own.
+- **Two sites beyond the table**, both the exact twin of one that is on it: `ExpenseTable`'s
+  pagination arrows (`chevron-left`/`chevron-right`) and Home's `See it with 18 months of sample
+  data →` (`external-link`, the same link shape as the demo banner's).
+
+### Deliberately not done
+
+`calendar`, `calendar-week`, `category`, `delete`, `edit`, `export`, `filter`, `import`, `merchant`,
+`on-track`, `recurring`, `retry`, `search`, `select-all`, `trend-down`, `trend-up` — 16 of the 39 —
+have no call site. Every one would be a *new* decoration on a control that has no glyph today, and
+this wave replaces glyphs rather than adding pictures. The nearest one worth a follow-up: Expenses'
+`Import…` has no caret while `Export ▾` now has a crisp one, so the asymmetry got louder.

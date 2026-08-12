@@ -21,6 +21,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { Icon, type IconName } from './Icon';
 import AddSheet, { AddedLine } from './AddSheet';
 import Expenses from './Expenses';
 import Home from './Home';
@@ -44,7 +45,7 @@ import logoLight from '../assets/brand/logo-horizontal-light.svg';
 import logoDark from '../assets/brand/logo-horizontal-dark.svg';
 import '../App.css';
 
-type NavItem = { key: Destination; label: string; icon: string };
+type NavItem = { key: Destination; label: string; icon: IconName };
 
 /**
  * Four destinations. No "More": five slots hold five things, and the overflow
@@ -52,13 +53,26 @@ type NavItem = { key: Destination; label: string; icon: string };
  *
  * The labels are also the page titles (see `TITLES`) — four of them used to
  * disagree with the nav entry that opened them (F12).
+ *
+ * The icon is a name, not a size: the sidebar draws these at 18px beside their
+ * label and the mobile bar draws the same four at 22px above it, so the size
+ * belongs to the render site.
  */
 const NAV: NavItem[] = [
-  { key: 'home', label: 'Home', icon: '🏠' },
-  { key: 'expenses', label: 'Expenses', icon: '📋' },
-  { key: 'budgets', label: 'Budgets', icon: '🎯' },
-  { key: 'settings', label: 'Settings', icon: '⚙️' },
+  { key: 'home', label: 'Home', icon: 'home' },
+  { key: 'expenses', label: 'Expenses', icon: 'expenses' },
+  { key: 'budgets', label: 'Budgets', icon: 'budgets' },
+  { key: 'settings', label: 'Settings', icon: 'settings' },
 ];
+
+/**
+ * Sidebar icons, against ~15px labels. The mobile bar draws the same four names
+ * bigger, because down there the icon is above a 0.66rem label rather than
+ * beside a 0.94rem one and is carrying most of the recognition itself.
+ */
+const NAV_ICON = 18;
+const TAB_ICON = 22;
+const TAB_ADD_ICON = 26;
 
 /**
  * The persistent action. Not a destination and no longer even a route: it opens
@@ -468,8 +482,11 @@ export default function App() {
             re-seeded every night. Nothing you add is kept, and nothing here belongs
             to a real person.
           </span>
+          {/* The arrow was a font character pointing vaguely rightwards; the
+              destination is a different origin in a new tab, and the icon says
+              so. `external-link` ships a 14px optical cut, which is why 14. */}
           <a href={PRODUCT_URL} target="_blank" rel="noopener noreferrer">
-            What Sundry is →
+            What Sundry is <Icon name="external-link" size={14} />
           </a>
         </div>
       )}
@@ -494,7 +511,7 @@ export default function App() {
           aria-haspopup="dialog"
           aria-expanded={addOpen}
         >
-          <span className="nav-icon" aria-hidden="true">＋</span>
+          <span className="nav-icon" aria-hidden="true"><Icon name="add" size={NAV_ICON} /></span>
           {ADD_LABEL}
         </button>
 
@@ -506,20 +523,28 @@ export default function App() {
               onClick={() => goTo(item.key)}
               aria-current={destination === item.key ? 'page' : undefined}
             >
-              <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+              <span className="nav-icon" aria-hidden="true"><Icon name={item.icon} size={NAV_ICON} /></span>
               {item.label}
             </button>
           ))}
         </nav>
 
         <div className="sidebar-footer">
+          {/* Icon and label both name the *destination* state, not the current
+              one: on dark you are offered a sun and the word "Light mode". */}
           <button onClick={toggleTheme} title="Toggle light/dark theme">
-            <span className="nav-icon" aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span>
+            <span className="nav-icon" aria-hidden="true">
+              <Icon name={theme === 'dark' ? 'light-mode' : 'dark-mode'} size={NAV_ICON} />
+            </span>
             {theme === 'dark' ? 'Light mode' : 'Dark mode'}
           </button>
+          {/* Decorative, despite the icon spec calling this "the label-less
+              sign-out button": the word Logout is right there, so the button is
+              already named and an `aria-label` here would only override it with
+              a second wording. */}
           {authRequired && (
             <button onClick={handleLogout} title="Sign out">
-              <span className="nav-icon" aria-hidden="true">🔓</span>
+              <span className="nav-icon" aria-hidden="true"><Icon name="sign-out" size={NAV_ICON} /></span>
               Logout
             </button>
           )}
@@ -617,7 +642,7 @@ export default function App() {
             onClick={() => goTo(item.key)}
             aria-current={destination === item.key ? 'page' : undefined}
           >
-            <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+            <span className="nav-icon" aria-hidden="true"><Icon name={item.icon} size={TAB_ICON} /></span>
             <span className="bottom-nav-label">{item.label}</span>
           </button>
         ))}
@@ -628,7 +653,7 @@ export default function App() {
           aria-haspopup="dialog"
           aria-expanded={addOpen}
         >
-          <span className="nav-icon" aria-hidden="true">＋</span>
+          <span className="nav-icon" aria-hidden="true"><Icon name="add" size={TAB_ADD_ICON} /></span>
           <span className="sr-only">{ADD_LABEL}</span>
         </button>
 
@@ -639,7 +664,7 @@ export default function App() {
             onClick={() => goTo(item.key)}
             aria-current={destination === item.key ? 'page' : undefined}
           >
-            <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+            <span className="nav-icon" aria-hidden="true"><Icon name={item.icon} size={TAB_ICON} /></span>
             <span className="bottom-nav-label">{item.label}</span>
           </button>
         ))}
