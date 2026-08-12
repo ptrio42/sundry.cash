@@ -7,15 +7,19 @@ Runs entirely on your own hardware. No cloud, no account, no telemetry. One SQLi
 
 **Stack:** TypeScript end to end — Express + better-sqlite3 on the back, React 18 + Vite on the front.
 
-![Home](gallery/dashboard.png)
+![Home: what you spent in the last 30 days, with each finding as the heading of the section it came from](gallery/home.png)
 
-| Expenses | Budgets |
+![Expenses: the filter bar, the summary row, the ledger and both charts on one screen](gallery/expenses.png)
+
+| Budgets | Settings |
 | :---: | :---: |
-| ![The ledger, filtered and charted](gallery/expenses.png) | ![Monthly budgets](gallery/budgets.png) |
+| ![Budgets: the verdict, the month stepper and the pace figure against standing limits](gallery/budgets.png) | ![Settings: one row per currency carrying enable, symbol, decimals and its rate](gallery/settings.png) |
 
 <p align="center">
-  <img src="gallery/mobile.png" alt="Mobile layout" width="260">
+  <img src="gallery/mobile.png" alt="Home on a phone, with the bottom bar's four destinations and the raised add button" width="260">
 </p>
+
+Two more in [`gallery/`](gallery/): the Add sheet open over a screen, and Home in the dark theme.
 
 ## Quickstart
 
