@@ -5,10 +5,14 @@
  * The "Type it" tab of `AddSheet` since wave 3, and not a destination any more
  * (change 10). It renders no heading of its own: the sheet's header says "Add
  * expense" once, and the tab above says which of the two ways this is.
+ *
+ * Since wave 4 it also guesses the category from the description, which the
+ * import and the scan have always done — see the effect below for why the guess
+ * yields to an explicit choice and why `other` is never applied.
  */
 
-import { useState, FormEvent } from 'react';
-import { createExpense } from '../services/api';
+import { useState, useEffect, FormEvent } from 'react';
+import { createExpense, suggestCategory } from '../services/api';
 import { ExpenseFormProps, ExpenseCategory, Currency } from '../types/expense.types';
 import { SATS_PER_BTC } from '../utils/format';
 import { offeredCurrencies } from '../utils/currencies';
@@ -22,6 +26,65 @@ export default function ExpenseForm({ onExpenseAdded, settings, categories, curr
   const [btcUnit, setBtcUnit] = useState<'BTC' | 'sats'>(settings.defaultBtcUnit);
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+  /** Whether the category on screen is the reader's choice rather than ours. */
+  const [categoryTouched, setCategoryTouched] = useState<boolean>(false);
+
+  /**
+   * Guess the category from the description as it is typed (change 21).
+   *
+   * `services/categorize.ts` has always run on the import and the scan paths
+   * and never on this one, so the 20×/week action asked for a decision the app
+   * could already make.
+   *
+   * **A suggestion, not a lock.** One explicit choice ends the guessing for the
+   * life of the form: `categoryTouched` is set by the select's own onChange and
+   * cleared only by the post-save reset, so nothing can overwrite a category
+   * the reader picked — not a later keystroke, and not a slow reply to an
+   * earlier one.
+   *
+   * **`other` falls back to the configured default rather than being applied
+   * or ignored.** It is what the categorizer answers when nothing matched *and*
+   * a real answer for a handful of keywords, so it carries no information worth
+   * spending the default on — applying it would flip a `groceries` default to
+   * Other after three letters. But merely *ignoring* it leaves the last guess
+   * standing over a description that no longer produced it: type "Orlen
+   * paliwo" (Transport), replace it with "Apteka", and the form would file a
+   * pharmacy expense under Transport. Falling back keeps one rule — while the
+   * reader has not chosen, the field always states what the *current*
+   * description implies, and the default is what it implies when nothing does.
+   *
+   * The frontend's only debounce, and the cancel flag is not decoration: two
+   * keystrokes are two requests, and the first can answer last.
+   */
+  useEffect(() => {
+    if (categoryTouched) return;
+
+    const typed = description.trim();
+    // Nothing to go on: back to the default, which is also where an emptied
+    // box has to leave the field rather than on the last thing it guessed.
+    if (!typed) {
+      setCategory(settings.defaultCategory);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const suggestion = await suggestCategory(typed);
+        if (cancelled || !suggestion) return;
+        setCategory(suggestion === 'other' ? settings.defaultCategory : suggestion);
+      } catch {
+        // A guess that fails is a guess not made. `error` is the save-failure
+        // box; putting a failed suggestion in it would report a problem the
+        // reader does not have.
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [description, categoryTouched, settings.defaultCategory]);
 
   /**
    * Handle unit switching - convert displayed amount when unit changes
@@ -106,6 +169,7 @@ export default function ExpenseForm({ onExpenseAdded, settings, categories, curr
       setDate(new Date().toISOString().split('T')[0]);
       setDescription('');
       setCategory(settings.defaultCategory);
+      setCategoryTouched(false);
       setCurrency(settings.defaultCurrency);
       setBtcUnit(settings.defaultBtcUnit);
     } catch (err) {
@@ -210,7 +274,7 @@ export default function ExpenseForm({ onExpenseAdded, settings, categories, curr
           <select
             id="category"
             value={category}
-            onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
+            onChange={(e) => { setCategory(e.target.value as ExpenseCategory); setCategoryTouched(true); }}
             required
           >
             {categories.map((cat) => (

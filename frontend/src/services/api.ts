@@ -243,6 +243,18 @@ export async function getCategories(): Promise<Category[]> {
   return handleResponse<Category[]>(response);
 }
 
+/**
+ * What the keyword categorizer makes of a description (change 21).
+ *
+ * Answers `other` when nothing matches, so the caller decides whether an
+ * uninformative answer is worth acting on — `ExpenseForm` does not.
+ */
+export async function suggestCategory(description: string): Promise<ExpenseCategory> {
+  const response = await apiFetch(`/categories/suggest?description=${encodeURIComponent(description)}`);
+  const data = await handleResponse<{ category: ExpenseCategory }>(response);
+  return data.category;
+}
+
 export async function createCategory(input: { slug: string; label: string; color: string }): Promise<Category> {
   const response = await apiFetch('/categories', {
     method: 'POST',

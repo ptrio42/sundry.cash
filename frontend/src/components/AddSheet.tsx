@@ -267,6 +267,26 @@ interface AddedLineProps {
  *
  * No timer. A confirmation that dismisses itself takes Undo with it, and the
  * one control that undoes an unwanted write should not be racing the reader.
+ *
+ * **"Is the new row findable?" — checked in wave 4, and this line is the
+ * answer.** Usually: `App` prepends the saved row to the one ledger array and
+ * the sort is date-descending and stable, so an expense dated today lands at
+ * row one of an unfiltered table. Not always, and not only under a filter —
+ * the date field is freely editable, so a back-dated expense sorts to where its
+ * date belongs and can be off page 1 with nothing filtering at all. Add a
+ * search, a category chip, a currency scope or a date window that excludes it
+ * and the table shows nothing new; a scrolled page shows nothing at all, since
+ * nothing in the frontend scrolls anywhere. Confirmed in the browser: search
+ * "kawa", save an unrelated expense, and the table stays empty while this line
+ * names what was saved.
+ *
+ * That is deliberate rather than unfinished. **Undo and Edit both act on the
+ * row itself, whatever is filtering the table** — Edit opens it in the modal
+ * from here — so the row is always reachable even when it is not visible. The
+ * alternative, a line that knows whether the row survives the current filter,
+ * would mean the shell knowing Expenses' query object; the shell renders this,
+ * and Expenses owns that query. Reachability without that coupling is the
+ * better trade.
  */
 export function AddedLine({ expense, categories, onUndo, onEdit, onDismiss }: AddedLineProps) {
   return (

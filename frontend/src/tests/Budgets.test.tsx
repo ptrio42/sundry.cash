@@ -352,6 +352,28 @@ describe('Budgets — currency scope', () => {
     expect(document.querySelector('.currency-buttons')).toBeNull();
   });
 
+  it('lets a fresh install set its first limit', async () => {
+    // The empty case: nothing spent and nothing limited. The screen used to
+    // fall through to combined, which pinned "Edit limits" disabled — and the
+    // scope control that could have unstuck it needs two currencies to appear,
+    // so a new install could not set a budget at all. It collapses to
+    // `defaultCurrency` instead: nothing to convert, so nothing to choose.
+    mockGetBudgets.mockResolvedValue([]);
+    await renderBudgets({ expenses: [] });
+
+    expect(document.querySelector('.currency-buttons')).toBeNull();
+    expect(screen.queryByText(/A limit is held in its own currency/)).not.toBeInTheDocument();
+    expect(edit()).not.toBeDisabled();
+
+    fireEvent.click(edit());
+    const input = screen.getByLabelText('Monthly limit for Groceries');
+    fireEvent.change(input, { target: { value: '250' } });
+    fireEvent.blur(input);
+
+    // Stored in the currency the next expense will be recorded in.
+    await waitFor(() => expect(mockSetBudget).toHaveBeenCalledWith('groceries', 'USD', 250));
+  });
+
   it('opens combined, converting both currencies into the primary one', async () => {
     await renderMixed();
 

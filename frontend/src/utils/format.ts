@@ -21,6 +21,26 @@ import { Currency, CurrencyInfo } from '../types/expense.types';
 
 export const SATS_PER_BTC = 100_000_000;
 
+/**
+ * The locale dates are rendered in — a decision, not an inheritance (F19).
+ *
+ * Amounts are locale by design: `formatCurrency` reads `info.locale` off the
+ * currencies table, so PLN renders `65 048,41 zł` however the machine is set.
+ * Dates used to be locale by *accident*: `Intl.DateTimeFormat(undefined, …)`
+ * falls back to the host OS, so an English interface on a Polish laptop printed
+ * `11 sie 2025` in the ledger and, since wave 3c, `sierpień 2026` as a heading.
+ * The interface is English, so the dates are English.
+ *
+ * `en-GB` rather than `en-US`: `11 Aug 2026` is short, and it is unambiguous in
+ * a product whose other date surface is an ISO `YYYY-MM-DD` input.
+ *
+ * **The PL/EN seam is deliberately a seam and not a feature.** The day the
+ * interface gains a language, this becomes `let displayLocale` plus a setter,
+ * exactly as `registry`/`setCurrencyRegistry` below already work — and no call
+ * site changes.
+ */
+export const DISPLAY_LOCALE = 'en-GB';
+
 /** Matches the backend seed, so the pre-fetch render is not wrong, just narrow. */
 const DEFAULT_REGISTRY: CurrencyInfo[] = [
   { code: 'USD', minorUnits: 100, symbol: '$', locale: 'en-US', isIso: true, enabled: true },
@@ -69,7 +89,7 @@ export function formatCurrency(amount: number, currency: Currency): string {
   // Unknown code: show the number and the code, rather than guessing at a
   // symbol or silently formatting it as something else.
   if (!info) {
-    return `${new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)} ${currency}`;
+    return `${new Intl.NumberFormat(DISPLAY_LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)} ${currency}`;
   }
 
   const decimals = decimalsFor(info);
@@ -77,14 +97,14 @@ export function formatCurrency(amount: number, currency: Currency): string {
   if (!info.isIso) {
     // Non-ISO (BTC): Intl has no symbol for it, so prefix ours. Keeps the
     // long-standing "at least 2, at most 8" rendering for satoshi amounts.
-    const n = new Intl.NumberFormat(info.locale ?? undefined, {
+    const n = new Intl.NumberFormat(info.locale ?? DISPLAY_LOCALE, {
       minimumFractionDigits: Math.min(2, decimals),
       maximumFractionDigits: decimals,
     }).format(amount);
     return `${info.symbol}${n}`;
   }
 
-  return new Intl.NumberFormat(info.locale ?? undefined, {
+  return new Intl.NumberFormat(info.locale ?? DISPLAY_LOCALE, {
     style: 'currency',
     currency: info.code,
     minimumFractionDigits: decimals,
@@ -108,15 +128,20 @@ export function currentMonthKey(): string {
 export function monthLabel(monthKey: string): string {
   const d = new Date(`${monthKey}-01T00:00:00Z`);
   if (isNaN(d.getTime())) return monthKey;
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(DISPLAY_LOCALE, {
     month: 'long',
     year: 'numeric',
     timeZone: 'UTC',
   }).format(d);
 }
 
-/** Format an ISO `YYYY-MM-DD` string for display (parsed as UTC to avoid off-by-one). */
-export function formatDate(iso: string, locale?: string): string {
+/**
+ * Format an ISO `YYYY-MM-DD` string for display (parsed as UTC to avoid off-by-one).
+ *
+ * The `locale` override is the per-call half of the seam described on
+ * `DISPLAY_LOCALE`: nothing passes it today, and it costs one default.
+ */
+export function formatDate(iso: string, locale: string = DISPLAY_LOCALE): string {
   const d = new Date(`${iso}T00:00:00Z`);
   if (isNaN(d.getTime())) return iso;
   return new Intl.DateTimeFormat(locale, {

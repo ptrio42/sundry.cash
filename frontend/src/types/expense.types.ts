@@ -349,13 +349,9 @@ export interface BudgetsProps {
   rates: FxRates;
 }
 
-export interface FxProps {
-  expenses: Expense[];
-  settings: AppSettings;
-  currencies: CurrencyInfo[];
-  rates: FxRates;
-  onRatesChanged: (rates: FxRates) => void;
-}
+// `FxProps` lived here until wave 4. The rate editor is a control inside
+// Settings' Currencies section now (change 13), and `SettingsProps` is declared
+// in the component, like every other props type that is not shared.
 
 // Sort options for table
 export type SortField = 'date' | 'amount' | 'category';

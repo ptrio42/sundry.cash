@@ -399,7 +399,7 @@ describe('Home — the two clocks', () => {
     await settle();
 
     expect(windowLine('Where it went')).toContain('Last 30 days');
-    expect(windowLine('Where it went')).toContain('Jul 13, 2026 – Aug 11, 2026');
+    expect(windowLine('Where it went')).toContain('13 Jul 2026 – 11 Aug 2026');
     expect(windowLine('Budgets')).toContain('Last 30 days');
   });
 
@@ -415,8 +415,8 @@ describe('Home — the two clocks', () => {
       expect(windowLine(name)).toContain('Last 12 months');
       expect(windowLine(name)).not.toContain('Last 30 days');
     }
-    expect(windowLine('Subscriptions')).toContain('Aug 11, 2025');
-    expect(windowLine('Where you shop')).toContain('Aug 11, 2025 – Aug 11, 2026');
+    expect(windowLine('Subscriptions')).toContain('11 Aug 2025');
+    expect(windowLine('Where you shop')).toContain('11 Aug 2025 – 11 Aug 2026');
   });
 
   it('states the heatmap\'s own window too, which is neither of the other two', async () => {
@@ -485,7 +485,7 @@ describe('Home — the page window control', () => {
     fireEvent.click(screen.getByRole('button', { name: 'This month' }));
 
     await waitFor(() => expect(windowLine('Where it went')).toContain('This month'));
-    expect(windowLine('Where it went')).toContain('Aug 1, 2026 – Aug 31, 2026');
+    expect(windowLine('Where it went')).toContain('1 Aug 2026 – 31 Aug 2026');
     expect(windowLine('When you spend')).toContain('Last 12 months');
   });
 

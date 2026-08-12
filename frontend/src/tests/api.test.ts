@@ -21,6 +21,7 @@ import {
   getInsightsSummary,
   createReceiptExpense,
   getCategories,
+  suggestCategory,
   createCategory,
   updateCategory,
   deleteCategory,
@@ -365,6 +366,16 @@ describe('categories', () => {
 
     await expect(getCategories()).resolves.toEqual(payload);
     expect(requestedUrl()).toBe('/api/categories');
+  });
+
+  it('asks the categorizer for a suggestion, and unwraps it', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ category: 'groceries' }));
+
+    // The slug, not the envelope: the form assigns this straight to state.
+    await expect(suggestCategory('Lidl & Żabka')).resolves.toBe('groceries');
+    // Percent-encoded: a description carries ampersands and Polish letters, and
+    // an unescaped one would truncate the query at the first `&`.
+    expect(requestedUrl()).toBe('/api/categories/suggest?description=Lidl%20%26%20%C5%BBabka');
   });
 
   it('posts a new category as JSON', async () => {

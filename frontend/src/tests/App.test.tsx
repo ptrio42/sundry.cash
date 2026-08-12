@@ -27,6 +27,10 @@ import {
   getFxRates,
   getBudgets,
   getInsightsSummary,
+  getInsightsComparison,
+  getInsightsRecurring,
+  getInsightsMerchants,
+  getInsightsPatterns,
   createExpense,
   deleteExpense,
 } from '../services/api';
@@ -56,6 +60,7 @@ vi.mock('../services/api', () => ({
   getToken: vi.fn(() => null),
   logout: vi.fn(),
   createExpense: vi.fn(),
+  suggestCategory: vi.fn(async () => 'other'),
   updateExpense: vi.fn(),
   deleteExpense: vi.fn(),
   deleteAllExpenses: vi.fn(),
@@ -81,6 +86,8 @@ vi.mock('../services/api', () => ({
   updateCategory: vi.fn(),
   deleteCategory: vi.fn(),
   setCurrencyEnabled: vi.fn(),
+  // Settings carries the rate editor since wave 4 (change 13).
+  setFxRate: vi.fn(),
 }));
 
 const mocked = (fn: unknown) => fn as unknown as ReturnType<typeof vi.fn>;
@@ -197,6 +204,26 @@ describe('App — navigation', () => {
 
     const wipe = await screen.findByRole('button', { name: /wipe database/i });
     expect(wipe.closest('.danger-zone')).not.toBeNull();
+  });
+
+  it('counts what it is about to delete in the singular where there is one', async () => {
+    mocked(getExpenses).mockResolvedValue([
+      { id: 1, date: '2026-08-05', description: 'Only row', category: 'groceries', currency: 'USD', amount: 25 },
+    ]);
+    // The only case in this file with a ledger, so it is the only one where
+    // Home's six fetches actually fire. They are refused rather than answered:
+    // Home degrades per section, and none of them is what is under test.
+    for (const fetchInsight of [getInsightsSummary, getInsightsComparison, getInsightsRecurring, getInsightsMerchants, getInsightsPatterns, getBudgets]) {
+      mocked(fetchInsight).mockRejectedValue(new Error('not part of this case'));
+    }
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await renderApp();
+    goTo('Settings');
+
+    fireEvent.click(await screen.findByRole('button', { name: /wipe database/i }));
+
+    expect(confirm.mock.calls[0][0]).toContain('ALL 1 expense?');
+    confirm.mockRestore();
   });
 
   it('titles every page with the word the nav used to get there', async () => {

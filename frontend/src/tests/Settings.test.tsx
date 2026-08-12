@@ -1,8 +1,12 @@
 /**
  * Tests for the Settings component. The API layer is mocked.
  *
- * Two halves: the preference form, and the category manager that arrived when
- * categories stopped being a hardcoded enum.
+ * Three halves, since wave 4: the preference form, the category manager that
+ * arrived when categories stopped being a hardcoded enum, and the currency
+ * manager — which now carries the rate editor that used to be its own screen
+ * (change 13). The cases at the bottom of this file came from `Fx.test.tsx`,
+ * which is deleted; what did not come with them is everything that screen said
+ * about *money*, because Expenses says it against the reader's own filters.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -16,8 +20,9 @@ import {
   deleteCategory,
   getCurrencies,
   setCurrencyEnabled,
+  setFxRate,
 } from '../services/api';
-import { AppSettings, Category } from '../types/expense.types';
+import { AppSettings, Category, CurrencyInfo, Expense, FxRates } from '../types/expense.types';
 import { TEST_CATEGORIES } from './categories.fixture';
 import { TEST_CURRENCIES } from './currencies.fixture';
 
@@ -29,6 +34,7 @@ vi.mock('../services/api', () => ({
   deleteCategory: vi.fn(),
   getCurrencies: vi.fn(),
   setCurrencyEnabled: vi.fn(),
+  setFxRate: vi.fn(),
 }));
 
 const mock = (fn: unknown) => fn as unknown as ReturnType<typeof vi.fn>;
@@ -37,44 +43,93 @@ const settings: AppSettings = { defaultCurrency: 'USD', defaultCategory: 'grocer
 
 const CUSTOM: Category = { slug: 'pet-food', label: 'Pet food', color: '#f472b6', sortOrder: 7, isBuiltin: false };
 
+// 1 PLN = 0.25 USD (so 1 USD = 4 PLN); 1 BTC = 65 000 USD. Carried over from
+// the deleted Fx suite.
+const RATES: FxRates = { USD: 1, PLN: 0.25, BTC: 65000 };
+
+const expense = (id: number, currency: Expense['currency']): Expense => ({
+  id,
+  amount: 10,
+  currency,
+  date: '2026-07-01',
+  description: `expense ${id}`,
+  category: 'groceries',
+});
+
 interface Overrides {
   categories?: Category[];
+  currencies?: CurrencyInfo[];
+  /** Defaults to an empty ledger, so the ~20 cases predating wave 4 are unmoved. */
+  expenses?: Expense[];
+  rates?: FxRates;
   theme?: 'dark' | 'light';
   authRequired?: boolean;
   onCategoriesChanged?: ReturnType<typeof vi.fn>;
   onCurrenciesChanged?: ReturnType<typeof vi.fn>;
+  onRatesChanged?: ReturnType<typeof vi.fn>;
   onExpensesStale?: ReturnType<typeof vi.fn>;
 }
 
 const renderSettings = ({
   categories = TEST_CATEGORIES,
+  currencies = TEST_CURRENCIES,
+  expenses = [],
+  rates = RATES,
   theme = 'dark',
   authRequired = false,
   onCategoriesChanged = vi.fn(),
   onCurrenciesChanged = vi.fn(),
+  onRatesChanged = vi.fn(),
   onExpensesStale = vi.fn(),
 }: Overrides = {}) => {
   const onSaved = vi.fn();
   const onToggleTheme = vi.fn();
   const onLogout = vi.fn();
   const onWipeDatabase = vi.fn();
-  const view = render(
-    <Settings
-      settings={settings}
-      categories={categories}
-      currencies={TEST_CURRENCIES}
-      theme={theme}
-      authRequired={authRequired}
-      onSaved={onSaved}
-      onCurrenciesChanged={onCurrenciesChanged}
-      onCategoriesChanged={onCategoriesChanged}
-      onExpensesStale={onExpensesStale}
-      onToggleTheme={onToggleTheme}
-      onLogout={onLogout}
-      onWipeDatabase={onWipeDatabase}
-    />
-  );
-  return { ...view, onSaved, onCategoriesChanged, onCurrenciesChanged, onExpensesStale, onToggleTheme, onLogout, onWipeDatabase };
+  const props = {
+    settings,
+    categories,
+    currencies,
+    expenses,
+    rates,
+    theme,
+    authRequired,
+    onSaved,
+    onCurrenciesChanged,
+    onRatesChanged,
+    onCategoriesChanged,
+    onExpensesStale,
+    onToggleTheme,
+    onLogout,
+    onWipeDatabase,
+  };
+  const view = render(<Settings {...props} />);
+  return {
+    ...view,
+    props,
+    onSaved,
+    onCategoriesChanged,
+    onCurrenciesChanged,
+    onRatesChanged,
+    onExpensesStale,
+    onToggleTheme,
+    onLogout,
+    onWipeDatabase,
+  };
+};
+
+/** The enable/disable checkbox for `code`. */
+const currencyCheckbox = (code: string) => screen.getByRole('checkbox', { name: new RegExp(`^${code}`) });
+
+/** The rate field for `code` — same accessible name the Fx screen used. */
+const rateInput = (code: string): HTMLInputElement =>
+  screen.getByLabelText(`USD value of 1 ${code}`) as HTMLInputElement;
+
+/** The whole row for `code`: checkbox, symbol, decimals and rate. */
+const currencyRow = (code: string): HTMLElement => {
+  const row = currencyCheckbox(code).closest('.currency-manager-row');
+  if (!row) throw new Error(`no currency row for "${code}"`);
+  return row as HTMLElement;
 };
 
 /** The name field of the category currently labelled `label`. */
@@ -218,8 +273,6 @@ describe('Settings category manager', () => {
 });
 
 describe('Settings currency manager', () => {
-  const currencyCheckbox = (code: string) => screen.getByRole('checkbox', { name: new RegExp(`^${code}`) });
-
   it('lists only the enabled currencies until asked for the rest', () => {
     renderSettings();
 
@@ -270,6 +323,164 @@ describe('Settings currency manager', () => {
     fireEvent.click(currencyCheckbox('USD'));
 
     expect(await screen.findByText(/still your default currency/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * The rate editor, folded in from the deleted `Fx` screen (F12, change 13).
+ *
+ * The claim change 13 makes is that one row answers the whole question about a
+ * currency — whether it is on, what it looks like, how precise it is, and what
+ * it is worth — so the first case here is the one that would fail if the merge
+ * were only a relocation.
+ */
+describe('Settings currency manager — rates', () => {
+  it('carries all four facts about a currency on one row', () => {
+    renderSettings();
+
+    const row = within(currencyRow('PLN'));
+    expect(row.getByText('zł')).toBeInTheDocument();
+    expect(row.getByText('2 decimal places')).toBeInTheDocument();
+    expect(row.getByLabelText('USD value of 1 PLN')).toHaveValue(0.25);
+  });
+
+  it('renders the current rates, with USD pinned to 1 and not editable', () => {
+    renderSettings();
+
+    expect(rateInput('USD').value).toBe('1');
+    expect(rateInput('USD')).toBeDisabled();
+    expect(rateInput('PLN').value).toBe('0.25');
+    expect(rateInput('BTC').value).toBe('65000');
+  });
+
+  it('anchors the rates to USD whatever the primary currency is', () => {
+    // The one assertion worth keeping from the deleted screen's base picker:
+    // "Base: PLN" moved the *display*, never the stored rate.
+    renderSettings({ rates: RATES });
+
+    expect(rateInput('PLN').value).toBe('0.25');
+    expect(rateInput('USD').value).toBe('1');
+    expect(screen.getByText(/value of one unit/i)).toBeInTheDocument();
+  });
+
+  it('keeps a rate row for a currency that is switched off but still in the ledger', () => {
+    // The `relevantCurrencies` contract. Disabling a currency stops it being
+    // offered for new expenses; the history it already holds still converts, so
+    // hiding its rate would make old expenses unconvertible.
+    const withDisabledEur = TEST_CURRENCIES.map(c => (c.code === 'EUR' ? { ...c, enabled: false } : c));
+    renderSettings({ currencies: withDisabledEur, expenses: [expense(1, 'EUR')] });
+
+    expect(currencyCheckbox('EUR')).not.toBeChecked();
+    expect(rateInput('EUR')).toBeInTheDocument();
+  });
+
+  it('offers no rate field for a currency the rate API would refuse', () => {
+    // PUT /api/fx takes only enabled-or-used currencies, so a catalogue row
+    // nobody has touched gets a checkbox and nothing else.
+    renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: /show all 5 currencies/i }));
+
+    expect(currencyCheckbox('JPY')).toBeInTheDocument();
+    expect(screen.queryByLabelText('USD value of 1 JPY')).not.toBeInTheDocument();
+  });
+
+  it('saves an edited rate on blur and adopts the rates the API returns', async () => {
+    const updated: FxRates = { USD: 1, PLN: 0.3, BTC: 65000 };
+    mock(setFxRate).mockResolvedValue({ rates: updated });
+    const { onRatesChanged, rerender, props } = renderSettings();
+
+    fireEvent.change(rateInput('PLN'), { target: { value: '0.3' } });
+    fireEvent.blur(rateInput('PLN'));
+
+    await waitFor(() => expect(setFxRate).toHaveBeenCalledWith('PLN', 0.3));
+    await waitFor(() => expect(onRatesChanged).toHaveBeenCalledWith(updated));
+
+    // App owns the rates, so the saved value comes back down as a prop; the
+    // local draft must not shadow it.
+    rerender(<Settings {...props} rates={updated} />);
+    expect(rateInput('PLN').value).toBe('0.3');
+  });
+
+  it('rejects a non-positive rate without calling the API', async () => {
+    renderSettings();
+
+    fireEvent.change(rateInput('PLN'), { target: { value: '0' } });
+    fireEvent.blur(rateInput('PLN'));
+
+    expect(await screen.findByText(/rate must be a positive number/i)).toBeInTheDocument();
+    expect(setFxRate).not.toHaveBeenCalled();
+  });
+
+  it('surfaces an API failure instead of silently dropping the edit', async () => {
+    mock(setFxRate).mockRejectedValue(new Error('Rate service unavailable'));
+    const { onRatesChanged } = renderSettings();
+
+    fireEvent.change(rateInput('BTC'), { target: { value: '70000' } });
+    fireEvent.blur(rateInput('BTC'));
+
+    expect(await screen.findByText('Rate service unavailable')).toBeInTheDocument();
+    expect(onRatesChanged).not.toHaveBeenCalled();
+    // The unsaved input stays put so it can be retried.
+    expect(rateInput('BTC').value).toBe('70000');
+  });
+
+  it('shows an unset rate as unset rather than as zero', () => {
+    // The backend seeds a newly enabled currency at 0, and `convertAmount`
+    // reads 0 as "cannot convert" — so a currency with no rate silently drops
+    // out of every converted total. "$0" would claim a value; the box is empty
+    // and says "not set". Invisible until wave 4 put these rows on a screen.
+    renderSettings({ rates: { USD: 1, PLN: 0.25, BTC: 0 } });
+
+    expect(rateInput('BTC').value).toBe('');
+    expect(rateInput('BTC')).toHaveAttribute('placeholder', 'not set');
+    expect(rateInput('PLN').value).toBe('0.25');
+  });
+
+  it('keeps a refused rate flagged on its own row when another currency is touched', async () => {
+    // The draft stays in the box so it can be retried, so the message saying
+    // "this is not the rate in force" is the only thing between the reader and
+    // a row that looks saved. It must survive an unrelated enable/disable and
+    // an unrelated successful save — a section-wide error line does not.
+    mock(setCurrencyEnabled).mockResolvedValue({ code: 'EUR', enabled: true });
+    mock(getCurrencies).mockResolvedValue(TEST_CURRENCIES);
+    mock(setFxRate).mockResolvedValue({ rates: RATES });
+    renderSettings();
+
+    fireEvent.change(rateInput('PLN'), { target: { value: '' } });
+    fireEvent.blur(rateInput('PLN'));
+    expect(await screen.findByText(/rate must be a positive number/i)).toBeInTheDocument();
+
+    fireEvent.click(currencyCheckbox('USD'));
+    await waitFor(() => expect(setCurrencyEnabled).toHaveBeenCalled());
+    expect(screen.getByText(/rate must be a positive number/i)).toBeInTheDocument();
+
+    fireEvent.change(rateInput('BTC'), { target: { value: '70000' } });
+    fireEvent.blur(rateInput('BTC'));
+    await waitFor(() => expect(setFxRate).toHaveBeenCalledWith('BTC', 70000));
+    // Still flagged, and flagged on the row it belongs to.
+    expect(within(currencyRow('PLN')).getByText(/rate must be a positive number/i)).toBeInTheDocument();
+  });
+
+  it('clears a row\'s complaint once that row saves', async () => {
+    mock(setFxRate).mockResolvedValue({ rates: RATES });
+    renderSettings();
+
+    fireEvent.change(rateInput('PLN'), { target: { value: '-1' } });
+    fireEvent.blur(rateInput('PLN'));
+    expect(await screen.findByText(/rate must be a positive number/i)).toBeInTheDocument();
+
+    fireEvent.change(rateInput('PLN'), { target: { value: '0.3' } });
+    fireEvent.blur(rateInput('PLN'));
+
+    await waitFor(() => expect(screen.queryByText(/rate must be a positive number/i)).not.toBeInTheDocument());
+  });
+
+  it('does not call the API for a field nobody typed in', () => {
+    renderSettings();
+
+    fireEvent.blur(rateInput('PLN'));
+
+    expect(setFxRate).not.toHaveBeenCalled();
   });
 });
 

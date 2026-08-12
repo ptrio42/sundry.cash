@@ -1,6 +1,7 @@
 /**
  * Category routes — /api/categories
  *   GET    /                          list every category, in display order
+ *   GET    /suggest?description=…     guess a category from a description
  *   POST   /                          create one { slug, label, color }
  *   PUT    /:slug                     rename / recolour / reorder
  *   DELETE /:slug?reassignTo=other    delete, moving anything that used it
@@ -12,6 +13,7 @@
 
 import { Router, Request, Response } from 'express';
 import * as CategoryModel from '../models/category';
+import { autoCategorizeByKeywords } from '../services/categorize';
 
 const router = Router();
 
@@ -36,6 +38,36 @@ router.get('/', (_req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching categories:', error);
     res.status(500).json({ error: 'Failed to fetch categories' });
+  }
+});
+
+/**
+ * GET /api/categories/suggest?description=…
+ *
+ * The keyword categorizer, which the Excel importer and the receipt scanner
+ * have always run, exposed so the manual form can run it too (change 21): the
+ * most frequent action in the product used to ask for a decision the app could
+ * already make. It is a *suggestion* — the caller is free to ignore it, and the
+ * frontend stops asking once a category has been chosen by hand.
+ *
+ * Registered before the `/:slug` routes so a literal "suggest" cannot be
+ * matched as a slug. Nothing shadows it today — there is no `GET /:slug` — and
+ * the ordering is for whoever adds one.
+ *
+ * Always 200. `autoCategorizeByKeywords` answers `other` when nothing matches
+ * and cannot throw, so a missing or repeated parameter is an empty description
+ * rather than a 400: a form that cannot type yet is not a client error.
+ */
+router.get('/suggest', (req: Request, res: Response) => {
+  try {
+    // Express hands back `string | string[] | ParsedQs` for a query parameter.
+    const raw = req.query.description;
+    const description = typeof raw === 'string' ? raw : '';
+
+    res.json({ category: autoCategorizeByKeywords(description) });
+  } catch (error) {
+    console.error('Error suggesting a category:', error);
+    res.status(500).json({ error: 'Failed to suggest a category' });
   }
 });
 

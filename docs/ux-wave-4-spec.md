@@ -111,6 +111,24 @@ Named so that leaving them is a decision:
 - No CSS-level contrast suite; contrast is verified in the browser and the numbers go in the PR.
 - The root `package-lock.json` is out of sync with `package.json` (missing `engines`). Its own commit.
 
+## Found while implementing — parked, not built
+
+Both came out of the previews the wave required, and neither is on the list of 28.
+
+- **A cold load straight into `#/…/add` preselects the fallback currency, not the configured one.**
+  `AddSheet` is rendered outside App's `loading` branch, so on a direct load of `#/expenses/add` the
+  form mounts before `/api/settings` answers and `useState(settings.defaultCurrency)` keeps
+  `DEFAULT_SETTINGS`. Measured with `defaultCurrency: EUR`: the sheet opened from a loaded screen
+  preselects EUR; the same URL loaded cold preselects USD. Same root cause as the `isPhone` guard
+  already documented in `AddSheet.tsx` — the sheet mounts with the shell, before the shell knows
+  anything. Not urgent: the recording path is reachable and correctable in one control, and the fix
+  is a decision about whether the sheet waits for state or re-seeds from it.
+- **A `<input type="number">` shows the rate in the browser's decimal separator** — a stored `1.08`
+  reads `1,08` on a Polish browser. Pre-existing (the `Fx` screen had the identical control) and
+  harmless: `e.target.value` is normalised, so `parseFloat` is safe. It is the same class as the five
+  `<input type="date">` controls: the control rendering itself, not us formatting anything. Only
+  worth listing because change 13 moved these fields onto a screen people open.
+
 ## Definition of done
 
 Lint, build and tests green with output shown. Both previews clicked through. Nothing under `data/`,

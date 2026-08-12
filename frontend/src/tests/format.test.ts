@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
-import { formatCurrency, currencySymbol, currencyInfo, setCurrencyRegistry } from '../utils/format';
+import { formatCurrency, currencySymbol, currencyInfo, setCurrencyRegistry, formatDate, monthLabel } from '../utils/format';
 import { TEST_CURRENCIES } from './currencies.fixture';
 
 // The registry is module-level state; put the shipped defaults back after any
@@ -77,5 +77,43 @@ describe('the registry', () => {
     // A failed fetch must not leave the app unable to format anything.
     setCurrencyRegistry([]);
     expect(formatCurrency(10, 'USD')).toBe('$10.00');
+  });
+});
+
+/**
+ * Dates (F19).
+ *
+ * These are the only cases that can prove the fix. `Intl` resolves `undefined`
+ * to the host OS, and CI happens to run an English one — so every assertion
+ * elsewhere in the suite passed both before and after. The third case here is
+ * the load-bearing one: a locale the code decides is one another locale cannot
+ * override by accident, and it is what an explicit argument still can.
+ */
+describe('dates', () => {
+  it('renders a day in the interface language, not the operating system\'s', () => {
+    expect(formatDate('2026-08-11')).toBe('11 Aug 2026');
+  });
+
+  it('renders a month heading the same way', () => {
+    // The largest instance of F19: since wave 3c this string is a heading on
+    // Budgets, so a Polish host printed "sierpień 2026" above an English page.
+    expect(monthLabel('2026-08')).toBe('August 2026');
+  });
+
+  it('takes an explicit locale over the fixed one, which is the PL/EN seam', () => {
+    expect(formatDate('2026-08-11', 'pl-PL')).toBe('11 sie 2026');
+    expect(formatDate('2026-08-11', 'en-US')).toBe('Aug 11, 2026');
+  });
+
+  it('reads a date as a calendar day, not an instant', () => {
+    // Parsed at UTC midnight on purpose: a local-time parse west of Greenwich
+    // renders the 1st of a month as the last day of the previous one.
+    expect(formatDate('2026-08-01')).toBe('1 Aug 2026');
+    expect(monthLabel('2026-01')).toBe('January 2026');
+  });
+
+  it('hands back anything it cannot parse rather than printing "Invalid Date"', () => {
+    expect(formatDate('nope')).toBe('nope');
+    expect(monthLabel('garbage')).toBe('garbage');
   });
 });

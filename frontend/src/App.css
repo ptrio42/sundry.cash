@@ -21,13 +21,10 @@
   --text-muted: #9aa3b2;
 
   --accent: #34d399;
-  --accent-strong: #10b981;
   --accent-contrast: #052018;
   --accent-soft: rgba(52, 211, 153, 0.12);
 
-  --violet: #a78bfa;
   --danger: #f87171;
-  --danger-strong: #ef4444;
   --danger-soft: rgba(248, 113, 113, 0.12);
   --warning: #fbbf24;
   --warning-soft: rgba(251, 191, 36, 0.12);
@@ -94,7 +91,7 @@ body {
 }
 
 h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
-.num, .amount, .value, .result-value, .total-amount, td.amount { font-variant-numeric: tabular-nums; }
+.amount, .value, .result-value, td.amount { font-variant-numeric: tabular-nums; }
 
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -341,8 +338,7 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
   input, select, textarea { font-size: 16px; }
   .form-row { grid-template-columns: 1fr; }
 
-  /* Stack the table's toolbar/filters so they don't overflow */
-  .table-toolbar { flex-direction: column; align-items: stretch; }
+  /* Stack the filters so they don't overflow */
   .filters { flex-direction: column; align-items: stretch; }
   .filter-group { width: 100%; }
   .filter-group select, .filter-group input { width: 100%; }
@@ -526,8 +522,6 @@ button[type='submit']:disabled,
 .result-card.skipped .result-value { color: var(--text-muted); }
 
 /* ---------- Charts ---------- */
-.charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-@media (max-width: 900px) { .charts-container { grid-template-columns: 1fr; } }
 .chart-box {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -538,9 +532,7 @@ button[type='submit']:disabled,
   min-width: 0;
 }
 .chart-box h3 { margin-bottom: 14px; }
-.chart-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-.time-grouping, .time-period-buttons, .currency-buttons, .category-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
-.time-grouping button,
+.time-period-buttons, .currency-buttons, .category-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .time-period-buttons button,
 .currency-buttons button,
 .category-chips button {
@@ -554,11 +546,9 @@ button[type='submit']:disabled,
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.time-grouping button:hover,
 .time-period-buttons button:hover,
 .currency-buttons button:hover,
 .category-chips button:hover { color: var(--text); border-color: var(--border-strong); }
-.time-grouping button.active,
 .time-period-buttons button.active,
 .currency-buttons button.active,
 .category-chips button.active {
@@ -572,6 +562,9 @@ button[type='submit']:disabled,
 /* The donut's own legend went with the donut (changes 27 and 28): ranked rows on
    Home name every category in place, so nothing needs a colour key any more. */
 
+/* The only class names in this file that no `className=` mentions, and they
+   have to stay: recharts stamps them on its own SVG at runtime. A sweep that
+   deletes what greps to zero takes chart theming with it. */
 .recharts-cartesian-grid line { stroke: var(--border); }
 .recharts-text { fill: var(--text-muted); }
 .recharts-default-tooltip {
@@ -582,8 +575,8 @@ button[type='submit']:disabled,
 }
 
 /* ---------- Table ---------- */
-.expense-table h2, .ledger h2, .home h2, .expense-form h2,
-.excel-import h2, .import-results h3, .preview-section h3 { color: var(--text); }
+.ledger h2, .home h2, .excel-import h2,
+.import-results h3, .preview-section h3 { color: var(--text); }
 
 .filters {
   display: flex;
@@ -658,9 +651,6 @@ tbody tr.selected-row { background: var(--accent-soft); }
 tbody tr:last-child td { border-bottom: none; }
 .checkbox-cell { width: 40px; text-align: center; }
 td.amount { font-weight: 700; text-align: right; }
-.total-label { text-align: right; font-weight: 600; color: var(--text-muted); }
-.total-amount { font-weight: 700; text-align: right; }
-tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .actions { display: flex; gap: 8px; }
 .btn-edit, .btn-delete {
   padding: 6px 12px;
@@ -903,31 +893,7 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .login-card .form-group { text-align: left; }
 .login-submit { width: 100%; }
 
-/* ---------- Toasts ---------- */
-.toast-stack {
-  position: fixed; bottom: 22px; right: 22px; z-index: 200;
-  display: flex; flex-direction: column; gap: 10px; max-width: 360px;
-}
-.toast {
-  background: var(--surface-3);
-  border: 1px solid var(--border-strong);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow);
-  padding: 12px 15px;
-  font-size: 0.9rem;
-  color: var(--text);
-  animation: toastIn 0.2s ease;
-}
-.toast.error { border-left-color: var(--danger); }
-.toast.success { border-left-color: var(--accent); }
-@keyframes toastIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
-
-/* ---------- Confirm dialog ---------- */
-.confirm-dialog { max-width: 420px; }
-.confirm-dialog p { color: var(--text-muted); margin-bottom: 20px; }
-.confirm-dialog .modal-actions { justify-content: flex-end; }
+/* ---------- Danger ---------- */
 /* The Settings danger zone's Wipe database button — the first thing to actually
    render this rule. Its foreground comes from --bg, the one value that inverts
    with the theme, so the label reads as near-black on the light red the dark
@@ -1124,10 +1090,6 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .start-demo a { color: var(--accent); }
 
 /* ---------- Insight blocks (shared by Home's sections) ---------- */
-.insight-block { margin-bottom: 32px; }
-.insight-block-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
-.insight-block-head h2 { margin-bottom: 10px; }
-.insight-block-head .muted-text { margin-top: 0; }
 .insight-subblock { margin-top: 20px; }
 .insight-subblock h3 { margin-bottom: 10px; color: var(--text-muted); font-size: 0.95rem; }
 /* The one number a block is really about — the monthly subscription total, the
@@ -1166,13 +1128,6 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .heatmap-col { display: flex; flex-direction: column; gap: 4px; }
 .heatmap-cell { width: 14px; height: 14px; border-radius: 3px; flex: none; }
 .heatmap-legend { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 0.76rem; color: var(--text-muted); }
-
-/* ---------- Table toolbar / export ---------- */
-/* Right-aligned: the heading that used to hold the left of this row was the page
-   title said twice, and went with change 28. */
-.table-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-.export-buttons { display: flex; gap: 8px; }
-.export-buttons button { padding: 8px 14px; font-size: 0.85rem; }
 
 /* ---------- Expenses: the ledger screen (change 4) ---------- */
 /* Import and Export at the same rank, in the same row, at the top of the
@@ -1223,12 +1178,6 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .ledger-charts { display: flex; flex-direction: column; gap: 20px; margin-top: 24px; }
 .chart-box h2 { margin-bottom: 4px; font-size: 1.05rem; }
 .chart-note { color: var(--text-muted); font-size: 0.82rem; margin-bottom: 14px; }
-
-/* ---------- FX ---------- */
-.fx-rates { display: flex; flex-direction: column; gap: 12px; max-width: 440px; }
-.fx-rate-row { display: flex; align-items: center; gap: 12px; }
-.fx-cur { width: 96px; font-weight: 600; }
-.fx-eq { color: var(--text-muted); font-size: 0.9rem; }
 
 /* ---------- Settings ---------- */
 /* Moved here from the Analytics block when that screen was deleted: the
@@ -1462,17 +1411,33 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 .pagination button[disabled] { opacity: 0.45; cursor: not-allowed; }
 
 /* ---------- Currency manager (Settings) ---------- */
-.currency-manager { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; margin: 0 0 12px; padding: 0; }
+/* One column since wave 4, not an auto-filling grid: the row carries a rate
+   field now, and a 210px track could not hold "PLN (zł) · 2 decimal places ·
+   1 PLN = $[input]" without wrapping every one of them. */
+.currency-manager { list-style: none; display: flex; flex-direction: column; gap: 6px; margin: 0 0 12px; padding: 0; max-width: 560px; }
 .currency-manager-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 7px 12px;
 }
-.currency-manager-row .checkbox-label { margin: 0; gap: 8px; }
+.currency-manager-row .checkbox-label { margin: 0; gap: 8px; min-width: 96px; }
 .currency-symbol-badge { color: var(--text-muted); font-size: 0.85rem; }
 .currency-decimals { font-size: 0.72rem; white-space: nowrap; }
+/* Pushed to the trailing edge so the rate fields line up down the list, whatever
+   the code and the decimal note are. */
+.currency-rate { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.currency-rate-eq { color: var(--text-muted); font-size: 0.85rem; white-space: nowrap; }
+.currency-rate .budget-input input { width: 104px; }
+/* Beside the field it is about, not in the section's error line: a refused
+   draft stays in the box, so the only thing saying the box is not the rate in
+   force has to survive whatever happens to the other rows. */
+.currency-rate-error { color: var(--danger); font-size: 0.78rem; }
+/* On a phone the row stacks: five things do not fit across 375px. */
+@media (max-width: 560px) {
+  .currency-manager-row { flex-wrap: wrap; }
+  .currency-rate { margin-left: 0; width: 100%; }
+}

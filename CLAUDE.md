@@ -53,14 +53,16 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 - `src/server.ts` — app wiring, middleware, route mounts, graceful shutdown. Exports `app`; binds a
   port only when `NODE_ENV !== 'test'`.
 - `src/routes/` — Express routers: `expenses`, `import`, `budgets`, `categories`, `currencies`, `fx`,
-  `auth`, `settings`, `receipts`, `insights`. New endpoints go here.
+  `auth`, `settings`, `receipts`, `insights`. New endpoints go here. `GET /categories/suggest` exposes
+  `services/categorize.ts` so the manual form can guess a category too (change 21) — it ran on the
+  import and the scan paths and nowhere else.
 - `src/models/` — better-sqlite3 prepared statements (`expense`, `budget`, `category`, `currency`,
   `fx`, `settings`, `insights`). All SQL lives here.
 - `src/config/` — `database.ts` (schema + idempotent migrations + seeds), `currencies.ts` (the shipped
   ISO catalogue), `auth.ts` (HMAC tokens), `money.ts` (minor-unit conversion, via the currency table).
 - `src/middleware/` — `auth` (`requireAuth`), `validation`.
 - `src/services/` — `categorize.ts` (keyword auto-categorization, EN + PL); `receipt/` (OCR factory — see gotchas).
-- `src/tests/` — Jest + supertest, 268 cases across 15 files (plus `env.ts` / `paths.ts` /
+- `src/tests/` — Jest + supertest, 273 cases across 15 files (plus `env.ts` / `paths.ts` /
   `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
 
 **frontend/** — React 18 + Vite, single-page UI (no state library — plain hooks). Four destinations
@@ -74,11 +76,11 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   `InsightsStrip` merged into it in wave 2), `Expenses` (the ledger *and* the query tool —
   `Analytics` merged into it in wave 3b and is deleted), `ExpenseTable` (the rows only, driven by
   `Expenses`), `AddSheet` (the overlay, plus the `AddedLine` confirmation the shell renders after a
-  save), `Budgets`, `Fx`, `ExpenseForm`, `ExcelImport`, `EditExpenseModal`, `Login`, `Settings`,
+  save), `Budgets`, `ExpenseForm`, `ExcelImport`, `EditExpenseModal`, `Login`, `Settings`,
   `ReceiptScan`, `CurrencyScope`. `ExpenseForm` and `ReceiptScan` are the sheet's two tabs rather
-  than screens (wave 3a); **`Fx` is the last screen with no nav entry**, re-entered from Settings in
-  wave 4; `ExcelImport` is reached from the Expenses toolbar and from Home's empty-ledger Start card,
-  and from no destination of its own.
+  than screens (wave 3a); **`Fx` is gone** — the rate editor is a control on each row of Settings'
+  Currencies section since wave 4 (change 13); `ExcelImport` is reached from the Expenses toolbar and
+  from Home's empty-ledger Start card, and from no destination of its own. **Nothing is unreachable.**
 - `src/services/api.ts` — central `apiFetch` wrapper (base `/api`, bearer from localStorage key
   `sundry-token`, 401 -> `auth-expired` window event). Add API calls here.
 - `src/utils/` — `format.ts` (currency/date display, backed by a registry App refreshes),
@@ -105,6 +107,14 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   `settings` and `fxRates`. A context or a store would be the third state mechanism in a codebase that
   deliberately has none. `ExpenseCategory` and `Currency` are therefore just `string` — the compiler
   cannot check a set the database owns, so the models do it at runtime.
+- **Dates take a locale the code picks; amounts take one the data carries.** `DISPLAY_LOCALE`
+  (`en-GB`) in `utils/format.ts` feeds every `Intl.DateTimeFormat` in the frontend. `Intl`'s
+  `undefined` resolves to the *host OS*, so an English interface on a Polish laptop rendered
+  `11 sie 2025` in the ledger and `sierpień 2026` as a Budgets heading (F19). PL/EN is a roadmap item
+  and the seam for it is deliberate: turn the constant into `let` plus a setter, exactly as
+  `registry`/`setCurrencyRegistry` already work, and no call site changes. The five
+  `<input type="date">` controls stay in the *browser's* locale — that is the control rendering
+  itself, not us formatting anything.
 - **`utils/format.ts` keeps a module-level currency registry** rather than taking the catalogue as an
   argument: it is called once per rendered amount, and threading it through every call site would be
   noise. `App` refreshes it (`setCurrencyRegistry`) before the setState that re-renders. Decimal places
@@ -201,7 +211,7 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (268 backend + 410 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (273 backend + 432 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).
