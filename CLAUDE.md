@@ -251,6 +251,12 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   `receiptsDir()` derives from `DB_PATH`, so uploaded images are isolated too. Never remove this:
   without it the suite writes fixtures straight into `backend/data/expenses.db`.
 - **Reset the local DB** by deleting `backend/data/expenses.db` — it is recreated on next backend start.
+- **`config/database.ts` swallows migration errors on purpose** ("Continue even if migration fails"), so a
+  failed migration is silent. Anything that depends on a table existing must check for itself and treat
+  absence as an error, never as "not yet" — the auth work in `docs/hosted-security.md` turns on this.
+- **`AUTH_SECRET` is empty in `deploy/instance.env.example`**, so `getSecret()` falls back to `APP_PASSWORD`
+  and the bearer token becomes an HMAC over known plaintext (`{exp}`) keyed by the password itself. One
+  leaked token is then an offline, unthrottled cracker for the password. Generate a real secret per instance.
 
 ## Definition of done
 
@@ -263,5 +269,8 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 ## Pointers
 
 - Setup & self-hosting: `docs/DEPLOYMENT.md`. Feature/endpoint reference: `README.md` (secondary to code).
+- Selling Sundry as a hosted product: `docs/hosted-security.md` — the threat model, every auth parameter with
+  the published source that sets it, what we deliberately do not do, and the incident plan. Read it before
+  touching `config/auth.ts` or anything about instances someone pays for.
 - CI: `.github/workflows/ci.yml` (lint + typecheck + build + test for both packages + docker build).
 - Personal / sandbox-only notes: put them in a gitignored `CLAUDE.local.md`, never here.
