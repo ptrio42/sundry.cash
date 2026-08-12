@@ -804,8 +804,11 @@ describe('Home — the habit sections', () => {
     // the ramp, and the 4000 outlier shares that top shade rather than owning it.
     expect(cells).toHaveLength(9);
     for (const cell of cells) {
-      // jsdom normalises a fully opaque rgba() to rgb().
-      expect(cell.style.background).toBe('rgb(52, 211, 153)');
+      // The top of the ramp is the accent undiluted. Asserted as the expression
+      // rather than as a colour because that is the point of it: the ramp is
+      // mixed from tokens now, so it follows the theme instead of freezing one
+      // theme's accent into the markup.
+      expect(cell.style.background).toBe('color-mix(in srgb, var(--accent) 100%, var(--surface-3))');
     }
     expect(section('When you spend')).toHaveTextContent(/More, from 100,00\s*zł up/);
   });

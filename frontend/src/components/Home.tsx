@@ -127,6 +127,23 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 /** Where someone goes to see what this looks like with a real history behind it. */
 const DEMO_URL = 'https://demo.sundry.cash';
 
+/**
+ * One step of the daily-spend heatmap's colour ramp, `0` (no spending) to `1`.
+ *
+ * A mix toward `--surface-3` rather than the accent at an alpha, which is what
+ * this used to be. An alpha ramp fades toward whatever sits *behind* the grid,
+ * and on the off-white the app opens on now that put the lowest step at 1.03:1
+ * against a day with no spending at all — "spent something" and "spent nothing"
+ * rendered as the same square, which is the whole information the section
+ * carries. Mixing toward the empty colour instead makes that colour the ramp's
+ * own zero, so `rampStep(0)` *is* an empty cell and the scale is continuous by
+ * construction. The legend reads from the same expression for the same reason.
+ * `.heatmap-cell` carries `--surface-3` as its own background, so a browser too
+ * old for `color-mix` drops back to the empty end rather than to nothing.
+ */
+const rampStep = (intensity: number) =>
+  `color-mix(in srgb, var(--accent) ${Math.round(intensity * 100)}%, var(--surface-3))`;
+
 /** A merchant key is a case-folded grouping key ('żabka'), not a display name. */
 function asName(key: string): string {
   return key.charAt(0).toLocaleUpperCase() + key.slice(1);
@@ -843,7 +860,7 @@ export default function Home({
                           <div
                             key={day.date}
                             className="heatmap-cell"
-                            style={{ background: day.amount > 0 ? `rgba(52, 211, 153, ${intensity})` : 'var(--surface-3)' }}
+                            style={{ background: rampStep(intensity) }}
                             title={`${day.date}: ${fmt(day.amount)}`}
                           />
                         );
@@ -854,10 +871,10 @@ export default function Home({
               </div>
               <div className="heatmap-legend">
                 <span>Less</span>
-                <span className="heatmap-cell" style={{ background: 'var(--surface-3)' }} />
-                <span className="heatmap-cell" style={{ background: 'rgba(52,211,153,0.35)' }} />
-                <span className="heatmap-cell" style={{ background: 'rgba(52,211,153,0.65)' }} />
-                <span className="heatmap-cell" style={{ background: 'rgba(52,211,153,1)' }} />
+                <span className="heatmap-cell" style={{ background: rampStep(0) }} />
+                <span className="heatmap-cell" style={{ background: rampStep(0.35) }} />
+                <span className="heatmap-cell" style={{ background: rampStep(0.65) }} />
+                <span className="heatmap-cell" style={{ background: rampStep(1) }} />
                 <span>More, from {fmt(heatmap.anchor)} up</span>
               </div>
             </div>

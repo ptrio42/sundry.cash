@@ -23,6 +23,15 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: './src/tests/setup.ts'
+    setupFiles: './src/tests/setup.ts',
+    // The theme suite reads the real stylesheet (`import css from
+    // '../App.css?raw'`) and does the contrast arithmetic itself, because jsdom
+    // applies no external stylesheet and cannot be asked what colour anything
+    // is. Vitest blanks CSS modules by default, which blanks `?raw` with them.
+    // Scoped to the raw query on purpose: turning CSS on for the plain
+    // `import '../App.css'` would start feeding real rules to every component
+    // suite, where `display: none` on the mobile bar would suddenly hide
+    // controls that jsdom currently reports as visible.
+    css: { include: [/App\.css\?raw$/] }
   }
 });

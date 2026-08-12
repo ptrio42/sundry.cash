@@ -32,6 +32,16 @@ import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthSt
 import { Expense, AppSettings, Category, CurrencyInfo, FxRates, InstanceConfig } from '../types/expense.types';
 import { setCurrencyRegistry } from '../utils/format';
 import { Destination, useRoute } from '../utils/route';
+/* The outlined pair, not the editable one: "outlined" means the wordmark is
+   vector paths, so the mark carries no font dependency and cannot render in a
+   fallback serif before Newsreader arrives. Two files rather than one recoloured
+   by CSS — the receipt's lower bar takes the *background* colour, so a mark that
+   followed the theme through `fill` would need the SVG inlined into the bundle
+   and its three fills rewritten. Imported from src/ so Vite content-hashes
+   them: `/icons/` has to keep stable paths for the manifest, the sidebar mark
+   does not, and a hashed name is what lets nginx serve it immutable. */
+import logoLight from '../assets/brand/logo-horizontal-light.svg';
+import logoDark from '../assets/brand/logo-horizontal-dark.svg';
 import '../App.css';
 
 type NavItem = { key: Destination; label: string; icon: string };
@@ -93,6 +103,14 @@ const DEFAULT_INSTANCE: InstanceConfig = { demoMode: false, receiptsEnabled: tru
 /** Where a visitor goes to see what this is. The banner's only link. */
 const PRODUCT_URL = 'https://sundry.cash';
 
+/**
+ * Where the device's theme choice lives. Namespaced like `sundry-token` and
+ * `sundry-add-method`, and deliberately *not* the old bare `theme` — see the
+ * comment on the state below, and the twin of this constant in `index.html`,
+ * which reads the same key before React exists.
+ */
+const THEME_KEY = 'sundry-theme';
+
 const DEFAULT_SETTINGS: AppSettings = {
   defaultCurrency: 'USD',
   defaultCategory: 'groceries',
@@ -140,16 +158,37 @@ export default function App() {
   const [authRequired, setAuthRequired] = useState<boolean>(false);
   const [authed, setAuthed] = useState<boolean>(false);
   const [instance, setInstance] = useState<InstanceConfig>(DEFAULT_INSTANCE);
+  /* Light-first since the brand landed: off-white is the brand's own background
+     and `:root` is the light theme now, so the stored value is read for the
+     *exception*.
+
+     The key is new, and that is the point. The dark-first shell wrote
+     `localStorage.theme = 'dark'` on every mount, for everyone, whether or not
+     they had ever touched the toggle — so reading that key would have resolved
+     every existing install to dark and shipped the whole rebrand to first-time
+     visitors only. `sundry-theme` starts empty for all of them, which puts them
+     on the new default once and leaves the toggle to say otherwise. It also
+     matches how the two other keys in the app are named. */
   const [theme, setTheme] = useState<'dark' | 'light'>(() =>
-    (typeof localStorage !== 'undefined' && localStorage.getItem('theme') === 'light') ? 'light' : 'dark'
+    (typeof localStorage !== 'undefined' && localStorage.getItem(THEME_KEY) === 'dark') ? 'dark' : 'light'
   );
 
   const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'));
 
-  // Apply and persist the theme (dark-first: dark is the default)
+  // Apply and persist the theme (light-first: light is the default)
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem('theme', theme);
+    localStorage.setItem(THEME_KEY, theme);
+    /* The browser paints its own chrome — the address bar on Android, the status
+       bar in an installed PWA — from this tag, and nothing but this line ever
+       rewrites it. Left static it would frame a charcoal app in off-white for
+       everyone on dark. Read from the stylesheet rather than repeated here, so
+       the tag cannot drift from `--bg`. */
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      meta.setAttribute('content',
+        getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
+    }
   }, [theme]);
 
   /**
@@ -436,9 +475,13 @@ export default function App() {
       )}
 
       <aside className="sidebar">
+        {/* The horizontal logo carries the wordmark, so the `<span>Sundry</span>`
+            that used to sit beside a 26px app icon would now be the name twice.
+            The alt text is what keeps it once for a screen reader. Picked at
+            render rather than at build: the mark has a light and a dark cut and
+            the toggle has to move it. */}
         <div className="sidebar-brand">
-          <img className="logo" src="/icons/icon-192.png" alt="" aria-hidden="true" />
-          <span>Sundry</span>
+          <img className="logo" src={theme === 'dark' ? logoDark : logoLight} alt="Sundry" />
         </div>
 
         {/* Above the destinations and styled unlike them, because it is not a

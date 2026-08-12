@@ -11,7 +11,11 @@
  * Bump CACHE when the shell/precache set changes so old caches are purged.
  */
 
-const CACHE = 'sundry-v2';
+// v3: the brand wave replaced every icon's bytes behind unchanged filenames,
+// so the bump is what purges them — `activate` deletes every cache that is not
+// this one, and stale-while-revalidate would otherwise hand a returning visitor
+// the old mark first.
+const CACHE = 'sundry-v3';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
