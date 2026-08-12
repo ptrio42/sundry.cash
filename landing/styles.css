@@ -1,0 +1,492 @@
+/**
+ * Sundry — the landing page.
+ *
+ * The palette is not picked here. Every token below is copied from
+ * frontend/src/App.css, which derives them from the three colours the brand
+ * drop freezes (charcoal #1A1A1A, sage #7DA27D, off-white #F7F7F5) and measures
+ * every foreground/surface pair at 4.5:1 or better. Re-picking them would let
+ * the page and the product it advertises drift apart, which is the one thing a
+ * landing page for your own app should never do.
+ *
+ * The app switches theme on a `data-theme` attribute, because it has a toggle
+ * and a stored preference. This page has no JavaScript at all — that is part of
+ * its argument — so it follows `prefers-color-scheme` instead. Same tokens,
+ * different switch.
+ */
+
+/* Newsreader, SIL OFL 1.1 — licence at assets/fonts/OFL.txt, and the page links
+   to it. Self-hosted rather than fetched from Google Fonts for the reason the
+   page states out loud: that link would hand every visitor's IP to
+   fonts.gstatic.com from a site whose whole claim is that it does no such
+   thing. Two subsets because `1734,88 zł` and `Żabka` need latin-ext. */
+@font-face {
+  font-family: 'Newsreader';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('assets/fonts/newsreader-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Newsreader';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('assets/fonts/newsreader-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ---------- Tokens ---------- */
+
+:root {
+  --radius: 14px;
+  --radius-sm: 9px;
+
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  /* Two strings wide, exactly as in the app: the headline and the finding
+     sentences. Everything else — body, the three doors, every figure — stays on
+     the system sans. */
+  --font-display: 'Newsreader', Georgia, 'Times New Roman', Times, serif;
+
+  /* One column, and everything in it is the same width — text included. Prose
+     held to a narrower measure inside a wider column reads as a page that got
+     cut off rather than as typographic restraint, so the column itself is the
+     measure. That is what sets it: 52rem is as wide as a line of this text can
+     go and still be followed, and the screenshots take the same width. */
+  --page: 52rem;
+}
+
+/* Light — the default, and the brand's own off-white. */
+:root {
+  color-scheme: light;
+
+  --bg: #F7F7F5;
+  --surface: #FFFFFF;
+  --surface-2: #EFEFEB;
+  --border: #D9D9D1;
+  --border-strong: #A8A89E;
+
+  --text: #1A1A1A;
+  --text-muted: #565650;
+
+  /* Sage has two jobs and they cannot be one value: #7DA27D as text on the
+     off-white background measures 2.67:1, so `--accent` is the same hue taken
+     to 36% lightness (5.56:1) for links and rules, and `--accent-fill` keeps
+     the frozen brand value for backgrounds, which then carry charcoal at
+     6.08:1. */
+  --accent: #4D6B4D;
+  --accent-fill: #7DA27D;
+  --accent-contrast: #1A1A1A;
+  --accent-soft: rgba(125, 162, 125, 0.13);
+
+  --shadow: 0 10px 30px rgba(26, 26, 26, 0.10);
+  --shadow-sm: 0 2px 10px rgba(26, 26, 26, 0.07);
+
+  /* Filled controls lift on hover with `filter: brightness()`. On a near-black
+     page that means brighter; on off-white it has to mean darker — same
+     gesture, opposite sign. */
+  --hover-lift: 0.94;
+}
+
+/* Dark — charcoal, so the accent it carries is the frozen sage unaltered:
+   #7DA27D on #1A1A1A is 6.08:1. A full peer of light, not a fallback. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --bg: #1A1A1A;
+    --surface: #202020;
+    --surface-2: #242424;
+    --border: #303030;
+    --border-strong: #565650;
+
+    --text: #F7F7F5;
+    --text-muted: #ADADA5;
+
+    --accent: #7DA27D;
+    --accent-fill: #7DA27D;
+    --accent-contrast: #1A1A1A;
+    --accent-soft: rgba(125, 162, 125, 0.10);
+
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.3);
+
+    --hover-lift: 1.08;
+  }
+
+  /* Synthetic smoothing thins glyphs, which is what light text on a dark page
+     wants and the opposite of what charcoal on off-white wants. It follows the
+     theme here exactly as it does in the app. */
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* ---------- Base ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0 0 1rem;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.1em 0.35em;
+  /* A command in running prose must never be the thing that makes a phone
+     scroll sideways. */
+  overflow-wrap: break-word;
+}
+
+strong {
+  font-weight: 650;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip:focus {
+  left: 1rem;
+  top: 1rem;
+  z-index: 10;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1rem;
+}
+
+/* ---------- Shell ---------- */
+
+.site-header,
+main > section,
+.site-footer {
+  max-width: var(--page);
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 5vw, 2.5rem);
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-block: 1.75rem 0.5rem;
+}
+
+.wordmark {
+  display: block;
+  width: 148px;
+  height: auto;
+  /* The file is 450.557 × 120 and an HTML width attribute cannot hold a
+     fraction, so the exact ratio is restated here — the integer attributes on
+     the tag are the no-CSS fallback, this is the truth. */
+  aspect-ratio: 450.557 / 120;
+}
+
+.header-link {
+  font-weight: 600;
+}
+
+main > section {
+  padding-block: 2.5rem;
+}
+
+main > section + section {
+  border-top: 1px solid var(--border);
+}
+
+h2 {
+  font-size: clamp(1.5rem, 4vw, 1.9rem);
+  margin-bottom: 1rem;
+}
+
+h3 {
+  font-size: 1.15rem;
+  margin-bottom: 0.35rem;
+}
+
+.fine {
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+}
+
+/* ---------- Hero ---------- */
+
+.hero {
+  padding-block: 1.5rem 3rem;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(2.05rem, 6.4vw, 3.5rem);
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  margin: 0 0 1.5rem;
+}
+
+.lede {
+  font-size: 1.125rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block: 1.5rem 0.75rem;
+}
+
+.button {
+  display: inline-block;
+  background: var(--accent-fill);
+  color: var(--accent-contrast);
+  /* Sage as a fill on off-white is a light shape on a light page; the 1px
+     accent edge is what gives it an outline in both themes. */
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 1.25rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.button:hover {
+  filter: brightness(var(--hover-lift));
+}
+
+.button-quiet {
+  background: transparent;
+  color: var(--accent);
+  border-color: var(--border-strong);
+}
+
+.button-quiet:hover {
+  border-color: var(--accent);
+  filter: none;
+}
+
+/* ---------- Screenshots ---------- */
+
+.shot {
+  margin: 2rem 0 0;
+}
+
+.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  /* The shots are of a light-themed app on an off-white background and a
+     dark-themed app on charcoal; against the page they would otherwise float
+     with no edge at all. */
+  background: var(--surface);
+}
+
+.shot figcaption {
+  margin-top: 0.75rem;
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+}
+
+/* The hero shot is tall; letting it run full height pushes everything below it
+   off the first two screens. Cropped from the top, which is where the sentence
+   and the findings are. */
+.shot-hero {
+  margin-top: 2.5rem;
+}
+
+.shot-hero img {
+  max-height: 30rem;
+  object-fit: cover;
+  object-position: top;
+}
+
+/* Expenses is 1360 × 2957 CSS pixels — the tallest shot by a factor of two, and
+   shown whole it is a column of grey. Same crop, same reason.
+   **One opt-in class, never a descendant selector.** `#screens .shot img` would
+   read as "the shots in this section" and quietly take the phone frame and the
+   second theme with it, cropping the bottom bar off the one picture that exists
+   to show the bottom bar. Every other frame is short enough to print whole, and
+   a caption that names something below the cut is a caption that lies. */
+.shot-tall img {
+  max-height: 34rem;
+  object-fit: cover;
+  object-position: top;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (min-width: 44rem) {
+  .pair {
+    grid-template-columns: minmax(0, 0.45fr) minmax(0, 1fr);
+    gap: 2rem;
+  }
+}
+
+/* Below the breakpoint the pair stacks, and a 390 × 844 phone capture printed at
+   the full column width is a very tall picture of a very small screen. Capping
+   its width rather than its height keeps the whole frame — bottom bar included
+   — at a size that reads as a phone. */
+@media (max-width: 43.99rem) {
+  .pair .shot:first-child img {
+    max-width: 15rem;
+  }
+}
+
+/* ---------- Findings ---------- */
+
+.findings {
+  list-style: none;
+  margin: 1.5rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+/* The app's own sentences, so they are set in the app's own display face — the
+   same narrow job Newsreader has there. */
+.findings li {
+  font-family: var(--font-display);
+  font-size: clamp(1.1rem, 3.2vw, 1.3rem);
+  line-height: 1.35;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1.1rem;
+}
+
+/* ---------- Three doors ---------- */
+
+.doors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+  margin-block: 1.5rem;
+}
+
+.door {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.door p:last-child {
+  margin-bottom: 0;
+}
+
+.door-price {
+  font-weight: 650;
+  color: var(--accent);
+  margin-bottom: 0.75rem;
+}
+
+/* ---------- What it is not ---------- */
+
+.nots {
+  margin: 1.5rem 0 0;
+}
+
+.nots dt {
+  font-weight: 650;
+  margin-top: 1.25rem;
+}
+
+.nots dd {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+}
+
+/* ---------- Privacy ---------- */
+
+.checks {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 1.25rem;
+}
+
+/* A neutral rail rather than a sage one: sage marks the app's own sentences
+   further up the page, and repeating it here would make two different kinds of
+   claim look like one. It is decorative and measures 2.2:1 — below the 3:1 a
+   *meaningful* non-text element owes. That is deliberate rather than missed:
+   each item leads with a bold sentence, so deleting the rail costs the list
+   nothing but rhythm. Do not promote it to carrying meaning without darkening
+   it first. */
+.checks li {
+  padding-left: 1.25rem;
+  border-left: 2px solid var(--border-strong);
+}
+
+.checks strong {
+  color: var(--text);
+}
+
+/* ---------- Footer ---------- */
+
+.site-footer {
+  padding-block: 2.5rem 3.5rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.site-footer p {
+  margin: 0 0 0.5rem;
+}

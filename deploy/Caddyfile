@@ -25,6 +25,15 @@ sundry.cash, www.sundry.cash {
 	encode gzip
 	root * /srv/sundry/landing
 	file_server
+
+	# The page carries no analytics script, on purpose — it argues for privacy
+	# and a tag manager would refute it in the first request. This is the
+	# replacement: a count of requests to "/" in Caddy's own access log, which
+	# holds nothing the request did not already carry. Create /var/log/caddy
+	# first; Caddy will not make the directory for you.
+	log {
+		output file /var/log/caddy/sundry-landing.log
+	}
 }
 
 # The public demo. Wiped and re-seeded nightly by deploy/reset-demo.sh.
