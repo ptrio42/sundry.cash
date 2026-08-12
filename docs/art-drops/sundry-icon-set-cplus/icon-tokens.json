@@ -1,0 +1,24 @@
+{
+  "icon": {
+    "grid": "24x24",
+    "geometry": "identical across themes and states",
+    "colors": {
+      "light": {
+        "inactive": "#5E666E",
+        "active": "#5F865F",
+        "disabledOpacity": 0.38
+      },
+      "dark": {
+        "inactive": "#F2F2F0",
+        "active": "#9FC49F",
+        "disabledOpacity": 0.38
+      },
+      "brandReference": {
+        "charcoal": "#1A1A1A",
+        "sage": "#7DA27D",
+        "offWhite": "#F7F7F5",
+        "mutedGray": "#8E9399"
+      }
+    }
+  }
+}

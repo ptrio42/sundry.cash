@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:none">
+<symbol id="icon-home" viewBox="0 0 24 24">
+  <path fill="currentColor" fill-rule="evenodd" d="
+    M12 2.35
+    L21 9.85
+    V21
+    H14.7
+    V15.2
+    H9.3
+    V21
+    H3
+    V9.85
+    Z
+    M10.35 21
+    V16.25
+    H13.65
+    V21
+    Z"/>
+</symbol><symbol id="icon-expenses" viewBox="0 0 24 24">
+  <path fill="currentColor" fill-rule="evenodd" d="
+    M6.25 2.25
+    H17.75
+    Q19 2.25 19 3.5
+    V18.5
+    L17 21.5
+    L15 19.75
+    L13 21.5
+    L11 19.75
+    L9 21.5
+    L7 19.75
+    L5 21.5
+    V3.5
+    Q5 2.25 6.25 2.25
+    Z
+    M8 7
+    H16
+    V8.8
+    H8
+    Z
+    M8 11
+    H16
+    V12.8
+    H8
+    Z"/>
+</symbol><symbol id="icon-budgets" viewBox="0 0 24 24">
+  <defs>
+    <mask id="budgets-budgetMask">
+      <rect width="24" height="24" fill="black"/>
+      <circle cx="12" cy="12" r="9" fill="white"/>
+      <path d="M12 12 V2.8" stroke="black" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M12 12 L20.1 16.8" stroke="black" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M12 12 L4.2 16.9" stroke="black" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs><circle cx="12" cy="12" r="9" fill="currentColor" mask="url(#budgets-budgetMask)"/></symbol><symbol id="icon-settings" viewBox="0 0 24 24">
+  <defs>
+    <mask id="settings-gearMask">
+      <rect width="24" height="24" fill="white"/>
+      <circle cx="12" cy="12" r="3.25" fill="black"/>
+    </mask>
+  </defs><polygon points="12.000,2.700 13.814,2.879 14.794,5.256 16.056,5.930 18.576,5.424 19.733,6.833 18.744,9.206 19.160,10.576 21.300,12.000 21.121,13.814 18.744,14.794 18.070,16.056 18.576,18.576 17.167,19.733 14.794,18.744 13.424,19.160 12.000,21.300 10.186,21.121 9.206,18.744 7.944,18.070 5.424,18.576 4.267,17.167 5.256,14.794 4.840,13.424 2.700,12.000 2.879,10.186 5.256,9.206 5.930,7.944 5.424,5.424 6.833,4.267 9.206,5.256 10.576,4.840" fill="currentColor" mask="url(#settings-gearMask)"/></symbol><symbol id="icon-add" viewBox="0 0 24 24">
+  <defs>
+    <mask id="add-addMask">
+      <rect width="24" height="24" fill="white"/>
+      <rect x="10.9" y="7" width="2.2" height="10" rx="1.1" fill="black"/>
+      <rect x="7" y="10.9" width="10" height="2.2" rx="1.1" fill="black"/>
+    </mask>
+  </defs><rect x="3.5" y="3.5" width="17" height="17" rx="5" fill="currentColor" mask="url(#add-addMask)"/></symbol><symbol id="icon-light-mode" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.35" fill="currentColor"/>
+  <rect x="11.1" y="1.5" width="1.8" height="4" rx="0.9" fill="currentColor" transform="rotate(0 12 12)"/>
+  <rect x="11.1" y="1.5" width="1.8" height="4" rx="0.9" fill="currentColor" transform="rotate(45 12 12)"/>
+  <rect x="11.1" y="1.5" width="1.8" height="4" rx="0.9" fill="currentColor" transform="rotate(90 12 12)"/>
+  <rect x="11.1" y="1.5" width="1.8" height="4" rx="0.9" fill="currentColor" transform="rotate(135 12 12)"/>
+  <rect x="11.1" y="1.5" width="1.8" height="4" rx="0.9" fill="currentColor" transform="rotate(180 12 12)"/>
+  <rect x="11.1" y="1.5" width="1.8" height="4" rx="0.9" fill="currentColor" transform="rotate(225 12 12)"/>
+  <rect x="11.1" y="1.5" width="1.8" height="4" rx="0.9" fill="currentColor" transform="rotate(270 12 12)"/>
+  <rect x="11.1" y="1.5" width="1.8" height="4" rx="0.9" fill="currentColor" transform="rotate(315 12 12)"/></symbol><symbol id="icon-dark-mode" viewBox="0 0 24 24">
+  <defs>
+    <mask id="dark-mode-moonMask">
+      <rect width="24" height="24" fill="black"/>
+      <circle cx="11.25" cy="12" r="8.6" fill="white"/>
+      <circle cx="15.5" cy="8.4" r="7.5" fill="black"/>
+    </mask>
+  </defs><circle cx="11.25" cy="12" r="8.6" fill="currentColor" mask="url(#dark-mode-moonMask)"/></symbol>
+</svg>

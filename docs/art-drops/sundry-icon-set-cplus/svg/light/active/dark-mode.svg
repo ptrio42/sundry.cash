@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" style="color:#5F865F" role="img">
+  <title>Sundry dark-mode icon — light active</title>
+  
+  <defs>
+    <mask id="moonMask">
+      <rect width="24" height="24" fill="black"/>
+      <circle cx="11.25" cy="12" r="8.6" fill="white"/>
+      <circle cx="15.5" cy="8.4" r="7.5" fill="black"/>
+    </mask>
+  </defs>
+  <circle cx="11.25" cy="12" r="8.6" fill="currentColor" mask="url(#moonMask)"/>
+</svg>

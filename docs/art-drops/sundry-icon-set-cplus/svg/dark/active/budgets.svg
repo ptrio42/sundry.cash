@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" style="color:#9FC49F" role="img">
+  <title>Sundry budgets icon — dark active</title>
+  
+  <defs>
+    <mask id="budgetMask">
+      <rect width="24" height="24" fill="black"/>
+      <circle cx="12" cy="12" r="9" fill="white"/>
+      <path d="M12 12 V2.8" stroke="black" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M12 12 L20.1 16.8" stroke="black" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M12 12 L4.2 16.9" stroke="black" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <circle cx="12" cy="12" r="9" fill="currentColor" mask="url(#budgetMask)"/>
+</svg>

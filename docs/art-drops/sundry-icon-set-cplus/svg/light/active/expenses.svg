@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" style="color:#5F865F" role="img">
+  <title>Sundry expenses icon — light active</title>
+  
+  
+  <path fill="currentColor" fill-rule="evenodd" d="
+    M6.25 2.25
+    H17.75
+    Q19 2.25 19 3.5
+    V18.5
+    L17 21.5
+    L15 19.75
+    L13 21.5
+    L11 19.75
+    L9 21.5
+    L7 19.75
+    L5 21.5
+    V3.5
+    Q5 2.25 6.25 2.25
+    Z
+    M8 7
+    H16
+    V8.8
+    H8
+    Z
+    M8 11
+    H16
+    V12.8
+    H8
+    Z"/>
+
+</svg>
