@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" style="color:#5F865F" role="img">
+  <title>Sundry select-all — light active</title>
+  <defs>
+  <mask id="selMask">
+    <rect width="24" height="24" fill="white"/>
+    <path d="M9.4 12.6 11.3 14.5 15.7 10.1" fill="none" stroke="black" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </mask>
+</defs>
+  
+  <rect x="5.5" y="5.5" width="13" height="13" rx="3" fill="currentColor" mask="url(#selMask)"/>
+  <path fill="currentColor" d="M3.2 7.4V5a1.8 1.8 0 0 1 1.8-1.8h2.4v1.7H5a.1.1 0 0 0-.1.1v2.4H3.2Zm13.4-4.2H19A1.8 1.8 0 0 1 20.8 5v2.4h-1.7V5a.1.1 0 0 0-.1-.1h-2.4V3.2ZM3.2 16.6h1.7V19c0 .06.04.1.1.1h2.4v1.7H5A1.8 1.8 0 0 1 3.2 19v-2.4Zm15.9 0h1.7V19a1.8 1.8 0 0 1-1.8 1.8h-2.4v-1.7H19a.1.1 0 0 0 .1-.1v-2.4Z"/>
+
+</svg>

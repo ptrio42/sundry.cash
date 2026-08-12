@@ -1,0 +1,32 @@
+:root {
+  --sundry-icon-light-inactive: #5E666E;
+  --sundry-icon-light-active: #5F865F;
+  --sundry-icon-dark-inactive: #F2F2F0;
+  --sundry-icon-dark-active: #9FC49F;
+  --sundry-icon-active-label-light: #4D6B4D;
+  --sundry-icon-disabled-opacity: .38;
+}
+
+.sundry-icon {
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  flex: none;
+  color: var(--sundry-icon-light-inactive);
+}
+
+[data-theme="light"] .sundry-icon[data-state="active"] {
+  color: var(--sundry-icon-light-active);
+}
+
+[data-theme="dark"] .sundry-icon {
+  color: var(--sundry-icon-dark-inactive);
+}
+
+[data-theme="dark"] .sundry-icon[data-state="active"] {
+  color: var(--sundry-icon-dark-active);
+}
+
+.sundry-icon[aria-disabled="true"] {
+  opacity: var(--sundry-icon-disabled-opacity);
+}

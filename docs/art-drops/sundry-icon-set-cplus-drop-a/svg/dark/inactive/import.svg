@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" style="color:#F2F2F0" role="img">
+  <title>Sundry import — dark inactive</title>
+  <defs>
+  <mask id="impMask">
+    <rect width="24" height="24" fill="white"/>
+    <rect x="7" y="15.4" width="10" height="2.1" rx="1.05" fill="black"/>
+  </mask>
+</defs>
+  
+  <path fill="currentColor" mask="url(#impMask)" d="M4 14h4v3h8v-3h4v6H4v-6Z"/>
+  <path fill="currentColor" d="M10.6 4h2.8v6h3.1L12 14.5 7.5 10h3.1V4Z"/>
+
+</svg>

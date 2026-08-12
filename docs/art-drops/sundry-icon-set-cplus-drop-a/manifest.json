@@ -1,0 +1,52 @@
+{
+  "name": "sundry-icon-set-cplus-drop-a",
+  "system": "C+ light-first",
+  "masterGrid": "24x24",
+  "microGrid": "24x24 geometry optically simplified for 14px render",
+  "baseIcons": [
+    "alert",
+    "calendar",
+    "check",
+    "chevron-down",
+    "chevron-left",
+    "chevron-right",
+    "close",
+    "delete",
+    "edit",
+    "export",
+    "filter",
+    "import",
+    "info",
+    "on-track",
+    "search",
+    "select-all",
+    "sort-ascending",
+    "sort-descending",
+    "sort-none",
+    "trend-down",
+    "trend-up",
+    "undo"
+  ],
+  "microIcons": [
+    "info",
+    "sort-ascending",
+    "sort-descending",
+    "sort-none",
+    "trend-down",
+    "trend-up"
+  ],
+  "implementation": "Use svg/base with currentColor. Use svg/micro only at 14px where supplied.",
+  "states": {
+    "lightInactive": "#5E666E",
+    "lightActive": "#5F865F",
+    "darkInactive": "#F2F2F0",
+    "darkActive": "#9FC49F",
+    "disabledOpacity": 0.38,
+    "activeLabelLight": "#4D6B4D"
+  },
+  "revision": "v2",
+  "revisionNotes": [
+    "sort-ascending: shortened/rebalanced bars to prevent arrowhead overlap",
+    "sort-descending: mirrored spacing correction to prevent arrowhead overlap"
+  ]
+}

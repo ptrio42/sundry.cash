@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" style="color:#5E666E" role="img">
+  <title>Sundry on-track — light inactive</title>
+  <defs>
+  <mask id="trackMask">
+    <rect width="24" height="24" fill="white"/>
+    <path d="m8.1 12.2 2.5 2.5 5.2-5.2" fill="none" stroke="black" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+  </mask>
+</defs>
+  <circle cx="12" cy="12" r="9" fill="currentColor" mask="url(#trackMask)"/>
+</svg>

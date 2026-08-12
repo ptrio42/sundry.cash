@@ -120,3 +120,32 @@ So the agent does not draw them:
 2. Section 6 — these carry meaning, and the product's whole pitch is that it tells you things.
 3. Sections 4, 7.
 4. Section 5 — decorative; the screen works without it.
+
+---
+
+## Status — drop A delivered
+
+`sundry-icon-set-cplus-drop-a` covers **22 icons**: sections 1, 2, 3 and 6 above, which is exactly
+priorities 1 and 2. All 22 base SVGs use `currentColor` with no hardcoded hex, and the six marked
+**[14px]** ship a separate `svg/micro/` set — *"24x24 geometry optically simplified for 14px
+render"*. That was the one constraint the nav set had not had to meet.
+
+**Settled while this landed: icons inherit the accent, they do not carry their own.** The set names
+`#5F865F` for light-active; the brand's `--accent` is `#4D6B4D`, because a nav item's *label* is text
+and needs 4.5:1 where an icon needs 3:1. Since the base SVGs use `currentColor`, an icon inside the
+active item takes the label's colour automatically — so one green, not two fifteen pixels apart, and
+the brand wave's contrast test covers the icons without a line being added to it. Keeping the lighter
+green would be a deliberate extra rule, not the default.
+
+### Still open — drop B
+
+Ten icons, priorities 3 and 4:
+
+- **Recording** (§4): `receipt-scan / camera`, `keyboard / compose`, `receipt-view`
+- **Account and system** (§7): `sign-out`, `retry`, `external-link`
+- **Home's sections** (§5, decorative): `recurring / repeat`, `merchant / storefront`,
+  `calendar-week`, `category`
+
+The recording pair matters most of the six non-decorative ones: they label the Add sheet's two tabs,
+and `keyboard / compose` has to read as the *manual alternative to the camera* rather than as "edit"
+— which is a different icon in the same product.

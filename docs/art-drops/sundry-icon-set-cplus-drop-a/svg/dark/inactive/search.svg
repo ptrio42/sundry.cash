@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" style="color:#F2F2F0" role="img">
+  <title>Sundry search — dark inactive</title>
+  <defs>
+  <mask id="searchMask">
+    <rect width="24" height="24" fill="white"/>
+    <circle cx="10.5" cy="10.5" r="4.8" fill="black"/>
+  </mask>
+</defs>
+  
+  <circle cx="10.5" cy="10.5" r="8" fill="currentColor" mask="url(#searchMask)"/>
+  <path fill="currentColor" d="m15.8 14.2 5.1 5.1-1.6 1.6-5.1-5.1 1.6-1.6Z"/>
+
+</svg>

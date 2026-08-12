@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" style="color:#F2F2F0" role="img">
+  <title>Sundry alert — dark inactive</title>
+  <defs>
+  <mask id="alertMask">
+    <rect width="24" height="24" fill="white"/>
+    
+    <rect x="10.9" y="8" width="2.2" height="5.8" rx="1.1" fill="black"/>
+    <circle cx="12" cy="16.7" r="1.1" fill="black"/>
+
+  </mask>
+</defs>
+  <path fill="currentColor" mask="url(#alertMask)" d="M11.1 3.7a1.1 1.1 0 0 1 1.8 0l8.2 13.5A1.2 1.2 0 0 1 20.1 19H3.9a1.2 1.2 0 0 1-1-1.8l8.2-13.5Z"/>
+</svg>

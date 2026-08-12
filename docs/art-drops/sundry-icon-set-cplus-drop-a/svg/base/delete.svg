@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img">
+  <title>Sundry delete</title>
+  <defs>
+  <mask id="trashMask">
+    <rect width="24" height="24" fill="white"/>
+    
+    <rect x="9.1" y="9.2" width="1.7" height="7.5" rx=".85" fill="black"/>
+    <rect x="13.2" y="9.2" width="1.7" height="7.5" rx=".85" fill="black"/>
+
+  </mask>
+</defs>
+  
+  <path fill="currentColor" mask="url(#trashMask)" d="M7 7h10l-.8 12.2A2 2 0 0 1 14.2 21H9.8a2 2 0 0 1-2-1.8L7 7Z"/>
+  <path fill="currentColor" d="M8.2 4.3h2.1l.6-1.3h2.2l.6 1.3h2.1A1.2 1.2 0 0 1 17 5.5V6H7v-.5a1.2 1.2 0 0 1 1.2-1.2Z"/>
+
+</svg>
