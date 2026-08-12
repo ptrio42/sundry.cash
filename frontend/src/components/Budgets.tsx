@@ -120,7 +120,28 @@ export default function Budgets({ expenses, settings, categories, currencies, ra
     [expenses, budgets]
   );
 
-  const view: Currency | 'primary' = presentCurrencies.length === 1 ? presentCurrencies[0] : chosenView;
+  /**
+   * The scope, collapsed where there is no choice to make.
+   *
+   * Three cases, and the zero one is not theoretical — it is a fresh install.
+   * With no expenses and no limits there is nothing present, so `chosenView`
+   * ('primary') used to stand: `combined` was true, `editing` was pinned false,
+   * **Edit limits** was disabled, and the control that could have unstuck it was
+   * hidden because there was fewer than one currency to offer. A new install
+   * could not set its first budget at all.
+   *
+   * `defaultCurrency` rather than `primaryCurrency` for that case: with nothing
+   * to convert, the currency a *first* limit belongs in is the one the next
+   * expense will be recorded in. It is also continuous — once that limit is
+   * saved, `presentCurrencies` is `[thatCode]` and the middle branch returns the
+   * same answer. Note the consequence: on an empty install a preference now
+   * decides the currency a persisted budget row is stored in, because
+   * `setBudget` is called with this `view`.
+   */
+  const view: Currency | 'primary' =
+    presentCurrencies.length === 0 ? settings.defaultCurrency
+    : presentCurrencies.length === 1 ? presentCurrencies[0]
+    : chosenView;
   const combined = view === 'primary';
   const scope = useMemo<Scope>(() => ({ view, primary, rates }), [view, primary, rates]);
   const display = displayCurrency(scope);
@@ -383,7 +404,10 @@ export default function Budgets({ expenses, settings, categories, currencies, ra
           {/* Not a failed save: a limit is stored in one currency, and writing an
               edit made against a converted figure would rewrite it at today's
               rate. Say which currency to pick rather than let the button lie. */}
-          {combined && (
+          {/* The collapse above means `combined` implies at least two present
+              currencies, so the list is never empty — the guard is here because
+              a sentence reading "Pick  above" is what this looked like before. */}
+          {combined && presentCurrencies.length > 0 && (
             <p className="muted-text budget-edit-hint">
               A limit is held in its own currency. Pick {presentCurrencies.join(', ')} above to edit one.
             </p>

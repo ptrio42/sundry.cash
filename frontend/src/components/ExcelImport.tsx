@@ -288,7 +288,7 @@ export default function ExcelImport({ settings, currencies, onImported }: ExcelI
 
             {/* Preview Table */}
             <div className="preview-table-container">
-              <h4>Data Preview (First {previewData.preview.length} rows)</h4>
+              <h4>Data Preview (First {previewData.preview.length} row{previewData.preview.length === 1 ? '' : 's'})</h4>
               <div className="table-scroll">
                 <table className="preview-table">
                   <thead>

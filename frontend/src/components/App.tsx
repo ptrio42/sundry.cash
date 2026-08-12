@@ -13,10 +13,11 @@
  * route here (3a). Expenses is the ledger, the query tool and the door for bulk
  * data at once — `Analytics` folded into it and is gone from the repo (3b).
  *
- * `Fx` is the last screen still unreachable: it loses its nav entry here and is
- * re-entered from Settings in wave 4, so it is deliberately not imported rather
- * than deleted. `ExcelImport` is reachable from two places now — Home's Start
- * card and the Expenses toolbar — and from no destination of its own.
+ * Wave 4 closed the list. `Fx` was the last screen with no nav entry; its rate
+ * editor is a control inside Settings' Currencies section now and the component
+ * is gone from the repo (change 13). `ExcelImport` is reachable from two places
+ * — Home's Start card and the Expenses toolbar — and from no destination of its
+ * own. Four destinations, one sheet, nothing unreachable.
  */
 
 import { useState, useEffect } from 'react';
@@ -312,7 +313,8 @@ export default function App() {
    * (F15). Both confirmations stay: it is the one irreversible action in the app.
    */
   const handleDeleteAll = async () => {
-    const confirmMessage = `Are you sure you want to delete ALL ${expenses.length} expenses?\n\nThis action cannot be undone!`;
+    const noun = expenses.length === 1 ? 'expense' : 'expenses';
+    const confirmMessage = `Are you sure you want to delete ALL ${expenses.length} ${noun}?\n\nThis action cannot be undone!`;
 
     if (!window.confirm(confirmMessage)) {
       return;
@@ -327,7 +329,7 @@ export default function App() {
     try {
       const result = await deleteAllExpenses();
       setExpenses([]);
-      alert(`Successfully deleted ${result.deletedCount} expenses`);
+      alert(`Successfully deleted ${result.deletedCount} ${result.deletedCount === 1 ? 'expense' : 'expenses'}`);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to delete all expenses');
     }
@@ -539,10 +541,13 @@ export default function App() {
                   settings={settings}
                   categories={categories}
                   currencies={currencies}
+                  expenses={expenses}
+                  rates={fxRates}
                   theme={theme}
                   authRequired={authRequired}
                   onSaved={handleSettingsSaved}
                   onCurrenciesChanged={applyCurrencies}
+                  onRatesChanged={setFxRates}
                   onCategoriesChanged={setCategories}
                   onExpensesStale={refreshExpenses}
                   onToggleTheme={toggleTheme}

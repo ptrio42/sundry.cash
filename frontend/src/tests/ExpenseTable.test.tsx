@@ -258,6 +258,14 @@ describe('ExpenseTable rows', () => {
     expect(screen.getByText('120 selected')).toBeInTheDocument();
   });
 
+  it('names the bulk-assign dropdown, which announced as an unnamed combo box', () => {
+    renderTable(SAMPLE);
+    // The bar only exists once something is selected.
+    fireEvent.click(screen.getByRole('checkbox', { name: /select all expenses/i }));
+
+    expect(screen.getByRole('combobox', { name: /category to assign/i })).toBeInTheDocument();
+  });
+
   it('has no footer total — the summary row above the table carries it', () => {
     const { container } = renderTable(SAMPLE);
 

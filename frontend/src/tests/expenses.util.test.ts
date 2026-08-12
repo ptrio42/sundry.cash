@@ -8,8 +8,11 @@
  * the whole of a month that is eleven days old is the defect wave 2 shipped, and
  * a preset labelled "30 days" that covers 31 is F2.
  *
- * Labels are asserted through bucket keys, not through rendered dates: those go
- * through `Intl` with no locale, so the string depends on the host.
+ * Bucket *keys* carry the arithmetic and bucket *labels* carry the rendering,
+ * so most cases here assert keys. Labels used to be untestable — they went
+ * through `Intl` with no locale, so the string depended on whose machine ran
+ * the suite. They take `DISPLAY_LOCALE` since wave 4 (F19), which is why the
+ * axis label is pinned below.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -290,6 +293,15 @@ describe('spendOverTime', () => {
 
     expect(monthly.map(b => b.key)).toEqual(['2026-01', '2026-02', '2026-03']);
     expect(monthly.map(b => b.total)).toEqual([0, 0, 9]);
+    // The axis label, which is the chart's only rendered date. Fixed to the
+    // interface language rather than the host's (F19) — this is the assertion
+    // the old header comment said could not be written.
+    expect(monthly.map(b => b.label)).toEqual(['Jan 26', 'Feb 26', 'Mar 26']);
+  });
+
+  it('names a day bucket the way the ledger names a date', () => {
+    const daily = spendOverTime(rows, inPLN, { range: { start: '2026-08-01', end: '2026-08-02' }, days: 2, derived: false }, 'day');
+    expect(daily.map(b => b.label)).toEqual(['1 Aug 2026', '2 Aug 2026']);
   });
 
   it('draws nothing when there is no window to draw over', () => {

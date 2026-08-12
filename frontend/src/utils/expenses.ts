@@ -36,7 +36,7 @@ import {
   SortOrder
 } from '../types/expense.types';
 import { categoryLabel } from './categories';
-import { formatDate } from './format';
+import { DISPLAY_LOCALE, formatDate } from './format';
 import { convertAmount } from './fx';
 import { addMonths, elapsedDays, windowDates, windowDays } from './home';
 
@@ -401,7 +401,7 @@ function bucketLabel(key: string, grain: Grain): string {
   if (grain !== 'month') return formatDate(key);
   const date = new Date(`${key}-01T00:00:00Z`);
   if (isNaN(date.getTime())) return key;
-  return new Intl.DateTimeFormat(undefined, { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(date);
+  return new Intl.DateTimeFormat(DISPLAY_LOCALE, { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(date);
 }
 
 /**

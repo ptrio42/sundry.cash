@@ -26,6 +26,8 @@ const TEST_SETTINGS: AppSettings = {
 
 vi.mock('../services/api', () => ({
   createExpense: vi.fn(),
+  // The Type tab asks for a category as the description is typed (change 21).
+  suggestCategory: vi.fn(async () => 'other'),
   scanReceipt: vi.fn(),
   createReceiptExpense: vi.fn(),
 }));

@@ -7,13 +7,11 @@ Runs entirely on your own hardware. No cloud, no account, no telemetry. One SQLi
 
 **Stack:** TypeScript end to end — Express + better-sqlite3 on the back, React 18 + Vite on the front.
 
-![Dashboard](gallery/dashboard.png)
+![Home](gallery/dashboard.png)
 
 | Expenses | Budgets |
 | :---: | :---: |
-| ![Expense table](gallery/expenses.png) | ![Monthly budgets](gallery/budgets.png) |
-| **Analytics** | **Currencies** |
-| ![Analytics](gallery/analytics.png) | ![Currency conversion](gallery/currencies.png) |
+| ![The ledger, filtered and charted](gallery/expenses.png) | ![Monthly budgets](gallery/budgets.png) |
 
 <p align="center">
   <img src="gallery/mobile.png" alt="Mobile layout" width="260">
@@ -46,7 +44,7 @@ configure. To try the importer, use [`sample-data/sample-expenses.xlsx`](sample-
 
 Run the stack on an always-on machine and every device on your LAN reaches the same data at
 `http://<that-machine's-ip>:8847`. On a phone, open that URL and tap **Add to Home Screen** — it installs
-as a full-screen PWA, and **Scan Receipt** opens the camera directly.
+as a full-screen PWA; tap the **+** and choose **Scan a receipt** to go straight to the camera.
 
 > **Set `APP_PASSWORD` before you expose this anywhere.** With no password the API is completely open —
 > deliberate, so a localhost-only install needs zero setup, but it means anyone who can reach the port can
@@ -182,6 +180,7 @@ Base URL `http://localhost:5000/api`. Everything except `/health`, `/auth/*` and
 | `GET`, `PUT` | `/budgets` | List limits / upsert one for a category+currency pair |
 | `DELETE` | `/budgets/:category` | Remove a limit (`?currency=` required) |
 | `GET`, `POST` | `/categories` | List categories in display order / add one — `slug`, `label`, `color` |
+| `GET` | `/categories/suggest` | Guess a category from a description — `?description=`, answers `other` when nothing matches |
 | `PUT` | `/categories/:slug` | Change `label`, `color` or `sortOrder`; the slug itself is fixed |
 | `DELETE` | `/categories/:slug` | Delete one — 403 for a built-in, 409 if in use without `?reassignTo=` |
 | `GET` | `/insights/comparison` | Spend per category vs the period before — `window`, `period`, `anchor`, `currency` |
@@ -230,7 +229,7 @@ npm run build         # typecheck and build both packages
 npm run test          # backend Jest, then frontend Vitest
 ```
 
-Tests: **131 backend cases** across 11 files (Jest + supertest) and **120 frontend cases** across 14 files
+Tests: **273 backend cases** across 15 files (Jest + supertest) and **432 frontend cases** across 22 files
 (Vitest + Testing Library) — every component has a suite, plus the API wrapper and the FX helper. The
 backend suite redirects `DB_PATH` to a temp directory before any app module loads, so running it never
 touches your real database. CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) lints, typechecks,
@@ -242,7 +241,7 @@ Worth knowing before you rely on it:
 
 - **Single user.** One password, one ledger. No accounts, no sharing model, no per-user data.
 - **The whole ledger is fetched in one request.** The table pages 50 rows at a time so the DOM stays
-  small, but Home's heatmap and the analytics charts need every row to draw, so there is no
+  small, but Home's heatmap and the ledger's two charts need every row to draw, so there is no
   server-side paging. Fine for the thousands of expenses a person actually records; not built for a
   hundred thousand.
 - **Manual FX rates.** No live feed by design.

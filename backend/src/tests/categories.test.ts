@@ -53,6 +53,42 @@ describe('GET /api/categories', () => {
   });
 });
 
+/**
+ * The categorizer's own cases live in `categorize.test.ts`; these pin the HTTP
+ * contract the manual form depends on (change 21). The endpoint has no failure
+ * mode by construction — every answer is a built-in slug, and `other` is both
+ * the fallback and a real answer — so what is worth pinning is that a caller
+ * with nothing typed yet still gets 200 and a usable slug.
+ */
+describe('GET /api/categories/suggest', () => {
+  it('answers with the category the keywords point at', async () => {
+    const res = await request(app).get('/api/categories/suggest?description=Biedronka zakupy').expect(200);
+    expect(res.body).toEqual({ category: 'groceries' });
+  });
+
+  it('answers other when nothing matches', async () => {
+    const res = await request(app).get('/api/categories/suggest?description=Xyzzy 123').expect(200);
+    expect(res.body).toEqual({ category: 'other' });
+  });
+
+  it('treats a missing description as an empty one rather than an error', async () => {
+    const res = await request(app).get('/api/categories/suggest').expect(200);
+    expect(res.body).toEqual({ category: 'other' });
+  });
+
+  it('survives a repeated parameter, which Express hands over as an array', async () => {
+    const res = await request(app).get('/api/categories/suggest?description=a&description=lidl').expect(200);
+    expect(res.body).toEqual({ category: 'other' });
+  });
+
+  it('is not shadowed by a category whose slug is "suggest"', async () => {
+    // There is no GET /:slug today, so this pins the ordering rather than a fix.
+    await createCategory({ slug: 'suggest', label: 'Suggest', color: '#38bdf8' });
+    const res = await request(app).get('/api/categories/suggest?description=orlen paliwo').expect(200);
+    expect(res.body).toEqual({ category: 'transport' });
+  });
+});
+
 describe('POST /api/categories', () => {
   it('creates a custom category and appends it to the list', async () => {
     const res = await createCategory({ slug: 'travel', label: 'Travel', color: '#22d3ee' });

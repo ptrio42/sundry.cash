@@ -221,10 +221,15 @@ export default function ExpenseTable({
           <span className="selected-count">{selectedIds.size} selected</span>
 
           <div className="bulk-actions-controls">
+            {/* Named here rather than with a visible <label>: the bar has no
+                room for one, and the button beside it says "Assign Category"
+                without saying what the value is. A screen reader announced an
+                unnamed combo box — the only one left in the frontend. */}
             <select
               value={bulkCategory}
               onChange={(e) => setBulkCategory(e.target.value as ExpenseCategory)}
               className="bulk-category-select"
+              aria-label="Category to assign to the selected expenses"
             >
               {categories.map(cat => (
                 <option key={cat.slug} value={cat.slug}>

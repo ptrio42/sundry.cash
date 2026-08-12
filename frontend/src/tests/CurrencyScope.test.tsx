@@ -5,10 +5,11 @@
  * screens had grown four versions of (F9). So these are tests about the
  * contract, not about any one screen: it renders the options it is handed, in
  * order; it marks exactly one active; it emits the code rather than an index;
- * and the combined option is optional, because Budgets has none and must keep
- * having none until the wave that rebuilds it says otherwise.
+ * and the combined option is optional.
  *
- * Each screen's own option set stays covered by that screen's suite.
+ * Each screen's own option set, and whether the control appears at all, stay
+ * covered by that screen's suite — deliberately, because the "appears at all"
+ * test is not the same question on each. See the component header.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -73,7 +74,7 @@ describe('CurrencyScope', () => {
     expect(screen.getByRole('button', { name: /^USD/ })).not.toHaveClass('active');
   });
 
-  it('offers no combined option when it is not given one — Budgets has none', () => {
+  it('offers no combined option when it is not given one', () => {
     render(<CurrencyScope currencies={offered} value="USD" onChange={vi.fn()} />);
 
     expect(screen.getAllByRole('button')).toHaveLength(offered.length);

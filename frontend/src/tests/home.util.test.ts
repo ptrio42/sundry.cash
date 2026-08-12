@@ -110,7 +110,7 @@ describe('windows', () => {
   });
 
   it('prints a window as the dates it actually covers', () => {
-    expect(windowDates(ROLLING)).toBe('Jul 13, 2026 – Aug 11, 2026');
+    expect(windowDates(ROLLING)).toBe('13 Jul 2026 – 11 Aug 2026');
   });
 
   it('gives the habit sections the twelve months ending today', () => {
@@ -499,7 +499,7 @@ describe('a finding as a sentence', () => {
       data: { label: 'old gazette', cadence: 'monthly', monthlyCost: 25, totalPaid: 100, lastSeen: '2026-04-10' }
     });
     expect(sentence).toMatch(/^Old gazette looks like it stopped/);
-    expect(sentence).toContain('Apr 10, 2026');
+    expect(sentence).toContain('10 Apr 2026');
     expect(sentence).toMatch(/100,00\s*zł/);
   });
 

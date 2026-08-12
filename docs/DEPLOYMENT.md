@@ -27,8 +27,9 @@ every device on the same network shares one database:
    `hostname -I` on Linux) — say `192.168.1.20`.
 2. On any phone/laptop on the network, open **`http://192.168.1.20:8847`**.
 3. On a phone, use the browser's **Add to Home Screen** — the app installs as a
-   full-screen PWA and **Scan Receipt** opens the camera directly. Receipt photos
-   up to 10 MB are accepted (nginx `client_max_body_size` is set to 12 MB).
+   full-screen PWA; tap the **+** and choose **Scan a receipt** to go straight to
+   the camera. Receipt photos up to 10 MB are accepted (nginx
+   `client_max_body_size` is set to 12 MB).
 
 All devices talk to the same backend and the same SQLite database in `./data`,
 so expenses added from any phone show up everywhere — one shared "bucket".

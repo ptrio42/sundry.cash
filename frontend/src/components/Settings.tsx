@@ -18,10 +18,23 @@
  *   Red meant three things in this product — "irreversible", "over budget",
  *   "spending rose"; taking the permanent one out of the sidebar is what lets
  *   the other two read as signal.
+ *
+ * Wave 4 folded the `Fx` screen in here (F12, change 13). Two destinations used
+ * to answer to the word "currencies": the nav opened a rate editor titled
+ * "Currency Conversion", while this section enabled and disabled them — and
+ * which one you wanted depended on knowing that availability and rates are two
+ * different tables. **One row per currency now carries all four facts**:
+ * whether it is on, its symbol, its decimals and its rate.
+ *
+ * What did *not* move is the rest of that screen: its base picker, its combined
+ * total and its per-currency table. Expenses prints exactly those figures over
+ * the reader's own filters, and the standing answer to "which base" is the
+ * Primary currency select forty lines above these rows. Settings is
+ * configuration; the screen that reports money is Expenses.
  */
 
 import { useState, FormEvent } from 'react';
-import { AppSettings, BtcUnit, Category, Currency, CurrencyInfo, ExpenseCategory } from '../types/expense.types';
+import { AppSettings, BtcUnit, Category, Currency, CurrencyInfo, Expense, ExpenseCategory, FxRates } from '../types/expense.types';
 import {
   updateSettings,
   getCategories,
@@ -30,8 +43,9 @@ import {
   deleteCategory,
   getCurrencies,
   setCurrencyEnabled,
+  setFxRate,
 } from '../services/api';
-import { offeredCurrencies } from '../utils/currencies';
+import { offeredCurrencies, relevantCurrencies } from '../utils/currencies';
 const BTC_UNITS: BtcUnit[] = ['BTC', 'sats'];
 
 // Slugs are what every expense row stores, so the field is derived from the
@@ -53,6 +67,14 @@ interface SettingsProps {
   settings: AppSettings;
   categories: Category[];
   currencies: CurrencyInfo[];
+  /**
+   * The ledger, read for one thing only: which currencies still need a rate.
+   * A currency you have switched off keeps its history, and that history still
+   * has to convert — so it keeps a row here (`relevantCurrencies`).
+   */
+  expenses: Expense[];
+  /** Owned by App, like `settings` and `categories`. */
+  rates: FxRates;
   /** For the theme control below — the shell owns the state and persists it. */
   theme: 'dark' | 'light';
   /** Whether this instance has a password, i.e. whether there is a session to end. */
@@ -60,6 +82,8 @@ interface SettingsProps {
   onSaved: (settings: AppSettings) => void;
   /** Hand the fresh catalogue back to App, which also feeds the formatter. */
   onCurrenciesChanged: (currencies: CurrencyInfo[]) => void;
+  /** Same shape, for the rates: the API answers with the whole set. */
+  onRatesChanged: (rates: FxRates) => void;
   /** Hand the fresh list back to App, which owns it for the whole app. */
   onCategoriesChanged: (categories: Category[]) => void;
   /** Deleting with a reassignment target rewrites expense rows server-side. */
@@ -74,10 +98,13 @@ export default function Settings({
   settings,
   categories,
   currencies,
+  expenses,
+  rates,
   theme,
   authRequired,
   onSaved,
   onCurrenciesChanged,
+  onRatesChanged,
   onCategoriesChanged,
   onExpensesStale,
   onToggleTheme,
@@ -105,6 +132,34 @@ export default function Settings({
   const [currencyError, setCurrencyError] = useState<string>('');
   const [currencyBusy, setCurrencyBusy] = useState<string>('');
   const [showAllCurrencies, setShowAllCurrencies] = useState<boolean>(false);
+  /** Rate fields being edited. An absent key means "show the saved rate". */
+  const [rateDrafts, setRateDrafts] = useState<Record<string, string>>({});
+  /**
+   * Why one row's rate did not save — kept per row, not in `currencyError`.
+   *
+   * A refused draft stays in the box so it can be retried, which means the box
+   * shows a number (or a blank) that is not the rate in force. The only thing
+   * saying so is this message, so it must not be cleared by something that
+   * happened to a different currency: `currencyError` is blanked by every
+   * enable/disable, and folding rate failures into it left a row reading
+   * "not set" against a stored rate the whole app was still converting at.
+   */
+  const [rateError, setRateError] = useState<{ code: string; message: string } | null>(null);
+
+  /**
+   * The currencies a rate row belongs to: everything enabled, plus everything
+   * the ledger already holds.
+   *
+   * Not cosmetic. `PUT /api/fx` refuses a currency that is neither enabled nor
+   * used, so an input outside this set would be a guaranteed 400 — which is
+   * what "Show all 60 currencies" would otherwise render fifty-odd of.
+   *
+   * `relevantCurrencies` can also synthesise a row for a code the catalogue
+   * does not know; it cannot happen from here, because `expenses.currency` is a
+   * foreign key onto `currencies.code`.
+   */
+  const rateable = relevantCurrencies(currencies, expenses.map(e => e.currency));
+  const hasRateRow = new Set(rateable.map(c => c.code));
 
   const toggleCurrency = async (code: string, enabled: boolean) => {
     setCurrencyError('');
@@ -116,6 +171,40 @@ export default function Settings({
       setCurrencyError(err instanceof Error ? err.message : 'Failed to update the currency');
     } finally {
       setCurrencyBusy('');
+    }
+  };
+
+  /**
+   * Save one rate, on blur.
+   *
+   * Carried over from the deleted `Fx` screen, contract intact: an untouched
+   * field never calls the API, a non-positive value is refused before it does,
+   * and a failure leaves the typed value in the box so it can be retried. No
+   * busy flag — `currencyBusy` names the code being *toggled*, and reusing it
+   * would disable the wrong control mid-flight.
+   */
+  const saveRate = async (code: string) => {
+    const raw = rateDrafts[code];
+    if (raw === undefined) return;
+
+    const rate = parseFloat(raw);
+    if (isNaN(rate) || rate <= 0) {
+      setRateError({ code, message: 'Rate must be a positive number' });
+      return;
+    }
+
+    try {
+      const data = await setFxRate(code, rate);
+      onRatesChanged(data.rates as FxRates);
+      setRateDrafts(prev => {
+        const next = { ...prev };
+        delete next[code];
+        return next;
+      });
+      // Only this row's complaint: another row may still be holding one.
+      setRateError(prev => (prev && prev.code === code ? null : prev));
+    } catch (err) {
+      setRateError({ code, message: err instanceof Error ? err.message : 'Failed to save rate' });
     }
   };
 
@@ -255,7 +344,11 @@ export default function Settings({
           >
             {offeredCurrencies(currencies).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
           </select>
-          <p className="field-hint">Home can combine all spending into this currency using your FX rates.</p>
+          {/* Since waves 3b and 3c this is three screens, not one: Expenses and
+              Budgets both offer "All → " this currency too. */}
+          <p className="field-hint">
+            Home, Expenses and Budgets combine all spending into this currency, using the rates below.
+          </p>
         </div>
 
         <div className="settings-actions">
@@ -269,14 +362,20 @@ export default function Settings({
       <section className="settings-section" aria-labelledby="currencies-heading">
         <h3 id="currencies-heading">Currencies</h3>
         <p className="settings-intro">
-          Switch on the currencies you spend in. Turning one off only stops it being offered
-          for new expenses — everything already recorded in it stays exactly where it is.
+          Switch on the currencies you spend in, and say what each is worth. Turning one off
+          only stops it being offered for new expenses — everything already recorded in it
+          stays exactly where it is, which is why a currency you no longer use keeps its row
+          and its rate here.
+        </p>
+        <p className="settings-intro">
+          Rates are the value of one unit <strong>in US dollars</strong>, whatever your primary
+          currency is; that is the anchor every converted figure in the app is worked out from.
         </p>
 
         {currencyError && <div className="error-message">{currencyError}</div>}
 
         <ul className="currency-manager">
-          {(showAllCurrencies ? currencies : currencies.filter(c => c.enabled)).map((currency) => (
+          {(showAllCurrencies ? currencies : rateable).map((currency) => (
             <li key={currency.code} className="currency-manager-row">
               <label className="checkbox-label">
                 <input
@@ -293,6 +392,46 @@ export default function Settings({
               <span className="currency-decimals muted-text">
                 {Math.round(Math.log10(currency.minorUnits))} decimal places
               </span>
+              {/* Deliberately outside the checkbox's label: an input inside it
+                  would become part of the checkbox's accessible name. Only for
+                  currencies the rate API will actually accept — see `rateable`. */}
+              {hasRateRow.has(currency.code) && (
+                <div className="currency-rate">
+                  <span className="currency-rate-eq">1 {currency.code} =</span>
+                  <div className="budget-input">
+                    <span className="budget-input-symbol">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      aria-label={`USD value of 1 ${currency.code}`}
+                      placeholder="not set"
+                      value={
+                        currency.code === 'USD'
+                          ? '1'
+                          : (rateDrafts[currency.code] !== undefined
+                              ? rateDrafts[currency.code]
+                              // A rate of zero is what the backend seeds a newly
+                              // enabled currency with, and `convertAmount` reads
+                              // it as "cannot convert" — so it is the absence of
+                              // a rate, not a rate of nothing. Showing "$0" here
+                              // would state a value the app does not hold; the
+                              // placeholder says what is true. Only visible now
+                              // that these rows sit on a screen people open.
+                              : (rates[currency.code] ? String(rates[currency.code]) : ''))
+                      }
+                      // The anchor cannot be worth anything but itself.
+                      disabled={currency.code === 'USD'}
+                      onChange={(e) => setRateDrafts(prev => ({ ...prev, [currency.code]: e.target.value }))}
+                      onBlur={() => saveRate(currency.code)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                    />
+                  </div>
+                  {rateError?.code === currency.code && (
+                    <span className="currency-rate-error">{rateError.message}</span>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>
