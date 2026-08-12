@@ -8,7 +8,7 @@
     <title>Sundry — what your money is doing</title>
     <meta
       name="description"
-      content="A personal expense tracker you run yourself. It tells you what your money is doing without you having to ask — and it never asks for your bank credentials, because it does not want them."
+      content="A private expense tracker. You add what you spent; it tells you what changed, what stopped and where the money went. No bank connection, nothing to install."
     />
 
     <!-- Both themes, so the browser chrome matches the page it frames. -->
@@ -27,7 +27,7 @@
     <meta property="og:title" content="Sundry — what your money is doing" />
     <meta
       property="og:description"
-      content="A personal expense tracker you run yourself. No bank connection, no accounts, no telemetry. Try the demo — there is nothing to sign up for."
+      content="Add what you spent. Sundry tells you what changed, what stopped and where the money went. Try the demo — there is nothing to sign up for."
     />
     <meta property="og:image" content="https://sundry.cash/assets/og-image.png" />
     <meta property="og:image:width" content="1200" />
@@ -56,7 +56,7 @@
           alt="Sundry"
         />
       </picture>
-      <a class="header-link" href="https://demo.sundry.cash">Open the demo</a>
+      <a class="header-link" href="https://demo.sundry.cash">Try the demo</a>
     </header>
 
     <!-- tabindex="-1" so the skip link actually moves focus: WebKit does not focus a fragment
@@ -64,27 +64,23 @@
          else. Not in the tab order, and :focus-visible will not ring it — the focus is not
          keyboard-initiated. -->
     <main id="main" tabindex="-1">
-      <!-- 1. What it is -->
+      <!-- 1. Hero -->
       <section class="hero">
         <h1>Sundry tells you what your money is doing, without you having to ask.</h1>
 
         <p class="lede">
-          A personal expense tracker you run yourself. You type an expense, photograph a receipt or
-          import a spreadsheet — and the first screen tells you what changed, what stopped, and
-          where the money actually went.
-        </p>
-
-        <p class="lede">
-          It never asks for your bank credentials, because it does not want them. There is no
-          aggregator to connect, no account to create, and nothing to send anywhere.
+          A private expense tracker: you add what you spent — type it, photograph the receipt, or
+          import a spreadsheet — and it tells you what changed.
         </p>
 
         <p class="actions">
-          <a class="button" href="https://demo.sundry.cash">Open the demo</a>
-          <a class="button button-quiet" href="#doors">Run it yourself</a>
+          <a class="button" href="https://demo.sundry.cash">Try the demo</a>
+          <a class="button button-quiet" href="#pricing">Pricing</a>
         </p>
 
-        <p class="fine">MIT licensed · two containers and one folder of data · no signup, ever</p>
+        <p class="fine">
+          No bank connection. Nothing to install. Nothing to sign up for to look around.
+        </p>
 
         <figure class="shot shot-hero">
           <picture>
@@ -93,51 +89,20 @@
               src="assets/shots/home.webp"
               width="2040"
               height="2078"
-              alt="Sundry's Home screen: a headline sentence summarising the last 30 days, then findings used as section headings above the data that proves each one."
+              alt="Sundry's Home screen: a sentence summarising the last 30 days, then what changed, then where the money went."
             />
           </picture>
-          <figcaption>
-            Home. Every section states the window it measured, because a share of spending only
-            means something in the frame it was measured in.
-          </figcaption>
+          <figcaption>Home, the moment you open it.</figcaption>
         </figure>
       </section>
 
-      <!-- 2. The demo, high up -->
-      <section id="demo">
-        <h2>See it with data in it</h2>
-
-        <p>
-          <a href="https://demo.sundry.cash">demo.sundry.cash</a> is a real instance with about
-          eighteen months of spending already in it. No signup, no password, no email — the link
-          opens the app, and you can add, edit and delete like it is yours.
-        </p>
-
-        <p>
-          The ledger is invented: believable amounts, a life that does not exist. Shop names are
-          real, because that is what makes a ledger read like a ledger. It is wiped and re-seeded
-          every night, so whatever you do to it is gone by morning.
-        </p>
-
-        <p class="fine">
-          One thing you cannot try there: receipt scanning is switched off on the demo. It runs OCR
-          on the server's own CPU, and an open endpoint that does that is a free compute service for
-          the internet. It is a real feature — there is a picture of it below.
-        </p>
-
-        <p class="actions">
-          <a class="button" href="https://demo.sundry.cash">Open the demo</a>
-        </p>
-      </section>
-
-      <!-- 3. What it notices -->
+      <!-- 2. What it notices -->
       <section id="notices">
         <h2>What it notices</h2>
 
         <p>
-          Every tracker has categories, budgets and charts. What Sundry opens with is the part you
-          did not ask for. These are not slogans — they are the app's own sentences, printed by the
-          demo on 12 August 2026, from the same ledger the screenshots below are of:
+          Most trackers answer the questions you ask. Sundry opens with the ones you did not — these
+          four sentences are its own, printed by the demo on 12 August 2026:
         </p>
 
         <ul class="findings">
@@ -146,285 +111,201 @@
             1192,00&nbsp;zł at about 146,31&nbsp;zł a month.
           </li>
           <li>
-            Weekends cost more — about 225,55&nbsp;zł a day over the last 366 days, against
-            81,34&nbsp;zł on weekdays.
+            Entertainment is up 146% over the last 30 days — 1002,27&nbsp;zł, against
+            407,99&nbsp;zł before.
           </li>
           <li>
             Żabka adds up — 1734,88&nbsp;zł across 108 purchases in the last 366 days, about
             16,06&nbsp;zł each.
           </li>
           <li>
-            Gifts is new — 359,50&nbsp;zł in the last 30 days, nothing in the 30 before that.
+            Weekends cost more — about 225,55&nbsp;zł a day over the last 366 days, against
+            81,34&nbsp;zł on weekdays.
           </li>
         </ul>
 
         <p class="fine">
-          The demo re-seeds against the date it runs, so the figures waiting for you will not be
-          these ones. The shape of them will be. Each sentence heads the section that proves it, and
-          states the window it measured over.
+          The demo re-seeds every night against the day it runs, so the figures waiting for you will
+          be different ones.
         </p>
       </section>
 
-      <!-- 4. The screens -->
-      <section id="screens">
-        <h2>The screens</h2>
+      <!-- 3. How it works -->
+      <section id="how">
+        <h2>How it works</h2>
 
-        <p>Four places and a persistent Add. That is the whole product.</p>
+        <div class="step">
+          <h3>1. Add what you spent</h3>
+          <p>Type it, photograph the receipt, or import a spreadsheet.</p>
 
-        <figure class="shot shot-tall">
-          <img
-            src="assets/shots/expenses.webp"
-            width="2040"
-            height="4436"
-            loading="lazy"
-            decoding="async"
-            alt="The Expenses screen: a filter bar, a summary row, spend over time and spend by category, above the ledger itself."
-          />
-          <figcaption>
-            Expenses is the ledger and the query tool in one. Filters drive the table, the summary
-            and both charts from a single query, so nothing on screen can disagree with anything
-            else on screen.
-          </figcaption>
-        </figure>
-
-        <figure class="shot">
-          <img
-            src="assets/shots/add.webp"
-            width="2040"
-            height="1389"
-            loading="lazy"
-            decoding="async"
-            alt="The Add sheet open over the Expenses screen, with two tabs: Scan a receipt, and Type it."
-          />
-          <figcaption>
-            Recording is an input method, not a place. Add opens over whatever you were looking at
-            and hands it back when you save — photograph the receipt, or type it.
-          </figcaption>
-        </figure>
-
-        <figure class="shot">
-          <img
-            src="assets/shots/budgets.webp"
-            width="2040"
-            height="1905"
-            loading="lazy"
-            decoding="async"
-            alt="The Budgets screen: a verdict line, a month stepper, and a pace figure per category."
-          />
-          <figcaption>
-            Budgets answers first and shows its working second. It also prints the caveat: a past
-            month is measured against today's limits, because a limit has no month.
-          </figcaption>
-        </figure>
-
-        <figure class="shot">
-          <img
-            src="assets/shots/settings.webp"
-            width="2040"
-            height="1835"
-            loading="lazy"
-            decoding="async"
-            alt="The Settings screen: one row per currency carrying enable, symbol, decimal places and exchange rate."
-          />
-          <figcaption>
-            Currencies are rows, not a hardcoded list — one row carries whether it is on, its symbol,
-            its decimal places and its rate. Money is stored in integer minor units, so eight
-            decimals of Bitcoin and two of złoty live in the same column without rounding.
-          </figcaption>
-        </figure>
-
-        <div class="pair">
           <figure class="shot">
+            <img
+              src="assets/shots/add.webp"
+              width="2040"
+              height="1389"
+              loading="lazy"
+              decoding="async"
+              alt="The Add sheet open over the ledger, with two tabs: Scan a receipt, and Type it."
+            />
+            <figcaption>Adding opens over whatever you were looking at, and hands it back.</figcaption>
+          </figure>
+        </div>
+
+        <div class="step">
+          <h3>2. The first screen does the noticing</h3>
+          <p>What changed, what stopped, where it went — no filters to set, no dashboard to build.</p>
+
+          <figure class="shot">
+            <img
+              src="assets/shots/budgets.webp"
+              width="2040"
+              height="1905"
+              loading="lazy"
+              decoding="async"
+              alt="The Budgets screen: a verdict line, a month stepper, and a pace figure for each category."
+            />
+            <figcaption>Budgets says what is over and what is on track, then shows the figures.</figcaption>
+          </figure>
+        </div>
+
+        <div class="step">
+          <h3>3. It is on your phone</h3>
+          <p>The same app, from the browser, on your home screen.</p>
+
+          <figure class="shot shot-phone">
             <img
               src="assets/shots/mobile.webp"
               width="780"
               height="1688"
               loading="lazy"
               decoding="async"
-              alt="Sundry on a phone: the four destinations along the bottom and a raised plus button."
+              alt="Sundry on a phone: the four screens along the bottom and a raised plus button."
             />
-            <figcaption>On a phone. Installable from the browser — there is no app store here.</figcaption>
-          </figure>
-
-          <!-- Deliberately the mirror image of the hero: the hero shows the theme you are in, so
-               this one has to show the theme you are not, or a dark-mode visitor is handed the same
-               picture twice under a caption promising a contrast. -->
-          <figure class="shot">
-            <picture>
-              <source srcset="assets/shots/home.webp" media="(prefers-color-scheme: dark)" />
-              <img
-                src="assets/shots/home-dark.webp"
-                width="2040"
-                height="2078"
-                loading="lazy"
-                decoding="async"
-                alt="The same Home screen again, in whichever of the two themes this page is not currently using."
-              />
-            </picture>
-            <figcaption>
-              And the same screen in the other theme. Dark is a peer of light here rather than a
-              filter dropped over the top — which is why this page follows your system setting
-              instead of asking.
-            </figcaption>
+            <figcaption>Four screens along the bottom, and the plus.</figcaption>
           </figure>
         </div>
       </section>
 
-      <!-- 5. Three doors -->
-      <section id="doors">
-        <h2>Three ways in</h2>
+      <!-- 4. On your phone -->
+      <section id="phone">
+        <h2>On your phone</h2>
 
-        <div class="doors">
-          <div class="door">
-            <h3>Self-host it</h3>
-            <p class="door-price">Free, today</p>
-            <p>
-              Two containers, one folder of data. <code>docker compose up</code> and open
-              <code>localhost:8847</code> — there is no config file to write and no database to
-              create. This is the free tier, not a trial of one.
-            </p>
-            <p class="fine">
-              MIT licensed. The repository is not public yet —
-              <a href="mailto:ptrio42@users.noreply.github.com?subject=Sundry%20%E2%80%94%20the%20repository"
-                >write</a
-              >
-              and I will send it to you.
-            </p>
-          </div>
+        <p>
+          Open Sundry in your phone's browser and add it to the home screen. It opens full screen from
+          there, with no browser bars, and the camera is one tap away for a receipt.
+        </p>
 
-          <div class="door">
-            <h3>Hosted, by hand</h3>
-            <p class="door-price">30 days free, then paid</p>
-            <p>
-              <a href="mailto:ptrio42@users.noreply.github.com?subject=Sundry%20%E2%80%94%20hosted%20instance"
-                >Write to me</a
-              >
-              and I will set an instance up for you: its own subdomain, its own password, its own
-              file. Onboarding is manual on purpose — one instance is one person, so there is no
-              signup to automate.
-            </p>
-            <p class="fine">
-              The price is not set. I would rather agree it with the first few people than guess at
-              it here.
-            </p>
-          </div>
+        <p>
+          On an iPhone: <strong>Share</strong>, then <strong>Add to Home Screen</strong>. On Android,
+          Chrome offers <strong>Install</strong>.
+        </p>
 
-          <div class="door">
-            <h3>Sign up yourself</h3>
-            <p class="door-price">Does not exist yet</p>
-            <p>
-              There is no self-serve signup, and pretending otherwise would waste your time. When
-              there is one, it will be on this page.
-            </p>
-            <p class="fine">
-              If you want it,
-              <a href="mailto:ptrio42@users.noreply.github.com?subject=Sundry%20%E2%80%94%20self-serve%20signup"
-                >say so</a
-              >
-              — that is the entire waiting list.
-            </p>
-          </div>
-        </div>
+        <p class="fine">Nothing to download, and it updates itself.</p>
+      </section>
 
-        <!-- The three doors each carry their own subject line, because the subject is the only
-             thing that triages three kinds of reply arriving at one address. This catch-all
-             deliberately has none: it sits under all three, and a pre-filled subject here would
-             mislabel two of them. -->
+      <!-- 5. The demo -->
+      <section id="demo">
+        <h2>See it with your own eyes</h2>
+
+        <p>
+          <a href="https://demo.sundry.cash">demo.sundry.cash</a> is a real instance with about
+          eighteen months of made-up spending in it. No signup, no password — the link opens the app,
+          and you can add, edit and delete like it is yours.
+        </p>
+
+        <p>It is wiped and re-seeded every night, so anything you add there is gone by morning.</p>
+
+        <p class="fine">Receipt scanning is switched off on the demo.</p>
+
         <p class="actions">
-          <a class="button" href="mailto:ptrio42@users.noreply.github.com?subject=Sundry">Write to me</a>
-        </p>
-        <p class="fine">
-          An email address rather than a form. A form converts better, but it would make this page
-          hold personal data, on a site whose argument is that it collects none.
+          <a class="button" href="https://demo.sundry.cash">Try the demo</a>
         </p>
       </section>
 
-      <!-- 6. What it is not -->
-      <section id="not">
-        <h2>What it is not</h2>
+      <!-- 6. Pricing -->
+      <section id="pricing">
+        <h2>Pricing</h2>
 
-        <p>Better you leave now than after setting it up.</p>
+        <p class="lede"><strong>€5 a month, or €49 a year.</strong> VAT included, one price everywhere.</p>
+
+        <p>
+          The first 30 days are free. A card is required to start, and nothing is charged if you
+          cancel inside the 30 days.
+        </p>
+
+        <p>
+          You get your own instance at your own address, with everything the product does. Support is
+          by email, from the person who wrote it.
+        </p>
+
+        <p class="actions">
+          <!-- The Stripe Checkout link does not exist yet. It is one of the two gates in
+               landing/README.md that hold this page back from going live; replace this href with
+               the real payment link, with the trial and the price configured, before publishing. -->
+          <a class="button" href="https://buy.stripe.com/REPLACE_ME">Start the 30 days</a>
+        </p>
+
+        <!-- Consumer Rights Directive Art 6: price inclusive of tax, duration and how to cancel go
+             before the buyer is bound, so they go here and not in the footer. Identity, address and
+             the model withdrawal form are the terms' job. -->
+        <p class="fine">
+          Sundry is a subscription. It runs until you cancel it, you can cancel at any time, and
+          cancelling stops the next payment. <a href="terms/">The terms</a> carry the 14-day right of
+          withdrawal, the model withdrawal form, and who you are buying from.
+        </p>
+      </section>
+
+      <!-- 7. What it does not do -->
+      <section id="not">
+        <h2>What it does not do</h2>
+
+        <p>Better you know now than after signing up.</p>
 
         <dl class="nots">
           <dt>No bank sync.</dt>
-          <dd>
-            Expenses are typed, scanned from a receipt, or imported from a spreadsheet. There is no
-            fourth way in, and this is a decision rather than a gap.
-          </dd>
+          <dd>You add expenses yourself — typed, from a receipt, or from a spreadsheet.</dd>
 
-          <dt>One person per instance.</dt>
-          <dd>
-            There are no accounts — one instance is one ledger behind one optional password. A
-            household can point every phone at it, but nobody can be told apart, so there is no
-            shared ledger in any useful sense.
-          </dd>
+          <dt>One person per account.</dt>
+          <dd>There is no shared household ledger.</dd>
 
-          <dt>No mobile app.</dt>
-          <dd>
-            It installs from the browser — Add to Home Screen on iOS, Install in Chrome — and the
-            shell works offline. That is a PWA, which is not the same thing as an app in a store.
-          </dd>
-
-          <dt>No income tracking.</dt>
-          <dd>None at all. It is an expense tracker.</dd>
+          <dt>Expenses only.</dt>
+          <dd>No income, no investments.</dd>
         </dl>
       </section>
 
-      <!-- 7. Privacy, specifically -->
+      <!-- 8. Privacy -->
       <section id="privacy">
-        <h2>Privacy, specifically</h2>
-
-        <p>
-          Every line here is a fact about the software rather than a promise about intentions, which
-          means each one can be checked.
-        </p>
+        <h2>Privacy</h2>
 
         <ul class="checks">
           <li>
-            <strong>No bank credentials, ever.</strong> No aggregator, no bank login, no card number
-            — there is no column for one. The only password in the app is the one you set to lock
-            your own instance, and it is optional.
+            <strong>It never asks for your bank credentials.</strong> There is nowhere to enter them.
           </li>
           <li>
-            <strong>No telemetry, no analytics, no crash reporting, no update check.</strong> The
-            interface has exactly one address it can call, and it is your own server.
+            <strong>No ads, no analytics, no trackers.</strong> This page loads nothing from anyone
+            else — open the network panel and count.
           </li>
           <li>
-            <strong>This page loads nothing from anyone else.</strong> No CDN, no Google Fonts, no
-            tag manager, no embedded video, and not one line of JavaScript. Open the network panel
-            and count: every request goes to this domain. Visits are counted by reading the web
-            server's own log, which holds nothing about you that the request did not already carry.
-          </li>
-          <li>
-            <strong>Your data is a folder you can copy.</strong> <code>data/</code> holds one SQLite
-            database and your receipt photos. Stop the app, then <code>cp -r data backup/</code> —
-            that is the entire backup story. There is a CSV and an .xlsx export too, for when you
-            want a file to hand to someone else.
-          </li>
-          <li>
-            <strong>One outbound request exists, and it is honest to name it.</strong> The first
-            receipt scan downloads its OCR language data from a public CDN, onto your server, not
-            your browser. Point <code>TESSERACT_LANG_PATH</code> at a local copy and the app makes no
-            outbound request at all. The photo itself is never sent anywhere: the text is read on
-            your own CPU.
+            <strong>Your data is yours.</strong> Export it whenever you like. Ask for your account to
+            be deleted and the instance and its backups go with it.
           </li>
         </ul>
-      </section>
 
-      <!-- 8. Who -->
-      <section id="who">
-        <h2>Who is behind it</h2>
+        <!-- The ceiling on this paragraph is docs/hosted-security.md §4: there is no end-to-end
+             encryption, so the operator can read a tenant's expenses. Nothing here may imply
+             otherwise. -->
         <p>
-          One person: I am <strong>ptrio42</strong>, and I built Sundry because I wanted it
-          to exist. There is no company, no investor and no growth target — which is exactly why the
-          page above can afford to tell you what it does not do.
+          Your instance runs on a machine in Frankfurt, and the software there can read what is in it.
+          The <a href="privacy/">privacy policy</a> has the detail.
         </p>
-        <p><a href="mailto:ptrio42@users.noreply.github.com">ptrio42@users.noreply.github.com</a></p>
       </section>
     </main>
 
     <footer class="site-footer">
-      <p>Sundry — a self-hosted personal expense tracker. MIT licensed.</p>
+      <p>
+        <a href="run-it-yourself/">Run it yourself</a> · <a href="terms/">Terms</a> ·
+        <a href="privacy/">Privacy</a>
+      </p>
       <p class="fine">
         Set in Newsreader by the Newsreader Project Authors, served from this domain under the
         <a href="assets/fonts/OFL.txt">SIL Open Font License 1.1</a>.
