@@ -49,10 +49,12 @@
      the system sans. */
   --font-display: 'Newsreader', Georgia, 'Times New Roman', Times, serif;
 
-  /* The prose measure. Figures are allowed to be wider than this; sentences
-     never are. */
-  --measure: 34rem;
-  --page: 60rem;
+  /* One column, and everything in it is the same width — text included. Prose
+     held to a narrower measure inside a wider column reads as a page that got
+     cut off rather than as typographic restraint, so the column itself is the
+     measure. That is what sets it: 52rem is as wide as a line of this text can
+     go and still be followed, and the screenshots take the same width. */
+  --page: 52rem;
 }
 
 /* Light — the default, and the brand's own off-white. */
@@ -251,13 +253,6 @@ h3 {
   margin-bottom: 0.35rem;
 }
 
-main p,
-.nots,
-.checks,
-.findings {
-  max-width: var(--measure);
-}
-
 .fine {
   font-size: 0.9375rem;
   color: var(--text-muted);
@@ -275,13 +270,11 @@ h1 {
   font-size: clamp(2.05rem, 6.4vw, 3.5rem);
   letter-spacing: -0.02em;
   line-height: 1.12;
-  max-width: 20ch;
-  margin-bottom: 1.5rem;
+  margin: 0 0 1.5rem;
 }
 
 .lede {
   font-size: 1.125rem;
-  max-width: var(--measure);
 }
 
 .actions {
@@ -339,7 +332,6 @@ h1 {
 }
 
 .shot figcaption {
-  max-width: var(--measure);
   margin-top: 0.75rem;
   font-size: 0.9375rem;
   color: var(--text-muted);
@@ -496,6 +488,5 @@ h1 {
 }
 
 .site-footer p {
-  max-width: var(--measure);
-  margin-bottom: 0.5rem;
+  margin: 0 0 0.5rem;
 }
