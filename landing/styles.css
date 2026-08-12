@@ -231,6 +231,13 @@ main > section,
   aspect-ratio: 450.557 / 120;
 }
 
+/* On every page but the first the wordmark is a link home. A block, so the
+   anchor wraps the SVG and no line box of its own. */
+.brand {
+  display: block;
+  line-height: 0;
+}
+
 .header-link {
   font-weight: 600;
 }
@@ -387,6 +394,63 @@ h1 {
   }
 }
 
+/* A step is a heading, one line and a picture. The figure carries its own top
+   margin, so the space belongs between steps and nowhere else. */
+.step + .step {
+  margin-top: 2.75rem;
+}
+
+/* A 390 × 844 capture printed at the full column is a very tall picture of a
+   very small screen. Capping the width rather than the height keeps the whole
+   frame — bottom bar included — at a size that reads as a phone. Same trade as
+   the stacked `.pair` below, and the phone shot is the one frame that must
+   never be cropped. */
+.shot-phone img {
+  max-width: 16rem;
+}
+
+/* ---------- The other pages ---------- */
+
+/* Run it yourself, and the two legal placeholders: same column, same tokens.
+   The heading steps down from the hero's — these pages are read rather than
+   landed on, and a 3.5rem line over a paragraph of setup is a shout. */
+.doc h1 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1.8rem, 5vw, 2.5rem);
+  letter-spacing: -0.02em;
+  margin: 0 0 1.25rem;
+}
+
+.doc h2 {
+  margin-top: 2.25rem;
+  font-size: clamp(1.3rem, 3.4vw, 1.55rem);
+}
+
+.doc ul {
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+/* A command cannot be re-wrapped, so the block scrolls itself instead of
+   widening the page — the one thing that would break the 375 px reading. */
+pre {
+  margin: 1.25rem 0;
+  padding: 0.9rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+}
+
+pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 0.9375rem;
+}
+
 /* ---------- Findings ---------- */
 
 .findings {
@@ -454,9 +518,12 @@ h1 {
 
 /* ---------- Privacy ---------- */
 
+/* Bottom margin as well as top: a line about where the instances run follows
+   the list, and flush against the last item it reads as a fourth entry that
+   lost its rail. */
 .checks {
   list-style: none;
-  margin: 1.5rem 0 0;
+  margin: 1.5rem 0;
   padding: 0;
   display: grid;
   gap: 1.25rem;
