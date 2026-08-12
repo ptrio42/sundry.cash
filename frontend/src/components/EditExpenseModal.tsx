@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useRef, FormEvent } from 'react';
+import { Icon } from './Icon';
 import { Category, CurrencyInfo, Expense, ExpenseCategory, Currency } from '../types/expense.types';
 import { SATS_PER_BTC } from '../utils/format';
 import { categoryLabel } from '../utils/categories';
@@ -171,7 +172,7 @@ export default function EditExpenseModal({ expense, categories, currencies, onSa
         <div className="modal-header">
           <h2 id="edit-expense-title">Edit Expense</h2>
           <button className="modal-close" onClick={onClose} type="button" aria-label="Close dialog">
-            <span aria-hidden="true">✕</span>
+            <Icon name="close" size={16} />
           </button>
         </div>
 

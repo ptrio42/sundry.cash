@@ -32,6 +32,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Icon } from './Icon';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Currency, ExpensesProps, SortField, SortOrder } from '../types/expense.types';
 import { categoryColor, categoryLabel } from '../utils/categories';
@@ -249,15 +250,22 @@ export default function Expenses({
       {/* Import and Export, side by side and at the same rank. Import is a
           disclosure rather than a destination: sending someone to another screen
           to point at a file is the setup cost this product is a complaint
-          about (F17, change 12). */}
+          about (F17, change 12).
+
+          Same rank means the same mark. Both are `aria-expanded` disclosures in
+          one toolbar, and they were signalling it two different ways — Import
+          with an ellipsis meaning "this opens something", Export with a caret
+          meaning the same. The ellipsis went with the caret arriving: two marks
+          for one promise is worse than either. Home's "Import a spreadsheet" is
+          left alone — it is the lead action on an empty page, not one of a pair. */}
       <div className="ledger-toolbar">
         <button
           type="button"
-          className="btn-secondary"
+          className="btn-secondary disclosure"
           onClick={() => setImporting(open => !open)}
           aria-expanded={importing}
         >
-          Import…
+          Import <Icon name="chevron-down" size={14} />
         </button>
 
         {/* A disclosure, not an ARIA menu. `role="menu"` promises the whole
@@ -274,7 +282,7 @@ export default function Expenses({
             onClick={() => setExportOpen(open => !open)}
             aria-expanded={exportOpen}
           >
-            Export <span aria-hidden="true">▾</span>
+            Export <Icon name="chevron-down" size={14} />
           </button>
           {exportOpen && (
             <div className="export-menu-list">

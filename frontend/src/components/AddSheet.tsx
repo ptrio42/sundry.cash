@@ -20,6 +20,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Icon, type IconName } from './Icon';
 import ExpenseForm from './ExpenseForm';
 import ReceiptScan from './ReceiptScan';
 import { AppSettings, Category, CurrencyInfo, Expense } from '../types/expense.types';
@@ -77,9 +78,15 @@ interface AddSheetProps {
   onClose: () => void;
 }
 
-const TABS: { method: AddMethod; label: string }[] = [
-  { method: 'scan', label: 'Scan a receipt' },
-  { method: 'type', label: 'Type it' },
+/**
+ * `compose` rather than `edit` for the typing tab: the pencil means "change this
+ * row" and is spoken for by the ledger's row actions and by this line's own Edit
+ * link. `receipt-scan` rather than `receipt-view` for the other: one takes a
+ * photograph, the other opens one already stored.
+ */
+const TABS: { method: AddMethod; label: string; icon: IconName }[] = [
+  { method: 'scan', label: 'Scan a receipt', icon: 'receipt-scan' },
+  { method: 'type', label: 'Type it', icon: 'compose' },
 ];
 
 export default function AddSheet({
@@ -194,7 +201,7 @@ export default function AddSheet({
         <div className="modal-header">
           <h2 id="add-sheet-title">Add expense</h2>
           <button className="modal-close" onClick={onClose} type="button" aria-label="Close dialog">
-            <span aria-hidden="true">✕</span>
+            <Icon name="close" size={16} />
           </button>
         </div>
 
@@ -212,6 +219,7 @@ export default function AddSheet({
               onClick={() => chooseMethod(tab.method)}
               onKeyDown={handleTabKeyDown}
             >
+              <Icon name={tab.icon} size={16} />
               {tab.label}
             </button>
           ))}
@@ -307,7 +315,7 @@ export function AddedLine({ expense, categories, onUndo, onEdit, onDismiss }: Ad
             onClick={onDismiss}
             aria-label="Dismiss confirmation"
           >
-            <span aria-hidden="true">✕</span>
+            <Icon name="close" size={14} />
           </button>
         </div>
       )}

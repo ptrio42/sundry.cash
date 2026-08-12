@@ -243,6 +243,70 @@ describe('ExpenseTable sorting', () => {
   });
 });
 
+/**
+ * The icon wave (`docs/icon-wiring-spec.md`).
+ *
+ * The sort mark used to be ⇅ / ↑ / ↓ — characters, inside an `aria-hidden` span,
+ * beside a `<th>` that already carried `aria-sort`. The picture replacing them
+ * has to track the same three states, and the header has to go on carrying the
+ * attribute, because that attribute is the only part of this a screen reader
+ * ever reads.
+ */
+describe('ExpenseTable — the sort indicator', () => {
+  const header = (name: string) => screen.getByRole('columnheader', { name });
+  const markIn = (name: string) =>
+    header(name).querySelector('svg[data-icon]')?.getAttribute('data-icon');
+
+  it('draws the direction on the sorted column and neutral on the others', () => {
+    renderTable(SAMPLE);
+
+    // The harness opens on date descending.
+    expect(markIn('Date')).toBe('sort-descending');
+    expect(markIn('Amount')).toBe('sort-none');
+    expect(markIn('Category')).toBe('sort-none');
+  });
+
+  it('follows the column and the direction as they change', () => {
+    renderTable(SAMPLE);
+
+    fireEvent.click(within(header('Date')).getByRole('button'));
+    expect(markIn('Date')).toBe('sort-ascending');
+
+    fireEvent.click(within(header('Amount')).getByRole('button'));
+    expect(markIn('Amount')).toBe('sort-descending');
+    // The column that was sorted goes back to neutral rather than keeping a
+    // direction it is no longer applying.
+    expect(markIn('Date')).toBe('sort-none');
+  });
+
+  it('says the same thing in aria-sort, which is the half that is spoken', () => {
+    renderTable(SAMPLE);
+
+    // Both halves, together, in all three states — the picture is reinforcement.
+    expect(header('Date')).toHaveAttribute('aria-sort', 'descending');
+    expect(header('Amount')).toHaveAttribute('aria-sort', 'none');
+
+    fireEvent.click(within(header('Date')).getByRole('button'));
+
+    expect(header('Date')).toHaveAttribute('aria-sort', 'ascending');
+    expect(markIn('Date')).toBe('sort-ascending');
+  });
+
+  it('keeps the mark out of the accessible name of the column', () => {
+    renderTable(SAMPLE);
+
+    // `getByRole('columnheader', { name: 'Date' })` above already proves this —
+    // it would not match if the mark contributed. This says so on purpose,
+    // because as a font character the state was announced twice, the second
+    // time as "up arrow".
+    for (const column of ['Date', 'Category', 'Amount']) {
+      const svg = header(column).querySelector('svg[data-icon]');
+      expect(svg?.getAttribute('aria-hidden'), column).toBe('true');
+      expect(header(column).textContent?.trim(), column).toBe(column);
+    }
+  });
+});
+
 describe('ExpenseTable rows', () => {
   it('shows an empty state when it was handed nothing', () => {
     renderTable([]);
