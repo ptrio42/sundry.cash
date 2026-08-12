@@ -185,6 +185,12 @@ export function scopeComparison(rows: CategoryComparison[], scope: Scope): Categ
  *
  * Gating on the visit count alone would light up almost every row on a year of
  * history, and a badge that appears eleven times in thirteen says nothing.
+ *
+ * **The `merchant_drip` finding that heads this section applies the same three
+ * tests** (`getSummary` in backend/src/models/insights.ts). It has to: the
+ * sentence and these flags are one claim about the same rows, and while the
+ * scorer tested only the visit count the headline named a shop the table did not
+ * flag. Change one definition and change the other.
  */
 export function dripMerchants(rows: MerchantTotal[]): Set<string> {
   const spend = rows.reduce((sum, row) => sum + row.total, 0);
