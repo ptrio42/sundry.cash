@@ -249,8 +249,11 @@ router.get('/patterns', (req: Request, res: Response) => {
  *
  * `period` and `window` are the same pair /comparison takes, with the same
  * defaults, because Home's page-window control moves the spending sections and
- * the findings that head them together. The scoring is untouched; only the
- * window it scores over becomes a parameter.
+ * the findings that head them together. It moves *only* those: the merchant and
+ * weekday findings measure the twelve months their own sections render, whatever
+ * this pair says — see `FINDING_WINDOW` in models/insights.ts. So there is
+ * nothing here to ask for the habit window with, and deliberately so; it is the
+ * window `/merchants` and `/patterns` already answer over by default.
  */
 router.get('/summary', (req: Request, res: Response) => {
   try {

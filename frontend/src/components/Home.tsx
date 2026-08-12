@@ -15,12 +15,16 @@
  *   - the **page window** control (`Last 30 days · This month · Last 12 months`)
  *     governs the headline, "Where it went" and the budget verdict;
  *   - the **habit sections** (subscriptions, merchants, weekdays) keep their own
- *     twelve months, because `materiality` in `models/insights.ts` divides by
- *     spend *in the window* — a year of coffees scored against a month of
- *     spending clears every threshold on arithmetic alone — and because 30 days
- *     leaves about four samples per weekday.
+ *     twelve months, because 30 days leaves a weekday about four samples and the
+ *     merchant list goes thin.
  *
- * The governing rule, which is not optional: **every section states its window.**
+ * The governing rule, which is not optional: **every section states its window**
+ * — and so does every finding that heads one. Wave 2 required only the first
+ * half, which is how a 30-day weekend sentence came to sit fifteen pixels above
+ * a 12-month weekday chart that disagreed with it. `/insights/summary` now scores
+ * each finding over the window its section renders and divides `materiality` by
+ * the spend in that same window; see `FINDING_WINDOW` in
+ * `backend/src/models/insights.ts`.
  *
  * **Findings are section headlines, not a box.** `/insights/summary` still ranks
  * (it is the only thing that can: comparing a PLN finding with a USD one means
@@ -332,8 +336,11 @@ export default function Home({
    * screen: ranking a PLN finding against a USD one requires converting before
    * scoring, so switching currency costs a round trip and buys one
    * implementation of the merge instead of two. The page window goes with it, so
-   * a finding heading a spending section measures the same window that section
-   * does.
+   * a finding heading a *spending* section measures the same window that section
+   * does. The habit sections need nothing sent: the server measures those
+   * findings over the twelve months `/merchants` and `/patterns` are asked for
+   * here without a window of their own, which is why a window click does not
+   * refetch them.
    *
    * A failure is silent. Findings are the emphasis on top of sections that work
    * perfectly well without them, and an error banner over a page of real numbers

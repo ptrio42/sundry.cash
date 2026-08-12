@@ -374,10 +374,14 @@ severity descending, capped at `limit` (default 3, max 10).
 One formula for every kind, so scores are comparable:
 
 ```
-materiality = min(1, moneyAtStake / totalSpendInWindow)
+materiality = min(1, moneyAtStake / totalSpendInTheFindingsOwnWindow)
 surprise    = kind-specific, 0..1
 severity    = sqrt(materiality * surprise)
 ```
+
+The denominator is the finding's **own** window, not one window for all six kinds — see *What
+shipped differently* below and `docs/fix-finding-window-spec.md`. A share is only meaningful in the
+frame it was measured in, and every score is a share, so they stay comparable across the two.
 
 The geometric mean is deliberate: something huge but unsurprising, and something startling but
 trivial, both rank below something that is *both*. An arithmetic mean would let one term carry a
@@ -391,7 +395,7 @@ finding on its own.
 | `category_new` | `current` | `1` — categorically new |
 | `recurring_total` | sum of `monthlyCost` | `RECURRING_BASE` (steady, not news) |
 | `recurring_stopped` | `monthlyCost` of the stopped charge | `1` |
-| `merchant_drip` | merchant `total` | `min(1, count / DRIP_COUNT_FULL)` |
+| `merchant_drip` | merchant `total` | `min(1, count / DRIP_COUNT_FULL)`, and every purchase below the list's mean |
 | `weekend_skew` | `abs(weekendPerDay - weekdayPerDay) * weekendDays` | `min(1, abs(ratio - 1) / SKEW_FULL)` |
 
 Constants block, with starting values and what each one does:
@@ -449,9 +453,19 @@ Four deviations from the above, all in `models/insights.ts` and commented where 
   `category_new` at one each; the same rule now covers all six. Three sentences about three
   different things beat three about the same thing, and it makes the cap a rule rather than a
   special case for the two kinds that happened to need it first.
-- **`merchants` and `patterns` run over the comparison's own window**, not their twelve-month
-  default. `materiality` divides by what was spent in *this* window, so a year of coffees measured
-  against a month of spending would score above 1 every time.
+- **`merchants` and `patterns` run over the twelve months their sections render** — and each finding
+  divides `materiality` by the spend in *its own* window, which is what keeps a year of coffees from
+  scoring above 1 against a month of spending. Superseded once: this originally read "over the
+  comparison's own window", which fixed the arithmetic by measuring the habit over thirty days and
+  then printing that sentence above a chart of twelve months. See
+  `docs/fix-finding-window-spec.md`, and `FINDING_WINDOW` in `models/insights.ts` for the invariant
+  that now holds it.
+- **`merchant_drip` requires the purchases to be small**, not merely numerous: each one below the
+  mean purchase in the merchant list, which is the third test `dripMerchants` in the frontend's
+  `utils/insights.ts` already applied to the "adds up" flag beside the rows. `MIN_DRIP_COUNT` was the
+  whole gate while the scorer measured thirty days; over the twelve months the table lists, any
+  monthly charge clears five, and the sentence went to the largest merchant in the ledger while the
+  flags sat on four other rows. One claim needs one definition.
 - **`weekend_skew` needs spend on both sides**, not just days on both sides. A window with nothing
   at all at the weekend gives a ratio of 0, which is a fact about how sparse the ledger is rather
   than about when this person spends — the same "cannot say" `getPatterns` already returns `null`

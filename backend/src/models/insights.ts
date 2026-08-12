@@ -694,6 +694,29 @@ export const SCORING = {
   MIN_DRIP_COUNT: 5        // fewer visits than this is not a pattern
 };
 
+/**
+ * The invariant the scoring above has to hold:
+ *
+ * > **A finding's stated window is the window of the data its section renders.**
+ * > A finding that heads a section it was not measured over is a caption for a
+ * > different chart.
+ *
+ * Home carries two clocks (ruling R2 in `docs/ux-review-findings.md`): a page
+ * control moves the spending sections, and the habit sections — where you shop,
+ * when you spend — keep their own twelve months, because thirty days leaves a
+ * weekday about four samples. Wave 2 required every *section* to state its
+ * window and never required a finding and the section it heads to share one, so
+ * `/summary` measured the weekend habit over thirty days while the chart under
+ * the sentence drew twelve months. Two numbers for one claim, fifteen pixels
+ * apart.
+ *
+ * So each finding is measured over its own window, and `materiality` divides by
+ * the spend in *that* window. That last clause is the load-bearing one: a share
+ * is only meaningful in the frame it was measured in, and dividing a
+ * twelve-month merchant total by thirty days of spending is what produced scores
+ * above 1. Scoring each finding as a share of its own window keeps every score
+ * inside 0..1 and keeps them comparable, because they are all shares.
+ */
 export type FindingKind =
   | 'category_moved'     // comparison: biggest mover present in both windows
   | 'category_new'       // comparison: spend where there was none
@@ -701,6 +724,32 @@ export type FindingKind =
   | 'recurring_stopped'  // recurring: likelyCancelled — money that stopped
   | 'merchant_drip'      // merchants: many small purchases adding up
   | 'weekend_skew';      // patterns: weekendRatio far from 1
+
+/** Which of Home's two clocks a finding runs on. */
+export type FindingClock =
+  | 'page'   // the window /comparison was asked for; reported as `days`
+  | 'habit'  // the twelve months the merchant and weekday sections render
+  | 'none';  // quotes no window, so there is nothing for a section to contradict
+
+/**
+ * The invariant as data rather than prose, which is what stops a seventh kind
+ * from reintroducing the defect: adding one to the union above fails the build
+ * until it declares a clock, and the test walks this map instead of keeping its
+ * own copy of the list.
+ *
+ * Both recurring kinds are exempt, and named here rather than skipped silently.
+ * A `monthlyCost` is a rate normalised to 30.44 days, not any window's total, so
+ * neither clock owns it and its sentence quotes no window at all — there is
+ * nothing a section could disagree with.
+ */
+export const FINDING_WINDOW: Record<FindingKind, FindingClock> = {
+  category_moved: 'page',
+  category_new: 'page',
+  recurring_total: 'none',
+  recurring_stopped: 'none',
+  merchant_drip: 'habit',
+  weekend_skew: 'habit'
+};
 
 /**
  * A finding carries numbers and identifiers, never prose. The frontend writes
@@ -793,20 +842,58 @@ function convert(amount: number, from: Currency, to: Currency, rates: Record<str
   return (amount * rateFrom) / rateTo;
 }
 
+interface CurrencySpendRow {
+  currency: Currency;
+  total_minor: number;
+}
+
+/**
+ * Everything spent in a window, per currency — the denominator `materiality`
+ * divides by.
+ *
+ * Asked for once per window rather than derived from one of the analyses above:
+ * the scorer needs the total for the page window *and* for the habit window (see
+ * `FINDING_WINDOW`), and summing whichever analysis happens to be in hand would
+ * tie the denominator to that pass's filters. Two aggregates over a single-user
+ * ledger cost nothing.
+ *
+ * Per currency for the reason every aggregate in this file is: grosze and
+ * satoshis do not add. The caller converts and drops what it cannot.
+ */
+function spendByCurrency(range: DateRange, currency?: Currency): Array<{ currency: Currency; total: number }> {
+  const rows = db.prepare(`
+    SELECT currency, SUM(amount) AS total_minor
+    FROM expenses
+    WHERE date >= @since AND date <= @until
+      ${currency ? 'AND currency = @currency' : ''}
+    GROUP BY currency
+  `).all({
+    since: range.start,
+    until: range.end,
+    // better-sqlite3 rejects parameters the statement does not declare, so this
+    // key only exists when the filter is part of the SQL above.
+    ...(currency ? { currency } : {})
+  }) as CurrencySpendRow[];
+
+  return rows.map(row => ({ currency: row.currency, total: toMajorUnits(row.total_minor, row.currency) }));
+}
+
 /**
  * The one question that decides everything: what changed, and does it matter
  * relative to what this person actually spends?
  *
- * Composes the four analyses above over a single window — by default a rolling
- * month ending at `anchor` — so that every finding is scored against the same
- * denominator, and returns at most `limit` of them.
+ * Composes the four analyses above and returns at most `limit` of them, each
+ * scored over **its own window** and against the spend in that same window —
+ * the invariant beside `FINDING_WINDOW`, which is what keeps a sentence from
+ * heading a chart of something else.
  *
  * `period` and `window` are `getComparison`'s own pair, forwarded verbatim: the
- * caller decides how long the window is, and everything here (the merchant and
- * weekday passes included) measures over whatever the comparison came back
- * with. That keeps `materiality` honest — it divides by spend *in the window*,
- * so a year of coffees scored against a month of spending would clear every
- * threshold on arithmetic alone.
+ * caller decides how long the *page* window is, and the comparison-derived
+ * findings move with it. The merchant and weekday passes deliberately do not —
+ * they measure the twelve months their sections render, and their `materiality`
+ * divides by twelve months of spending rather than by the page window's, which
+ * is what keeps a year of coffees from clearing every threshold on arithmetic
+ * alone.
  *
  * Fewer than `limit`, or none at all, is a correct answer. A quiet month should
  * say nothing rather than pad itself out with noise.
@@ -871,6 +958,18 @@ export function getSummary(params: {
   // The previous window is always complete, so it is not clamped.
   const previousDays = diffDays(comparison.previous.start, comparison.previous.end) + 1;
 
+  /**
+   * The other clock: the twelve months the merchant and weekday sections render.
+   *
+   * Taken from `defaultWindow` rather than spelled out again, because that is
+   * exactly what `/merchants` and `/patterns` answer over when Home asks them
+   * without a window of their own. One expression for one window is the only
+   * thing that makes "the finding states the window its section renders" true by
+   * construction instead of by coincidence.
+   */
+  const habit = defaultWindow({ today: anchor });
+  const habitDays = diffDays(habit.start, habit.end) + 1;
+
   // One entry per category in the display currency. `isNew` is re-derived from
   // these totals rather than carried over from the rows: a category new in one
   // currency need not be new once the currencies are combined.
@@ -888,9 +987,24 @@ export function getSummary(params: {
 
   const totalSpend = Array.from(totals.values()).reduce((sum, value) => sum + value.current, 0);
 
-  // Nothing spent in the window means no denominator, and nothing to say. Every
-  // score below divides by this, so it is checked once here rather than six times.
-  if (totalSpend <= 0) {
+  /**
+   * The habit clock's denominator, and the one extra aggregate this fix costs.
+   *
+   * Converted and dropped by exactly the rules the numerators follow, so a
+   * currency with no usable rate is out of both sides of every habit ratio —
+   * the same discipline `totals` applies to the page window above.
+   */
+  const habitSpend = spendByCurrency(habit, nativeFilter).reduce((sum, row) => {
+    const converted = into(row.total, row.currency);
+    return converted === null ? sum : sum + converted;
+  }, 0);
+
+  // Nothing spent in either window means no denominator anywhere, and nothing to
+  // say. Checked once here rather than six times below. Only one of the two being
+  // empty is not silence: thirty quiet days do not erase a weekend habit that
+  // twelve months of history still shows, and the chart under the sentence draws
+  // those twelve months either way.
+  if (totalSpend <= 0 && habitSpend <= 0) {
     return { scope, currency: display, windowDays: days, findings: [] };
   }
 
@@ -898,12 +1012,21 @@ export function getSummary(params: {
    * The single scoring formula, applied to every kind so the scores are
    * comparable at all.
    *
+   * `windowSpend` is the finding's *own* window, passed in rather than closed
+   * over: `materiality` means "what share of your spending is this", and a share
+   * is only meaningful in the frame it was measured in. Taking it as an argument
+   * is what makes the invariant beside `FINDING_WINDOW` a property of the code
+   * rather than a promise about it.
+   *
    * The geometric mean is the point: something huge but unsurprising, and
    * something startling but trivial, both have to rank below something that is
    * *both*. An arithmetic mean would let either term carry a finding on its own.
+   * Every score is a share of its own window, so they stay comparable across the
+   * two clocks.
    */
-  const severityOf = (moneyAtStake: number, surprise: number): number | null => {
-    const materiality = Math.min(1, Math.abs(moneyAtStake) / totalSpend);
+  const severityOf = (moneyAtStake: number, surprise: number, windowSpend: number): number | null => {
+    if (windowSpend <= 0) return null;
+    const materiality = Math.min(1, Math.abs(moneyAtStake) / windowSpend);
     if (materiality < SCORING.MIN_MATERIALITY) return null;
     const severity = Math.sqrt(materiality * Math.min(1, Math.max(0, surprise)));
     return severity < SCORING.MIN_SEVERITY ? null : severity;
@@ -918,7 +1041,7 @@ export function getSummary(params: {
     if (value.previous > 0) {
       const delta = value.current - value.previous;
       const deltaPct = round((delta / value.previous) * 100, 1);
-      const severity = severityOf(delta, Math.abs(deltaPct) / SCORING.SURPRISE_PCT_FULL);
+      const severity = severityOf(delta, Math.abs(deltaPct) / SCORING.SURPRISE_PCT_FULL, totalSpend);
       if (severity !== null) {
         candidates.push({
           finding: {
@@ -936,7 +1059,7 @@ export function getSummary(params: {
     // Spend where there was none. Categorically new, so surprise is 1 and
     // materiality alone decides whether it is worth a sentence.
     if (value.current > 0) {
-      const severity = severityOf(value.current, 1);
+      const severity = severityOf(value.current, 1, totalSpend);
       if (severity !== null) {
         candidates.push({
           finding: {
@@ -952,7 +1075,14 @@ export function getSummary(params: {
   }
 
   // --- recurring: what repeats, and what stopped --------------------------
-  const charges = getRecurring({ today: anchor });
+  //
+  // Over the habit window, stated rather than left to this function's own
+  // default so the pass and the Subscriptions section cannot drift apart. Scored
+  // against the *page* window all the same: `monthlyCost` is a rate normalised to
+  // 30.44 days, not a window's total, so neither clock owns it — see the exempt
+  // entries in `FINDING_WINDOW`. Their sentences quote no window, so nothing on
+  // the page can contradict them.
+  const charges = getRecurring({ since: habit.start, today: anchor });
   let activeCount = 0;
   let activeMonthly = 0;
   let activePaid = 0;
@@ -965,7 +1095,7 @@ export function getSummary(params: {
     // A charge that stopped is not what anything costs you now, so it is kept
     // out of the monthly figure and reported as its own kind of news.
     if (charge.likelyCancelled) {
-      const severity = severityOf(monthlyCost, 1);
+      const severity = severityOf(monthlyCost, 1, totalSpend);
       if (severity !== null) {
         candidates.push({
           finding: {
@@ -986,7 +1116,7 @@ export function getSummary(params: {
   }
 
   if (activeCount > 0) {
-    const severity = severityOf(activeMonthly, SCORING.RECURRING_BASE);
+    const severity = severityOf(activeMonthly, SCORING.RECURRING_BASE, totalSpend);
     if (severity !== null) {
       candidates.push({
         finding: {
@@ -1002,13 +1132,20 @@ export function getSummary(params: {
 
   // --- merchants: the spend that hides in small purchases -----------------
   //
-  // Over the comparison's own window, not the merchants endpoint's twelve-month
-  // default: `materiality` divides by what was spent in *this* window, so a
-  // year of coffees measured against a month of spending would score above 1
-  // every time. The per-currency limit is raised to its maximum because only
-  // the top merchant can win a slot anyway, and the cut is by total.
-  const merchantWindow = { since: comparison.current.start, until: measuredEnd };
-  const merchants = getMerchants({ ...merchantWindow, currency: nativeFilter, limit: MAX_MERCHANT_LIMIT });
+  // Over the habit window, because that is the window "Where you shop" renders:
+  // a sentence naming a shop above a table measured over a different year is a
+  // caption for a different table. Scored against twelve months of spending to
+  // match, which is the half of the rule that keeps a year of coffees from
+  // clearing every threshold on arithmetic alone.
+  //
+  // The per-currency limit is raised to its maximum because only the top
+  // merchant can win a slot anyway, and the cut is by total.
+  const merchants = getMerchants({
+    since: habit.start,
+    until: habit.end,
+    currency: nativeFilter,
+    limit: MAX_MERCHANT_LIMIT
+  });
 
   const byMerchant = new Map<string, { total: number; count: number }>();
   for (const merchant of merchants.merchants) {
@@ -1018,16 +1155,48 @@ export function getSummary(params: {
     byMerchant.set(merchant.key, { total: accumulated.total + total, count: accumulated.count + merchant.count });
   }
 
+  /**
+   * The typical purchase across the whole list — what "small" is measured
+   * against below.
+   *
+   * A drip is *many small purchases adding up*, as opposed to spend that is
+   * simply large, and until this window matched the section's the scorer only
+   * ever tested "many". Over twelve months that is no test at all: any monthly
+   * charge clears five, so the sentence went to the biggest merchant in the
+   * ledger — "Orlen adds up, about 281 zł each" above a table whose own "adds
+   * up" flags sat on four other rows. One claim, two definitions, fifteen pixels
+   * apart, which is the defect this file's invariant exists to remove wearing a
+   * different hat.
+   *
+   * The same three tests as `dripMerchants` in the frontend's `utils/insights.ts`
+   * therefore, computed from the same rows: `MIN_DRIP_COUNT` visits, material,
+   * and each purchase below the list's own mean. Relative to the user's own
+   * numbers rather than an amount someone picked, like every other threshold
+   * here. (Materiality is the one small difference: it divides by the window's
+   * spend rather than by the list's, which is the same figure unless a
+   * per-currency cut dropped rows — and stricter when it did.)
+   */
+  const listSpend = Array.from(byMerchant.values()).reduce((sum, m) => sum + m.total, 0);
+  const listPurchases = Array.from(byMerchant.values()).reduce((sum, m) => sum + m.count, 0);
+  const typicalPurchase = listPurchases === 0 ? 0 : listSpend / listPurchases;
+
   for (const [key, merchant] of byMerchant) {
     if (merchant.count < SCORING.MIN_DRIP_COUNT) continue;
-    const severity = severityOf(merchant.total, merchant.count / SCORING.DRIP_COUNT_FULL);
+    if (merchant.total / merchant.count >= typicalPurchase) continue;
+    const severity = severityOf(merchant.total, merchant.count / SCORING.DRIP_COUNT_FULL, habitSpend);
     if (severity !== null) {
       candidates.push({
         finding: {
           kind: 'merchant_drip',
           severity,
           currency: display,
-          data: { key, total: merchant.total, count: merchant.count, average: snap(merchant.total / merchant.count), days }
+          data: {
+            key,
+            total: merchant.total,
+            count: merchant.count,
+            average: snap(merchant.total / merchant.count),
+            days: habitDays
+          }
         },
         tiebreak: key
       });
@@ -1038,8 +1207,12 @@ export function getSummary(params: {
   //
   // Per day on both sides, never totals: a week holds five weekdays and two
   // weekend days, so comparing totals would report the calendar as a habit.
-  const patterns = getPatterns({ ...merchantWindow, currency: nativeFilter });
-  const dayCounts = weekdayCounts(comparison.current.start, measuredEnd);
+  //
+  // Over the habit window, for the reason the merchant pass is, plus one of its
+  // own: across thirty days a weekday has about four samples, and a claim about
+  // "when you spend" built on four Tuesdays is a claim about one Tuesday.
+  const patterns = getPatterns({ since: habit.start, until: habit.end, currency: nativeFilter });
+  const dayCounts = weekdayCounts(habit.start, habit.end);
   const weekendDays = WEEKEND_DOWS.reduce((sum, dow) => sum + dayCounts[dow], 0);
   const weekdayDays = dayCounts.reduce((sum, count) => sum + count, 0) - weekendDays;
 
@@ -1066,7 +1239,8 @@ export function getSummary(params: {
       const ratio = round(weekendPerDay / weekdayPerDay, 2);
       const severity = severityOf(
         Math.abs(weekendPerDay - weekdayPerDay) * weekendDays,
-        Math.abs(ratio - 1) / SCORING.SKEW_FULL
+        Math.abs(ratio - 1) / SCORING.SKEW_FULL,
+        habitSpend
       );
       if (severity !== null) {
         candidates.push({
@@ -1074,7 +1248,7 @@ export function getSummary(params: {
             kind: 'weekend_skew',
             severity,
             currency: display,
-            data: { weekendPerDay, weekdayPerDay, ratio, days },
+            data: { weekendPerDay, weekdayPerDay, ratio, days: habitDays },
           },
           tiebreak: ''
         });

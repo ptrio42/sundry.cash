@@ -169,6 +169,12 @@ export function addMonths(iso: string, months: number): string {
  * own defaults so the window a section *prints* is the window it *asked for*;
  * `/insights/recurring` reports no dates back, and a header stating a constant
  * nobody sent would be the F1 defect with extra steps.
+ *
+ * The same twelve months the summary scores its habit findings over — the server
+ * derives them from the same rule (`defaultWindow` in `models/insights.ts`), so
+ * the sentence heading one of these sections and the section's own window line
+ * state one period. That is an invariant, not a coincidence; see
+ * `FINDING_WINDOW` there.
  */
 export function habitWindow(today: string): DateRange {
   return { start: addMonths(today, -12), end: today };
@@ -527,11 +533,16 @@ function asName(key: string): string {
 /**
  * One finding, as a sentence.
  *
- * Every template states the window it measured over. That is not decoration:
- * the habit sections below these sentences measure the same behaviour over
- * twelve months, and a per-day figure with no window on it is how the app came
- * to contradict itself about weekends (F10) — `days` was in the payload all
- * along and exactly one template dropped it.
+ * Every template states the window it measured over, printing `days` verbatim
+ * and never a constant of its own. That is not decoration, and it is not enough
+ * on its own either: a per-day figure with no window on it is how the app first
+ * contradicted itself about weekends (F10), and a *stated* window measured over
+ * a different span than the chart below it is how the contradiction came back
+ * (`docs/fix-finding-window-spec.md`). The server now measures each finding over
+ * the window its section renders, so the number here and the section's own
+ * window line describe one period. Print `days`; do not translate it into a
+ * window name of this file's choosing, which would be a second answer to a
+ * question the payload already settles.
  */
 export function findingSentence(finding: Finding, categories: Category[], currency: Currency): string {
   const fmt = (value: number) => formatCurrency(value, currency);

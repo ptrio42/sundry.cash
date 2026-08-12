@@ -831,13 +831,19 @@ describe('GET /api/insights/patterns', () => {
 });
 
 describe('GET /api/insights/summary', () => {
-  // One ledger that reaches all six kinds of finding, anchored on 2026-08-10:
-  // current window 2026-07-12..2026-08-10 (30 days, Sunday to Monday), previous
-  // 2026-06-12..2026-07-11. Every assertion below asks for `scope=PLN`, so the
-  // numbers are the ones seeded here rather than a conversion of them.
+  // One ledger that reaches all six kinds of finding, anchored on 2026-08-10.
+  // Every assertion below asks for `scope=PLN`, so the numbers are the ones
+  // seeded here rather than a conversion of them.
   //
-  // Current-window spend, which is the denominator every score divides by:
-  //   groceries 1400 + utilities 300 + other 150 + media 100 + transport 13 = 1963
+  // Two windows, because findings run on two clocks (`FINDING_WINDOW`), and each
+  // one is scored as a share of its own:
+  //   - the page window, 2026-07-12..2026-08-10 (30 days, Sunday to Monday),
+  //     against 2026-06-12..2026-07-11. Spend in it, which is what the
+  //     comparison-derived findings divide by:
+  //       groceries 1400 + utilities 300 + other 150 + media 100 + transport 13 = 1963
+  //   - the habit window, 2025-08-10..2026-08-10 (366 days), which is the whole
+  //     ledger here. Spend in it, which the merchant and weekday findings divide
+  //     by: groceries 2400 + media 1600 + other 300 + utilities 300 + transport 23 = 4623
   const coffeeDays = ['2026-07-13', '2026-07-16', '2026-07-17', '2026-07-21', '2026-07-22',
     '2026-07-23', '2026-07-24', '2026-07-27', '2026-07-28', '2026-07-29'];
   const previousCoffeeDays = ['2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19',
@@ -877,6 +883,25 @@ describe('GET /api/insights/summary', () => {
 
   const finding = (body: any, kind: string) => body.findings.find((f: any) => f.kind === kind);
 
+  /**
+   * The distinct `days` the findings of each clock reported, keyed by the clock
+   * the model declares them on.
+   *
+   * Grouped rather than listed flat so a case can state "the page findings moved
+   * and the habit ones did not" in one assertion, and read from
+   * `FINDING_WINDOW` rather than from a list of kinds this file keeps its own
+   * copy of — a seventh kind has to be classified in the model, and then it is
+   * checked here for free.
+   */
+  const daysByClock = (body: any): Record<string, unknown[]> => {
+    const grouped: Record<string, unknown[]> = { page: [], habit: [], none: [] };
+    for (const found of body.findings) {
+      const clock = insightsModel.FINDING_WINDOW[found.kind as insightsModel.FindingKind];
+      if (!grouped[clock].includes(found.data.days)) grouped[clock].push(found.data.days);
+    }
+    return grouped;
+  };
+
   it('reports the scope, the display currency and the window it measured', async () => {
     const body = await summary('&limit=10');
     expect(body).toMatchObject({ scope: 'PLN', currency: 'PLN', windowDays: 30 });
@@ -885,9 +910,11 @@ describe('GET /api/insights/summary', () => {
   it('produces every kind of finding, ranked on one scale', async () => {
     const body = await summary('&limit=10');
 
-    // The order is the assertion, not the numbers behind it. Weekends running
-    // at 111 PLN a day against 46 on weekdays moves the most money of anything
-    // here; the subscriptions that simply carry on rank last, as they should.
+    // The order is the assertion, not the numbers behind it. Weekends running at
+    // 22.86 PLN a day against 8.52 on weekdays is 22% of the year's spending at
+    // stake, which is more than anything else here; the subscriptions that simply
+    // carry on rank last, as they should. Two clocks, one scale: every score is a
+    // share of its own window, which is what keeps them comparable.
     expect(body.findings.map((f: any) => f.kind)).toEqual([
       'weekend_skew',
       'category_moved',
@@ -915,12 +942,17 @@ describe('GET /api/insights/summary', () => {
     expect(finding(body, 'recurring_stopped').data).toMatchObject({
       label: 'old gazette', cadence: 'monthly', totalPaid: 800, lastSeen: '2026-04-10'
     });
+    // Over the twelve months "Where you shop" lists, not the thirty days the
+    // headline covers: eight monthly charges of 100 outweigh twenty coffees
+    // worth 300, and the coffee shop's ten visits inside the page window were
+    // never the whole of what the table under this sentence shows.
     expect(finding(body, 'merchant_drip').data).toEqual({
-      key: 'coffee shop', total: 150, count: 10, average: 15, days: 30
+      key: 'netflix', total: 800, count: 8, average: 100, days: 366
     });
     expect(finding(body, 'weekend_skew').data).toEqual({
-      // 1000 over the window's 9 weekend days, 963 over its 21 weekdays.
-      weekendPerDay: 111.11, weekdayPerDay: 45.86, ratio: 2.42, days: 30
+      // 2400 over the habit window's 105 weekend days, 2223 over its 261
+      // weekdays — the same 366 days the weekday chart under this sentence draws.
+      weekendPerDay: 22.86, weekdayPerDay: 8.52, ratio: 2.68, days: 366
     });
     // Only the charge that is still running counts towards what things cost.
     expect(finding(body, 'recurring_total').data).toMatchObject({ count: 1, totalPaid: 800 });
@@ -971,19 +1003,7 @@ describe('GET /api/insights/summary', () => {
       // it — F10's defect, arriving through the back door.
       const body = await summary('&period=month&window=calendar&limit=10');
       expect(body.windowDays).toBe(10);
-      expect(body.findings.every((f: any) => f.data.days === undefined || f.data.days === 10)).toBe(true);
-    });
-
-    it('divides the weekend claim by the days it actually measured', async () => {
-      // Aug 1–10 2026 holds four weekend days — the 1st, 2nd, 8th and 9th — and
-      // 1000 zł of weekend spend (the 700 shop on the 1st, 300 of electricity on
-      // the 2nd). So 250 a day. The nominal month holds ten weekend days, which
-      // would report the same habit at 100 a day: two and a half times too low,
-      // under a sentence claiming a 31-day window.
-      const body = await summary('&period=month&window=calendar&limit=10');
-      const skew = finding(body, 'weekend_skew');
-      expect(skew.data.days).toBe(10);
-      expect(skew.data.weekendPerDay).toBe(250);
+      expect(daysByClock(body)).toEqual({ page: [10], habit: [366], none: [undefined] });
     });
 
     it('takes a week and a year', async () => {
@@ -991,28 +1011,50 @@ describe('GET /api/insights/summary', () => {
       expect((await summary('&period=year')).windowDays).toBe(365);
     });
 
-    it('scores against the window it was given, not the default one', async () => {
-      // Over the rolling month the coffee shop wins the merchant slot: ten
-      // visits worth 150 of the window's 1963.
-      const month = await summary('&limit=10');
-      expect(finding(month, 'merchant_drip').data)
-        .toMatchObject({ key: 'coffee shop', total: 150, count: 10, days: 30 });
+    /**
+     * The invariant, as a property rather than case by case, so a seventh kind
+     * cannot reintroduce the defect: `FINDING_WINDOW` is a `Record` the compiler
+     * makes every kind declare a clock in, and this walks that map.
+     */
+    it('reports, for every kind it can emit, the window of the analysis it came from', async () => {
+      const body = await summary('&limit=10');
 
-      // Over a rolling year a different merchant does, because the window now
-      // holds a year of everything — Netflix's eight monthly charges are 800,
-      // which outscores twenty coffees worth 300. Not a nicety: this is the
-      // proof that every pass inside `getSummary` moved with the window rather
-      // than only the comparison, and that `days` reports what was measured.
-      const year = await summary('&period=year&limit=10');
-      expect(finding(year, 'merchant_drip').data)
-        .toMatchObject({ key: 'netflix', total: 800, count: 8, days: 365 });
+      // This ledger reaches all six, so no kind is "checked" by being absent.
+      expect(new Set(body.findings.map((f: any) => f.kind)))
+        .toEqual(new Set(Object.keys(insightsModel.FINDING_WINDOW)));
+
+      expect(daysByClock(body)).toEqual({
+        page: [30],        // the rolling month /comparison was asked for
+        habit: [366],      // the twelve months the habit sections render
+        none: [undefined]  // no window quoted: a monthly cost is a rate, not a total
+      });
+
+      // The exempt kinds are named, not skipped silently — and named by the
+      // model, so this cannot drift into its own opinion of which they are.
+      expect(Object.entries(insightsModel.FINDING_WINDOW)
+        .filter(([, clock]) => clock === 'none')
+        .map(([kind]) => kind))
+        .toEqual(['recurring_total', 'recurring_stopped']);
     });
 
-    it('states the window in every sentence-bound field it hands back', async () => {
-      // The frontend prints `days` verbatim, so the payload has to agree with
-      // the window that was asked for — F10 was exactly one template dropping it.
-      const body = await summary('&period=week&limit=10');
-      expect(body.findings.every((f: any) => f.data.days === undefined || f.data.days === 7)).toBe(true);
+    it('moves the page window findings with it and leaves the habit ones alone', async () => {
+      const week = await summary('&period=week&limit=10');
+      const year = await summary('&period=year&limit=10');
+
+      // `days` is printed verbatim in a sentence, so the payload has to agree
+      // with the window each finding was measured over. F10 was one template
+      // dropping the number; the wave-2 regression was the number being the
+      // wrong window's, which is the half this pins.
+      expect(daysByClock(week)).toEqual({ page: [7], habit: [366], none: [undefined] });
+      expect(daysByClock(year)).toEqual({ page: [365], habit: [366], none: [undefined] });
+
+      // Not merely labelled alike: they are the same findings, scored over the
+      // same twelve months against the same spend. The page control is not a knob
+      // on the habit sections, so it cannot be a knob on their headlines.
+      const habitOnly = (body: any) => body.findings
+        .filter((f: any) => insightsModel.FINDING_WINDOW[f.kind as insightsModel.FindingKind] === 'habit');
+      expect(habitOnly(week)).toEqual(habitOnly(year));
+      expect(habitOnly(week)).toHaveLength(2);
     });
 
     it('rejects a period or window it does not know', async () => {
@@ -1033,6 +1075,140 @@ describe('GET /api/insights/summary', () => {
       const fromSummary = await request(app).get('/api/insights/summary?period=fortnight').expect(400);
       const fromComparison = await request(app).get('/api/insights/comparison?period=fortnight').expect(400);
       expect(fromSummary.body.details).toEqual(fromComparison.body.details);
+    });
+  });
+});
+
+/**
+ * The regression wave 2 left behind, and the fix for it:
+ * `docs/fix-finding-window-spec.md`.
+ *
+ * Every fixture here is built so the two windows *disagree*, which is the only
+ * condition under which the old behaviour and the new one can be told apart. The
+ * suite above could not see the defect because its habit numbers and its page
+ * numbers happened to come from the same ledger; a screenshot could, which is
+ * why these cases exist.
+ */
+describe('A habit finding is measured over the window its section renders', () => {
+  const summary = async (query = '') =>
+    (await request(app).get(`/api/insights/summary?anchor=2026-08-10&scope=PLN&limit=10${query}`).expect(200)).body;
+
+  const finding = (body: any, kind: string) => body.findings.find((f: any) => f.kind === kind);
+
+  describe('the weekend claim', () => {
+    // Anchor 2026-08-10. The page window, 2026-07-12..2026-08-10, holds 9 weekend
+    // days and 21 weekdays; the habit window, 2025-08-10..2026-08-10, holds 105
+    // and 261.
+    //
+    // Read over the page window the two halves of the week cost the same: 1050
+    // over 9 days against 2400 over 21, which is 116.67 and 114.29 — a ratio of
+    // 1.02, not a finding at all. Read over the twelve months the weekday chart
+    // draws, weekends cost exactly twice as much: 2100/105 = 20 against
+    // 2610/261 = 10.
+    beforeAll(() => {
+      reset([
+        { amount: 1050, date: '2026-08-01', description: 'saturday market', category: 'groceries', currency: 'PLN' },
+        { amount: 1050, date: '2025-11-01', description: 'autumn market', category: 'groceries', currency: 'PLN' },
+        { amount: 2400, date: '2026-07-20', description: 'monday stock-up', category: 'groceries', currency: 'PLN' },
+        { amount: 210, date: '2025-12-15', description: 'december top-up', category: 'groceries', currency: 'PLN' }
+      ]);
+    });
+
+    it('reports the habit window numbers, not the page window ones', async () => {
+      // 116.67 against 114.29 would be the page window's answer, and it is the
+      // one the sentence used to carry above a chart drawing 20 against 10.
+      expect(finding(await summary(), 'weekend_skew').data)
+        .toEqual({ weekendPerDay: 20, weekdayPerDay: 10, ratio: 2, days: 366 });
+    });
+
+    it('divides materiality by twelve months of spending, not by thirty days of it', async () => {
+      // 10 zł a day of skew across 105 weekend days is 1050 at stake, against the
+      // 4710 spent in the habit window: 22.3%. Against the page window's 3450 the
+      // same claim would read as 30.4% — a share of a frame it was never measured
+      // in, and the arithmetic that used to push habit scores past 1.
+      const skew = finding(await summary(), 'weekend_skew');
+      expect(skew.severity).toBeCloseTo(Math.sqrt(1050 / 4710), 4);
+      expect(skew.severity).not.toBeCloseTo(Math.sqrt(1050 / 3450), 4);
+    });
+  });
+
+  describe('the merchant claim', () => {
+    // Ten coffees at 50, one a month, none of them inside the page window: 500 of
+    // the habit window's 5000, which is 10%. The page window holds 1000, so the
+    // same 500 scored against it would read as 50% — half of everything this
+    // person spends, on the strength of a window the claim was not measured in.
+    beforeAll(() => {
+      reset([
+        ...['2025-10-05', '2025-11-05', '2025-12-05', '2026-01-05', '2026-02-05',
+          '2026-03-05', '2026-04-05', '2026-05-05', '2026-06-05', '2026-07-05']
+          .map(date => ({ amount: 50, date, description: 'coffee shop', category: 'other', currency: 'PLN' })),
+        { amount: 1000, date: '2026-07-20', description: 'monthly stock-up', category: 'groceries', currency: 'PLN' },
+        { amount: 3500, date: '2025-12-15', description: 'new sofa', category: 'other', currency: 'PLN' }
+      ]);
+    });
+
+    it('measures the shop over the twelve months its own table lists', async () => {
+      expect(finding(await summary(), 'merchant_drip').data)
+        .toEqual({ key: 'coffee shop', total: 500, count: 10, average: 50, days: 366 });
+    });
+
+    it('scores a merchant worth 10% of a year as 10%, not as 50% of a month', async () => {
+      const drip = finding(await summary(), 'merchant_drip');
+      expect(drip.severity).toBeCloseTo(Math.sqrt((500 / 5000) * (10 / insightsModel.SCORING.DRIP_COUNT_FULL)), 4);
+      expect(drip.severity).not.toBeCloseTo(Math.sqrt((500 / 1000) * (10 / insightsModel.SCORING.DRIP_COUNT_FULL)), 4);
+    });
+  });
+
+  describe('a shop whose purchases are each larger than usual', () => {
+    // Six fill-ups at 400 against ten coffees at 50. The station moves five times
+    // the money and clears the visit floor comfortably, and every one of its
+    // purchases is above the list's 181,25 mean — that is spend you notice, which
+    // is the opposite of what a drip claims about it.
+    //
+    // Over thirty days the visit floor did this job by itself. Over the twelve
+    // months the table actually lists, any monthly charge clears five, so on the
+    // demo ledger the sentence went to the largest merchant in it: "Orlen adds up,
+    // about 281 zł each" heading a table whose own "adds up" flags sat on four
+    // other rows.
+    beforeAll(() => {
+      reset([
+        ...['2025-10-05', '2025-11-05', '2025-12-05', '2026-01-05', '2026-02-05', '2026-03-05',
+          '2026-04-05', '2026-05-05', '2026-06-05', '2026-07-05']
+          .map(date => ({ amount: 50, date, description: 'coffee shop', category: 'other', currency: 'PLN' })),
+        ...['2025-10-10', '2025-11-10', '2025-12-10', '2026-01-10', '2026-02-10', '2026-03-10']
+          .map(date => ({ amount: 400, date, description: 'orlen', category: 'transport', currency: 'PLN' }))
+      ]);
+    });
+
+    it('is not the drip, however many visits it has', async () => {
+      const body = await summary();
+
+      expect(finding(body, 'merchant_drip').data).toMatchObject({ key: 'coffee shop', total: 500, count: 10 });
+      expect(body.findings.every((f: any) => f.data.key !== 'orlen')).toBe(true);
+    });
+  });
+
+  describe('a page window with nothing in it', () => {
+    // A weekend habit across the year, and not one expense in the last thirty
+    // days. The weekday chart draws those twelve months either way, so the
+    // section still has something to say and its headline is still measured over
+    // what it draws.
+    beforeAll(() => {
+      reset([
+        { amount: 1050, date: '2026-06-20', description: 'saturday market', category: 'groceries', currency: 'PLN' },
+        { amount: 1050, date: '2025-11-01', description: 'autumn market', category: 'groceries', currency: 'PLN' },
+        { amount: 2610, date: '2025-12-15', description: 'december top-up', category: 'groceries', currency: 'PLN' }
+      ]);
+    });
+
+    it('still says what twelve months show when thirty days show nothing', async () => {
+      const body = await summary();
+
+      // Only the habit clock answers: the page window has no spend to be a share
+      // of, so its findings are correctly silent rather than divided by zero.
+      expect(body.findings.map((f: any) => f.kind)).toEqual(['weekend_skew']);
+      expect(body.findings[0].data).toEqual({ weekendPerDay: 20, weekdayPerDay: 10, ratio: 2, days: 366 });
+      expect(body.windowDays).toBe(30);
     });
   });
 });
@@ -1063,7 +1239,14 @@ describe('Insight summary scoring', () => {
       // materiality 0.25 x surprise 0.40 beats materiality 0.03 x surprise 1.
       // An arithmetic mean would have ranked these the other way round (0.33
       // against 0.52) — which is the whole reason the mean is geometric.
-      expect(body.findings.map((f: any) => f.kind)).toEqual(['recurring_total', 'category_new']);
+      //
+      // These two are what the case is about, so it asks only about them: this
+      // ledger also produces habit findings, which are shares of a different
+      // window and are ranked on their own denominator (`FINDING_WINDOW`).
+      expect(body.findings
+        .map((f: any) => f.kind)
+        .filter((kind: string) => kind === 'recurring_total' || kind === 'category_new'))
+        .toEqual(['recurring_total', 'category_new']);
     });
   });
 

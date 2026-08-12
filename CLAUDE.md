@@ -62,7 +62,7 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   ISO catalogue), `auth.ts` (HMAC tokens), `money.ts` (minor-unit conversion, via the currency table).
 - `src/middleware/` — `auth` (`requireAuth`), `validation`.
 - `src/services/` — `categorize.ts` (keyword auto-categorization, EN + PL); `receipt/` (OCR factory — see gotchas).
-- `src/tests/` — Jest + supertest, 273 cases across 15 files (plus `env.ts` / `paths.ts` /
+- `src/tests/` — Jest + supertest, 278 cases across 15 files (plus `env.ts` / `paths.ts` /
   `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
 
 **frontend/** — React 18 + Vite, single-page UI (no state library — plain hooks). Four destinations
@@ -146,9 +146,18 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   returns at most three. Ranking a PLN finding against a USD one requires converting first, so the
   scope is part of the question: clicking a currency button costs a round trip instead of a re-render,
   and buys one implementation of the merge instead of two. `period`/`window` are `/comparison`'s own
-  pair, forwarded verbatim, so the findings measure the same window the sections they head do. Findings
+  pair, forwarded verbatim, and they move the **spending** findings only. Findings
   carry numbers and identifiers, **never sentences** — PL/EN is a roadmap item and an API that emitted
   English would have to be redone. The templates live in `utils/home.ts`.
+- **A finding's stated window is the window of the data its section renders**, and `materiality`
+  divides by the spend in *that* window — `FINDING_WINDOW` in `models/insights.ts` declares which of
+  Home's two clocks each kind runs on, and the compiler makes a seventh kind declare one. The habit
+  findings (`weekend_skew`, `merchant_drip`) therefore measure twelve months whatever the page control
+  says, and are scored against twelve months of spending. Wave 2 required every *section* to state its
+  window and not a finding and its section to share one, which put `about 206,98 zł a day over the
+  last 30 days` fifteen pixels above a chart saying 186,47 over 366
+  (`docs/fix-finding-window-spec.md`). Do not "simplify" the two denominators into one: a share is
+  only meaningful in the frame it was measured in, and it is what keeps every score inside 0..1.
 - **The four data endpoints are scoped client-side, unlike the summary** — they only feed per-currency
   lists and totals, which Home already converts with `convertAmount`, so `utils/insights.ts` does the
   merge and a currency switch is a re-render. Nothing is ranked across currencies there, which is the
@@ -159,8 +168,9 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   control (`Last 30 days · This month · Last 12 months`, default 30 days) moves the headline, "Where it
   went" and the budget verdict; subscriptions, merchants and weekdays keep their own twelve months.
   Neither may be collapsed into the other: over 30 days a weekday has about four samples and the
-  merchant list goes thin, and mixing a 12-month numerator with a 1-month denominator breaks
-  `materiality`. Printing both windows is what makes this safe — do not "simplify" it to one control.
+  merchant list goes thin. Printing both windows is what makes this safe — do not "simplify" it to one
+  control — and printing them is only half of it: the finding heading a section has to measure the
+  window that section renders (see the bullet above).
 - **Home is not Expenses** — Expenses answers "how much on X between A and B?" and is driven by the
   user's filters; Home answers "what should I know that I did not ask about?" and is driven by the
   data. Home therefore has **no filter wall**: a default window, no category checkboxes, no required
@@ -211,7 +221,7 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (273 backend + 432 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (278 backend + 434 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).

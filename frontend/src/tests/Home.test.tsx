@@ -13,6 +13,14 @@
  * every section has to print the window it measured over. Skipping that
  * reproduces F1 and F10 on a single screen, where it would be worse.
  *
+ * Stating a window per section turned out to be half of it: wave 2 shipped a
+ * 30-day weekend sentence heading a 12-month weekday chart, two numbers for one
+ * claim fifteen pixels apart (`docs/fix-finding-window-spec.md`). So a finding
+ * and the section it heads have to state **one** period, which is what
+ * `'states the same period in the sentence and in the section it heads'` pins —
+ * and why every `days` in the fixtures below is the habit window's own length
+ * rather than a number that merely looks plausible.
+ *
  * Every endpoint is mocked so the fixtures and the dates are exact, and the
  * clock is pinned to 2026-08-11 — the day the review was written against — so
  * "how much of this window has elapsed" is a fact rather than a moving target.
@@ -22,6 +30,7 @@ import { ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import Home from '../components/Home';
+import { windowDates, windowDays } from '../utils/home';
 import { TEST_CATEGORIES } from './categories.fixture';
 import { TEST_CURRENCIES } from './currencies.fixture';
 import {
@@ -243,12 +252,24 @@ const summary = (findings: Finding[], currency = 'PLN'): SummaryResult => ({
   findings
 });
 
+/**
+ * The habit window the two fixtures above report, as a number of days.
+ *
+ * The `days` a habit finding carries has to be *this*, not a plausible-looking
+ * constant: it is the window the section it heads renders, and the whole point of
+ * the fix is that the two agree. Derived from the payload rather than written out
+ * so a fixture date cannot move without the findings moving with it.
+ */
+const HABIT_DAYS = windowDays({ start: patterns().since, end: patterns().until });
+
 const finding = {
   weekendSkew: (severity = 0.7): Finding => ({
     kind: 'weekend_skew',
     severity,
     currency: 'PLN',
-    data: { weekendPerDay: 111.11, weekdayPerDay: 45.86, ratio: 2.42, days: 30 }
+    // 105 weekend days at 111,11 against 261 weekdays at 45,86 — the twelve
+    // months the weekday chart under this sentence draws.
+    data: { weekendPerDay: 111.11, weekdayPerDay: 45.86, ratio: 2.42, days: HABIT_DAYS }
   }),
   categoryMoved: (severity = 0.2): Finding => ({
     kind: 'category_moved',
@@ -266,7 +287,8 @@ const finding = {
     kind: 'merchant_drip',
     severity,
     currency: 'PLN',
-    data: { key: 'żabka', total: 300, count: 20, average: 15, days: 30 }
+    // The same row, and the same window, as `merchants` above lists it under.
+    data: { key: 'żabka', total: 300, count: 20, average: 15, days: HABIT_DAYS }
   })
 };
 
@@ -405,8 +427,9 @@ describe('Home — the two clocks', () => {
 
   it('gives the habit sections a longer window, and a different one from the page', async () => {
     // This is ruling R2. Forced to 30 days the weekday chart has about four
-    // samples per weekday and the merchant list goes thin; forced to 12 months
-    // the scoring breaks, because materiality divides by spend in the window.
+    // samples per weekday and the merchant list goes thin — and the scoring
+    // survives the difference because each finding is a share of its own window
+    // (`FINDING_WINDOW` in backend/src/models/insights.ts), not of the page's.
     loadEverything();
     render(home());
     await settle();
@@ -811,9 +834,10 @@ describe('Home — findings as section headings', () => {
   });
 
   it('does not make the same claim twice inside one section', async () => {
-    // The 30-day weekend finding and the section's own 12-month claim are the
-    // same sentence with different numbers. Printing both is the contradiction
-    // this wave exists to remove (F10), only worse for being 40px apart.
+    // The finding and the section's own weekend line are now the same sentence
+    // over the same window, so printing both would say one thing twice — and
+    // before the windows agreed it said one thing two different ways, 40px
+    // apart, which is the contradiction this wave exists to remove (F10).
     loadEverything();
     summaryMock.mockResolvedValue(summary([finding.weekendSkew()]));
 
@@ -821,7 +845,46 @@ describe('Home — findings as section headings', () => {
     await settle();
 
     expect(screen.getAllByText(/cost more/)).toHaveLength(1);
-    expect(claims('When you spend')[0]).toContain('over the last 30 days');
+    expect(claims('When you spend')[0]).toContain(`over the last ${HABIT_DAYS} days`);
+  });
+
+  it('states the same period in the sentence and in the section it heads', async () => {
+    // The regression wave 2 left behind: `Weekends cost more — about 206,98 zł a
+    // day over the last 30 days` printed directly above a chart of twelve months
+    // that said 186,47 (`docs/fix-finding-window-spec.md`). A finding heading a
+    // section it was not measured over is a caption for a different chart.
+    //
+    // Neither side is compared against a constant here. The sentence is read off
+    // the screen and the period comes from the dates the endpoint reported, so
+    // this fails if either moves without the other.
+    loadEverything();
+    summaryMock.mockResolvedValue(summary([finding.weekendSkew(), finding.merchantDrip()]));
+
+    render(home());
+    await settle();
+
+    const habit = { start: patterns().since, end: patterns().until };
+    const shop = { start: merchants.since, end: merchants.until };
+
+    expect(claims('When you spend')[0]).toContain(`over the last ${windowDays(habit)} days`);
+    expect(windowLine('When you spend')).toContain(windowDates(habit));
+
+    expect(claims('Where you shop')[0]).toContain(`in the last ${windowDays(shop)} days`);
+    expect(windowLine('Where you shop')).toContain(windowDates(shop));
+  });
+
+  it('keeps the page window on the findings that head a page window section', async () => {
+    // The other half of the same rule, and the half that was never broken: a
+    // spending section's headline follows the page control, so its sentence and
+    // its window line have to agree on 30 days rather than on the habit window.
+    loadEverything();
+    summaryMock.mockResolvedValue(summary([finding.categoryMoved()]));
+
+    render(home());
+    await settle();
+
+    expect(claims('Where it went')[0]).toContain('over the last 30 days');
+    expect(windowLine('Where it went')).toContain('Last 30 days');
   });
 
   it('drops the subscriptions total when a finding already states it', async () => {
