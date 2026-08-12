@@ -57,10 +57,13 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
   `services/categorize.ts` so the manual form can guess a category too (change 21) — it ran on the
   import and the scan paths and nowhere else.
 - `src/models/` — better-sqlite3 prepared statements (`expense`, `budget`, `category`, `currency`,
-  `fx`, `settings`, `insights`). All SQL lives here.
+  `fx`, `settings`, `insights`, `rateLimit`). All SQL lives here.
 - `src/config/` — `database.ts` (schema + idempotent migrations + seeds), `currencies.ts` (the shipped
-  ISO catalogue), `auth.ts` (HMAC tokens), `money.ts` (minor-unit conversion, via the currency table).
-- `src/middleware/` — `auth` (`requireAuth`), `validation`.
+  ISO catalogue), `auth.ts` (HMAC tokens, `AUTH_REQUIRED`, the boot assertion), `security.ts` (trust
+  proxy, the CORS allowlist, the API's helmet/CSP options), `money.ts` (minor-unit conversion, via the
+  currency table).
+- `src/middleware/` — `auth` (`requireAuth`), `rateLimit` (the SQLite store for the per-IP login
+  limiter plus the per-instance backstop), `validation`.
 - `src/services/` — `categorize.ts` (keyword auto-categorization, EN + PL); `receipt/` (OCR factory — see gotchas).
 - `src/tests/` — Jest + supertest, 278 cases across 15 files (plus `env.ts` / `paths.ts` /
   `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
@@ -99,9 +102,10 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 
 - **better-sqlite3, synchronous** — single-user self-hosted app; no async DB layer needed. The
   prepared statements in `models/` are the whole data layer.
-- **Auth is opt-in** — enabled only when `APP_PASSWORD` is set; issues a 7-day HMAC bearer signed with
-  `AUTH_SECRET || APP_PASSWORD`. **With no password the API is fully open** — fine for localhost,
-  deliberate for self-hosting.
+- **Auth is opt-in, unless it is required** — enabled only when `APP_PASSWORD` is set; issues a 7-day
+  HMAC bearer signed with `AUTH_SECRET || APP_PASSWORD`. **With no password the API is fully open** —
+  fine for localhost, deliberate for self-hosting, and catastrophic on a public host, which is what
+  `AUTH_REQUIRED` exists to make impossible (see Gotchas and `docs/hosted-security.md` §3.1).
 - **Types are duplicated per package** (`src/types/expense.types.ts` in each), not shared across the
   boundary — keep them in sync manually.
 - **Categories and currencies are fetched once in `App.tsx` and prop-drilled**, exactly like
@@ -254,9 +258,30 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 - **`config/database.ts` swallows migration errors on purpose** ("Continue even if migration fails"), so a
   failed migration is silent. Anything that depends on a table existing must check for itself and treat
   absence as an error, never as "not yet" — the auth work in `docs/hosted-security.md` turns on this.
-- **`AUTH_SECRET` is empty in `deploy/instance.env.example`**, so `getSecret()` falls back to `APP_PASSWORD`
-  and the bearer token becomes an HMAC over known plaintext (`{exp}`) keyed by the password itself. One
-  leaked token is then an offline, unthrottled cracker for the password. Generate a real secret per instance.
+- **The `AUTH_SECRET` fallback still exists and is now loud.** With it empty, `getSecret()` falls back to
+  `APP_PASSWORD` and the bearer token becomes an HMAC over known plaintext (`{exp}`) keyed by the password
+  itself — one leaked token is an offline, unthrottled cracker. Kept working for backward compatibility;
+  the backend warns at boot and **refuses to start** when `AUTH_REQUIRED` is also set.
+- **`AUTH_REQUIRED` is the difference between a laptop and a host.** Unset, auth stays opt-in and a
+  missing password means an open API — unchanged, deliberate. Set, a missing password (or a missing
+  `AUTH_SECRET`) is fatal at boot and every guarded route answers **503**, never `next()`. If you add a
+  route, mount it behind `requireAuth` and that comes free; a route that reads auth state itself must
+  treat "cannot tell" as a refusal, never as "not required".
+- **`TRUST_PROXY` is a hop count, and both directions of wrong are bad.** It counts the proxies that
+  *append* to `X-Forwarded-For`: 1 for the bundled nginx (the default), 2 behind an additional front
+  proxy such as Caddy or Fly. Too low and every visitor resolves to the proxy's address, so one
+  stranger's failed logins throttle the owner; too high and a visitor can forge the address the limiter
+  counts. `backend/src/config/security.ts` documents the values and `src/tests/security.test.ts` pins
+  the resolved `req.ip` for each chain.
+- **The CSP admits `index.html`'s two inline blocks by hash.** Edit the anti-flash `<script>` or
+  `<style>` by one character and the shipped app loads with no theme and no pre-paint background —
+  silently, because nginx serves the policy and nothing in dev does. `frontend/src/tests/csp.test.ts`
+  recomputes both hashes and fails with the replacement to paste into
+  `frontend/security-headers.conf`. Never "fix" it by adding `'unsafe-inline'` to `script-src`.
+- **nginx `add_header` does not merge**: a `location` that sets any header of its own discards every
+  header inherited from the server block. That is why the security headers live in
+  `frontend/security-headers.conf` and are `include`d per location — and why `location ^~ /api` does
+  *not* include them, since Express sets its own and `add_header` would append a second copy.
 
 ## Definition of done
 

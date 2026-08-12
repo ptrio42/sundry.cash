@@ -10,8 +10,9 @@ Every number here has a source. Where there is no source, it says so and names t
 ours. That distinction is the point of the document: a plausible-sounding parameter with no
 provenance is exactly the failure mode this file exists to prevent.
 
-Nothing here is built yet. `docs/demo-and-hosting-spec.md` covers the instance mechanics;
-this covers what has to be true before a stranger pays and types real numbers in.
+Most of this is not built yet — the server-side subset that is, is listed in §3.1.
+`docs/demo-and-hosting-spec.md` covers the instance mechanics; this covers what has to be true
+before a stranger pays and types real numbers in.
 
 ---
 
@@ -243,6 +244,34 @@ surprises. **These block taking money, not shipping the landing page.**
 Explicitly **not** worth fixing, per the same review: receipt upload path traversal, the
 pool-allocation race, and "one Fly token is everything" — the last is true and is the definition of
 operating a hosting service, not a vulnerability.
+
+### 3.1 What has been implemented (branch `feat/auth-hardening`)
+
+Seven server-side changes, all of them things a decision does not block. Each is covered by tests,
+because a security control with no test is one that gets removed by accident.
+
+| Change | Where | Note |
+|---|---|---|
+| `AUTH_REQUIRED` — fail **closed** | `config/auth.ts`, `middleware/auth.ts`, `server.ts` | Set it and a missing password is fatal at boot *and* answers 503 on every guarded route. Unset, the opt-in default is byte-for-byte what it was: a laptop install does not change. `/auth/status` reports `authRequired: true` in the broken state, because the frontend reads `false` as "render the app". |
+| `TRUST_PROXY` replaces the hardcoded `1` | `config/security.ts` | 1 = bundled nginx, 2 = a front proxy (Caddy, or Fly) in front of it. Tests pin the resolved `req.ip` for both chains, including the §2.4 trap where a Fly-shaped chain read with `1` resolves every visitor to a Fly address. |
+| Login throttling moved into SQLite | `models/rateLimit.ts`, `middleware/rateLimit.ts` | An `express-rate-limit` store over better-sqlite3, so autostop no longer wipes the counter — plus a per-instance backstop with a doubling delay (5 free, then 1s→15min) for the attacker who simply rotates address. The schedule is our judgement and says so. |
+| CORS allowlisted | `config/security.ts` | Default allows **nothing**: nginx and the Vite dev proxy both serve the SPA same-origin, so no supported setup needs a CORS header. `CORS_ORIGINS` is exact-match, no regex. |
+| A real CSP, plus the rest of the header list | `frontend/security-headers.conf`, `config/security.ts` | The SPA gets a strict policy with the two inline blocks admitted **by hash**; the API gets `default-src 'none'`. HSTS / `X-Frame-Options: DENY` / nosniff / `Referrer-Policy` / `Permissions-Policy` on both. Verified in a browser against the built app, not by reading the header back. |
+| `AUTH_SECRET` fallback warned about, and refused when it matters | `config/auth.ts`, `deploy/instance.env.example` | Still falls back for backward compatibility, warns loudly at boot, and is **fatal** under `AUTH_REQUIRED`. The example env now says `openssl rand -hex 32`. |
+| The error handler stopped echoing `err.message` | `server.ts` | Status only on the wire; the detail stays in the log. |
+
+Two things worth correcting in this document rather than leaving for the next reader:
+
+- **§2.4's row about `trust proxy` is right about the consequence and imprecise about the number.**
+  It says `app.set('trust proxy', 1)` is wrong on Fly "with an in-container nginx", which is true,
+  but the fix is not "do not trust a proxy" — it is to count the hops that *append* to
+  `X-Forwarded-For`, which on that topology is two (Fly's proxy, then nginx). `Fly-Client-IP` is a
+  second, simpler answer that Express cannot use without a custom key generator; the hop count is
+  the one that needs no new mechanism, and it is what shipped.
+- **Finding 2 bundles two controls with different lifetimes.** Brute force is fixed here; the
+  password policy it names in the same breath is not, because it belongs with the move of the
+  password into the database and the Argon2id-versus-scrypt decision in §6. Splitting them is what
+  made this branch shippable without waiting on a measurement.
 
 ---
 
