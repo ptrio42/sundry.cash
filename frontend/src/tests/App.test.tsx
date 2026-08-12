@@ -27,6 +27,8 @@ import {
   getFxRates,
   getBudgets,
   getInsightsSummary,
+  createExpense,
+  deleteExpense,
 } from '../services/api';
 import { AppSettings, InstanceConfig } from '../types/expense.types';
 
@@ -58,6 +60,10 @@ vi.mock('../services/api', () => ({
   deleteExpense: vi.fn(),
   deleteAllExpenses: vi.fn(),
   getInsightsSummary: vi.fn(),
+  // The Add sheet's two panels. Only the tab that is selected is mounted, so
+  // the scanning pair is never called from here — see AddSheet.test.tsx.
+  scanReceipt: vi.fn(),
+  createReceiptExpense: vi.fn(),
   // Home's five other calls, and the two the importer inside its Start card
   // makes. Nothing here has a ledger to report on, so they are never called —
   // but a missing export would fail as `undefined is not a function` the day one
@@ -93,6 +99,10 @@ beforeEach(() => {
   // The route is read from the URL, and jsdom keeps one window for the whole
   // file — so start every case on a URL that names nothing.
   window.history.replaceState(null, '', '/');
+  // The Add sheet remembers which tab was used last, and jsdom keeps one
+  // localStorage too. Cleared, every case opens on the desktop default (Type),
+  // which is what these tests type into.
+  localStorage.removeItem('sundry-add-method');
 });
 
 /** Render and wait for the shell — the nav appears once the config call settles. */
@@ -122,6 +132,29 @@ const DESTINATIONS = ['Home', 'Expenses', 'Budgets', 'Settings'];
 const GONE = ['Dashboard', 'Analytics', 'Insights', 'Currencies', 'Import Excel', 'Scan Receipt', 'All Expenses', 'More'];
 
 const goTo = (label: string) => fireEvent.click(within(sidebarNav()).getByRole('button', { name: label }));
+
+/** The persistent action, from the sidebar. Both navs offer it; either will do. */
+const openSheet = () => fireEvent.click(screen.getAllByRole('button', { name: 'Add expense' })[0]);
+const sheet = () => screen.queryByRole('dialog', { name: 'Add expense' });
+
+/** One expense, saved through the sheet's "Type it" tab. */
+const SAVED = {
+  id: 7,
+  amount: 24.9,
+  date: '2026-08-11',
+  description: 'Coffee',
+  category: 'groceries',
+  currency: 'PLN',
+};
+
+const typeAndSave = async () => {
+  openSheet();
+  await screen.findByRole('dialog', { name: 'Add expense' });
+  fireEvent.change(screen.getByLabelText(/^amount$/i), { target: { value: '24.90' } });
+  fireEvent.change(screen.getByLabelText(/^description$/i), { target: { value: 'Coffee' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add Expense' }));
+  await waitFor(() => expect(sheet()).not.toBeInTheDocument());
+};
 
 describe('App — navigation', () => {
   it('offers four destinations and no more', async () => {
@@ -198,6 +231,9 @@ describe('App — the status line', () => {
   });
 
   it('says something different on each destination', async () => {
+    // Four lines for four destinations. There used to be a fifth, for Add —
+    // which is not a screen any more but a sheet over one, and the line under
+    // the title goes on describing the screen you did not leave.
     await renderApp();
 
     const seen = new Set<string>();
@@ -206,12 +242,8 @@ describe('App — the status line', () => {
       await screen.findByRole('heading', { level: 1, name: label });
       seen.add(statusLine()?.textContent ?? '');
     }
-    // Plus the Add action, which is not one of the destinations.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Add expense' })[0]);
-    await screen.findByRole('heading', { level: 1, name: 'Add expense' });
-    seen.add(statusLine()?.textContent ?? '');
 
-    expect(seen.size).toBe(5);
+    expect(seen.size).toBe(4);
   });
 
   it('states the window a screen actually has — the month, on Budgets', async () => {
@@ -333,12 +365,153 @@ describe('App — when /api/config cannot be reached', () => {
     expect(getExpenses).toHaveBeenCalled();
   });
 
-  it('offers no receipt scanning either way, until the Add sheet exists', async () => {
-    // `receiptsEnabled` has no consumer between this wave and wave 3: scanning is
-    // not reachable from anywhere, so there is nothing for the flag to gate. Wave
-    // 3 puts Scan back behind the Add sheet and this expectation inverts.
-    await renderApp({ receiptsEnabled: true });
+  it('keeps receipt scanning, which a failed config call must not take away', async () => {
+    // The flag has a consumer again since wave 3a — the Add sheet's Scan tab —
+    // so the fail-open default matters: an unreachable `/api/config` on
+    // someone's own install must not remove a way of recording an expense.
+    mocked(getInstanceConfig).mockRejectedValue(new Error('HTTP error 404'));
 
-    expect(screen.queryByRole('button', { name: /scan receipt/i })).not.toBeInTheDocument();
+    await renderApp();
+    openSheet();
+
+    expect(await screen.findByRole('tab', { name: /scan a receipt/i })).toBeInTheDocument();
+  });
+
+  it('drops the Scan tab on an instance that has scanning switched off', async () => {
+    await renderApp({ receiptsEnabled: false });
+    openSheet();
+
+    await screen.findByRole('dialog', { name: 'Add expense' });
+    expect(screen.queryByRole('tab', { name: /scan a receipt/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('App — the Add sheet', () => {
+  it('opens over the destination you are on, which stays rendered underneath', async () => {
+    // Change 10: recording is an input method, not a place. The screen you were
+    // reading is still there when you close it, because you never left it.
+    await renderApp();
+    expect(screen.getByRole('button', { name: 'Add your first expense' })).toBeInTheDocument();
+
+    openSheet();
+    await screen.findByRole('dialog', { name: 'Add expense' });
+
+    expect(title()).toHaveTextContent('Home');
+    expect(screen.getByRole('button', { name: 'Add your first expense' })).toBeInTheDocument();
+    await waitFor(() => expect(window.location.hash).toBe('#/home/add'));
+  });
+
+  it('opens over every one of them, not over one chosen for you', async () => {
+    await renderApp();
+
+    for (const label of DESTINATIONS) {
+      goTo(label);
+      await screen.findByRole('heading', { level: 1, name: label });
+
+      openSheet();
+      await screen.findByRole('dialog', { name: 'Add expense' });
+      expect(title()).toHaveTextContent(label);
+      await waitFor(() => expect(window.location.hash).toBe(`#/${label.toLowerCase()}/add`));
+
+      fireEvent.click(screen.getByRole('button', { name: /close dialog/i }));
+      await waitFor(() => expect(sheet()).not.toBeInTheDocument());
+      // Closing pops a history entry, which lands a task later: wait for it, or
+      // the next destination race the pop and lose.
+      await waitFor(() => expect(window.location.hash).toBe(`#/${label.toLowerCase()}`));
+    }
+  });
+
+  it('closes on save, leaves you where you were, and says what was saved', async () => {
+    // F7: this used to `navigate('expenses')` and say nothing at all, so the
+    // only evidence that a save had happened was that the app had moved you.
+    mocked(createExpense).mockResolvedValue(SAVED);
+    await renderApp();
+    goTo('Budgets');
+    await screen.findByRole('heading', { level: 1, name: 'Budgets' });
+
+    await typeAndSave();
+
+    expect(title()).toHaveTextContent('Budgets');
+    await waitFor(() => expect(window.location.hash).toBe('#/budgets'));
+    const line = screen.getByRole('status');
+    expect(line).toHaveTextContent(/Added/);
+    expect(line).toHaveTextContent('Groceries');
+  });
+
+  it('takes the row back when the confirmation is undone', async () => {
+    mocked(createExpense).mockResolvedValue(SAVED);
+    mocked(deleteExpense).mockResolvedValue(undefined);
+    await renderApp();
+    goTo('Budgets');
+    await screen.findByRole('heading', { level: 1, name: 'Budgets' });
+    await typeAndSave();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+    await waitFor(() => expect(deleteExpense).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(screen.getByRole('status')).toBeEmptyDOMElement());
+  });
+
+  it('opens the edit modal on the row the confirmation is about', async () => {
+    mocked(createExpense).mockResolvedValue(SAVED);
+    await renderApp();
+    goTo('Budgets');
+    await screen.findByRole('heading', { level: 1, name: 'Budgets' });
+    await typeAndSave();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    const modal = await screen.findByRole('dialog', { name: 'Edit Expense' });
+    expect((within(modal).getByLabelText(/description/i) as HTMLInputElement).value).toBe('Coffee');
+  });
+
+  it('closes on Back rather than leaving the destination', async () => {
+    await renderApp();
+    goTo('Budgets');
+    await waitFor(() => expect(window.location.hash).toBe('#/budgets'));
+
+    openSheet();
+    await screen.findByRole('dialog', { name: 'Add expense' });
+    await waitFor(() => expect(window.location.hash).toBe('#/budgets/add'));
+
+    window.history.back();
+
+    await waitFor(() => expect(sheet()).not.toBeInTheDocument());
+    expect(window.location.hash).toBe('#/budgets');
+    expect(title()).toHaveTextContent('Budgets');
+  });
+
+  it('leaves nothing behind for Back to reopen once it is closed', async () => {
+    // Closing pops the entry opening pushed. Without that, the gesture for
+    // "back to what I was reading" would put the sheet up again.
+    await renderApp();
+    goTo('Budgets');
+    await waitFor(() => expect(window.location.hash).toBe('#/budgets'));
+
+    openSheet();
+    await waitFor(() => expect(window.location.hash).toBe('#/budgets/add'));
+    fireEvent.click(screen.getByRole('button', { name: /close dialog/i }));
+    await waitFor(() => expect(window.location.hash).toBe('#/budgets'));
+
+    window.history.back();
+
+    await waitFor(() => expect(window.location.hash).toBe('#/home'));
+    expect(sheet()).not.toBeInTheDocument();
+    expect(title()).toHaveTextContent('Home');
+  });
+
+  it('renders the sheet for a URL that names it, without a Back press to pop', async () => {
+    // A reload, or a shared link. Nothing of ours is behind this entry, so
+    // closing rewrites the URL in place rather than popping out of the app.
+    window.history.replaceState(null, '', '#/budgets/add');
+    await renderApp();
+
+    expect(await screen.findByRole('dialog', { name: 'Add expense' })).toBeInTheDocument();
+    expect(title()).toHaveTextContent('Budgets');
+
+    fireEvent.click(screen.getByRole('button', { name: /close dialog/i }));
+
+    await waitFor(() => expect(sheet()).not.toBeInTheDocument());
+    expect(window.location.hash).toBe('#/budgets');
   });
 });

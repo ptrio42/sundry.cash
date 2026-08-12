@@ -784,6 +784,103 @@ tfoot td { border-top: 2px solid var(--border-strong); border-bottom: none; }
 }
 .modal-close:hover { color: var(--text); border-color: var(--border-strong); }
 
+/* ---------- Add sheet ---------- */
+/* Scan and Type as two tabs of one overlay, over whatever destination you were
+   on (change 10). Wider than `.modal-content`'s 480px because the receipt
+   review puts the photo beside the fields — and bottom-anchored on a phone,
+   where a sheet that rises to meet the thumb is the shape the raised "+" in the
+   bottom bar implies. */
+.add-sheet { max-width: 820px; }
+
+/* The review grid's own breakpoint asks the viewport, which is not the width
+   this content has any more: below 980px the sheet is narrower than two usable
+   columns, so the photo goes above the fields rather than beside them. */
+@media (max-width: 980px) {
+  .add-sheet .receipt-review-grid { grid-template-columns: 1fr; }
+  .add-sheet .receipt-review-grid .receipt-preview { max-width: 320px; }
+}
+
+.add-sheet-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.add-sheet-tabs button {
+  /* min-width:0 is what makes `flex: 1 1 0` real — the same reason the bottom
+     bar's tabs need it. */
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.add-sheet-tabs button:hover { color: var(--text); }
+/* The same language the app already uses for a chosen item in a set — the
+   window and currency controls on Home. A shade-only difference reads clearly
+   on the dark theme and barely at all on the light one, where every surface is
+   within a few points of white. `inset` rather than a border: the buttons have
+   none, and adding one on selection would shift the row. */
+.add-sheet-tabs button[aria-selected='true'] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--accent);
+}
+
+@media (max-width: 680px) {
+  .add-sheet-backdrop { align-items: flex-end; padding: 0; }
+  .add-sheet {
+    max-width: none;
+    max-height: 94vh;
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: none;
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ---------- "Added" confirmation ---------- */
+/* What replaced being thrown into the ledger on every save (change 11, F7).
+   The slot is always in the document so the live region exists before it has
+   anything to announce; empty, it has no padding and so no height. */
+.added-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 34px 0;
+  padding: 10px 14px;
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  font-size: 0.92rem;
+}
+.added-line-text { color: var(--text); }
+.added-line .link-button { font-size: 0.92rem; font-weight: 600; }
+.added-line-sep { color: var(--text-muted); }
+.added-line-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 2px 4px;
+}
+.added-line-dismiss:hover { color: var(--text); }
+
+@media (max-width: 680px) {
+  .added-line { margin: 12px 16px 0; }
+}
+
 /* ---------- Login ---------- */
 .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .login-card {

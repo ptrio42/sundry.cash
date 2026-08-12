@@ -6,16 +6,17 @@
  * per-screen status line and the application state every screen is fed from.
  *
  * Home is the real thing as of wave 2: `Dashboard`, `Insights` and
- * `InsightsStrip` merged into one screen that leads with what it found. Waves 3
- * and 4 rebuild Expenses and Budgets the same way. `Analytics`, `Fx` and
- * `ReceiptScan` are still not reachable: they lose their nav entries here and
- * are re-entered from within their new homes, so they are deliberately not
+ * `InsightsStrip` merged into one screen that leads with what it found. Wave 3a
+ * turned Add into a sheet over whatever you were reading, so `ExpenseForm` and
+ * `ReceiptScan` are mounted by `AddSheet` rather than by a route here.
+ * `Analytics` and `Fx` are still not reachable: they lose their nav entries here
+ * and are re-entered from within their new homes, so they are deliberately not
  * imported rather than deleted. `ExcelImport` is reachable again, but from
  * inside Home's Start card rather than from a destination of its own.
  */
 
 import { useState, useEffect } from 'react';
-import ExpenseForm from './ExpenseForm';
+import AddSheet, { AddedLine } from './AddSheet';
 import ExpenseTable from './ExpenseTable';
 import Home from './Home';
 import Budgets from './Budgets';
@@ -44,7 +45,10 @@ const NAV: NavItem[] = [
   { key: 'settings', label: 'Settings', icon: '⚙️' },
 ];
 
-/** The persistent action. Not a destination: it is reachable from every one of them. */
+/**
+ * The persistent action. Not a destination and no longer even a route: it opens
+ * `AddSheet` over wherever you are (change 10), and closing it leaves you there.
+ */
 const ADD_LABEL = 'Add expense';
 
 const TITLES: Record<Destination, string> = {
@@ -52,7 +56,6 @@ const TITLES: Record<Destination, string> = {
   expenses: 'Expenses',
   budgets: 'Budgets',
   settings: 'Settings',
-  add: ADD_LABEL,
 };
 
 /**
@@ -76,9 +79,9 @@ const BOOT_DESTINATION: Destination = 'home';
  * off by default: it is a claim about the data, and we only make it when the
  * server said so.
  *
- * `receiptsEnabled` has no consumer in this wave — scanning is not reachable
- * from anywhere until wave 3 puts it behind the Add sheet, which is where the
- * flag will gate it again.
+ * `receiptsEnabled` gates the Add sheet's Scan tab, which is the only way into
+ * scanning since wave 3a — an instance with OCR off would 403 the upload, so
+ * the tab is not offered.
  */
 const DEFAULT_INSTANCE: InstanceConfig = { demoMode: false, receiptsEnabled: true };
 
@@ -124,8 +127,10 @@ export default function App() {
   const [fxRates, setFxRates] = useState<FxRates>(DEFAULT_FX_RATES);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
-  const [destination, navigate] = useRoute(BOOT_DESTINATION);
+  const { destination, addOpen, navigate, openAdd, closeAdd } = useRoute(BOOT_DESTINATION);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  /** The expense the Add sheet just saved, while its confirmation is still up. */
+  const [lastAdded, setLastAdded] = useState<Expense | null>(null);
   const [authChecked, setAuthChecked] = useState<boolean>(false);
   const [authRequired, setAuthRequired] = useState<boolean>(false);
   const [authed, setAuthed] = useState<boolean>(false);
@@ -215,12 +220,46 @@ export default function App() {
 
   /**
    * Handle new expense added
+   *
+   * Change 11: the sheet closes, you stay exactly where you were, and a line
+   * says what was saved. Saving used to `navigate('expenses')` and say nothing
+   * at all, so the only evidence that anything had happened was that the app had
+   * moved you — on the most frequent action in the product (F7).
    */
   const handleExpenseAdded = (newExpense: Expense) => {
     setExpenses(prev => [newExpense, ...prev]);
-    // Straight to the ledger, as today. Change 11 — staying where you were, with
-    // an inline confirmation — arrives with the Add sheet in wave 3.
-    navigate('expenses');
+    closeAdd();
+    setLastAdded(newExpense);
+  };
+
+  /** Open the sheet. The previous confirmation goes: it is about to be replaced. */
+  const handleOpenAdd = () => {
+    setLastAdded(null);
+    openAdd();
+  };
+
+  /**
+   * Go somewhere, and drop the confirmation on the way.
+   *
+   * The line says what you just did *here*; carrying it to another screen would
+   * make it a notification, which is not what it is.
+   */
+  const goTo = (next: Destination) => {
+    setLastAdded(null);
+    navigate(next);
+  };
+
+  /** Undo: take back the row the confirmation is about. */
+  const handleUndoAdd = async () => {
+    if (!lastAdded) return;
+    try {
+      await deleteExpense(lastAdded.id);
+      setExpenses(prev => prev.filter(exp => exp.id !== lastAdded.id));
+      setLastAdded(null);
+    } catch (err) {
+      // Keep the line up: the row is still there, and Undo is still the fix.
+      alert(err instanceof Error ? err.message : 'Failed to undo');
+    }
   };
 
   /**
@@ -237,6 +276,9 @@ export default function App() {
     // Errors propagate to the caller (the edit modal), which surfaces them.
     const updated = await updateExpense(id, updates);
     setExpenses(prev => prev.map(exp => exp.id === id ? updated : exp));
+    // The confirmation names an amount and a category. Editing the row it is
+    // about through its own Edit link must not leave it stating the old ones.
+    setLastAdded(prev => (prev && prev.id === id ? updated : prev));
   };
 
   /**
@@ -351,7 +393,6 @@ export default function App() {
     expenses: 'Your whole ledger — filter, sort and export it.',
     budgets: `Limits and spending for ${monthLabel(currentMonthKey())}.`,
     settings: 'Defaults, currencies and categories for this install.',
-    add: 'One expense. It opens in the ledger once saved.',
   };
 
   /**
@@ -392,11 +433,14 @@ export default function App() {
         </div>
 
         {/* Above the destinations and styled unlike them, because it is not a
-            place you can be — it is the thing you do from wherever you are. */}
+            place you can be — it is the thing you do from wherever you are.
+            `aria-expanded` rather than `aria-current`, now that it opens a
+            sheet instead of going to a page. */}
         <button
           className="btn-add-expense"
-          onClick={() => navigate('add')}
-          aria-current={destination === 'add' ? 'page' : undefined}
+          onClick={handleOpenAdd}
+          aria-haspopup="dialog"
+          aria-expanded={addOpen}
         >
           <span className="nav-icon" aria-hidden="true">＋</span>
           {ADD_LABEL}
@@ -407,7 +451,7 @@ export default function App() {
             <button
               key={item.key}
               className={destination === item.key ? 'active' : ''}
-              onClick={() => navigate(item.key)}
+              onClick={() => goTo(item.key)}
               aria-current={destination === item.key ? 'page' : undefined}
             >
               <span className="nav-icon" aria-hidden="true">{item.icon}</span>
@@ -436,6 +480,16 @@ export default function App() {
           <p className="status-line">{STATUS[destination]}</p>
         </header>
 
+        {/* Under the title of the screen you did not leave, which is the whole
+            point of it (change 11). */}
+        <AddedLine
+          expense={lastAdded}
+          categories={categories}
+          onUndo={handleUndoAdd}
+          onEdit={() => lastAdded && setEditingExpense(lastAdded)}
+          onDismiss={() => setLastAdded(null)}
+        />
+
         <main className="content-main">
           {error && (
             <div className="error-banner">
@@ -448,7 +502,6 @@ export default function App() {
             <div className="loading">Loading expenses…</div>
           ) : (
             <>
-              {destination === 'add' && <ExpenseForm onExpenseAdded={handleExpenseAdded} settings={settings} categories={categories} currencies={currencies} />}
               {destination === 'expenses' && (
                 <ExpenseTable
                   expenses={expenses}
@@ -466,7 +519,7 @@ export default function App() {
                   categories={categories}
                   currencies={currencies}
                   rates={fxRates}
-                  onAddExpense={() => navigate('add')}
+                  onAddExpense={handleOpenAdd}
                   onExpensesStale={refreshExpenses}
                 />
               )}
@@ -503,7 +556,7 @@ export default function App() {
           <button
             key={item.key}
             className={destination === item.key ? 'active' : ''}
-            onClick={() => navigate(item.key)}
+            onClick={() => goTo(item.key)}
             aria-current={destination === item.key ? 'page' : undefined}
           >
             <span className="nav-icon" aria-hidden="true">{item.icon}</span>
@@ -512,9 +565,10 @@ export default function App() {
         ))}
 
         <button
-          className={`bottom-nav-add${destination === 'add' ? ' active' : ''}`}
-          onClick={() => navigate('add')}
-          aria-current={destination === 'add' ? 'page' : undefined}
+          className={`bottom-nav-add${addOpen ? ' active' : ''}`}
+          onClick={handleOpenAdd}
+          aria-haspopup="dialog"
+          aria-expanded={addOpen}
         >
           <span className="nav-icon" aria-hidden="true">＋</span>
           <span className="sr-only">{ADD_LABEL}</span>
@@ -524,7 +578,7 @@ export default function App() {
           <button
             key={item.key}
             className={destination === item.key ? 'active' : ''}
-            onClick={() => navigate(item.key)}
+            onClick={() => goTo(item.key)}
             aria-current={destination === item.key ? 'page' : undefined}
           >
             <span className="nav-icon" aria-hidden="true">{item.icon}</span>
@@ -532,6 +586,17 @@ export default function App() {
           </button>
         ))}
       </nav>
+
+      {/* Over whatever is above, from anywhere, and back to it when it closes. */}
+      <AddSheet
+        open={addOpen}
+        receiptsEnabled={instance.receiptsEnabled}
+        settings={settings}
+        categories={categories}
+        currencies={currencies}
+        onExpenseAdded={handleExpenseAdded}
+        onClose={closeAdd}
+      />
 
       <EditExpenseModal
         expense={editingExpense}

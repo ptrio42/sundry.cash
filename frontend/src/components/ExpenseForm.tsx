@@ -1,6 +1,10 @@
 /**
  * ExpenseForm Component
- * Form for adding new expenses with validation
+ * Form for adding new expenses with validation.
+ *
+ * The "Type it" tab of `AddSheet` since wave 3, and not a destination any more
+ * (change 10). It renders no heading of its own: the sheet's header says "Add
+ * expense" once, and the tab above says which of the two ways this is.
  */
 
 import { useState, FormEvent } from 'react';
@@ -113,8 +117,6 @@ export default function ExpenseForm({ onExpenseAdded, settings, categories, curr
 
   return (
     <div className="expense-form">
-      <h2>Add New Expense</h2>
-
       {error && <div className="error-message">{error}</div>}
 
       <form onSubmit={handleSubmit}>
