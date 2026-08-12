@@ -6,7 +6,7 @@
 
 import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import { isAuthEnabled, passwordMatches, signToken } from '../config/auth';
+import { isAuthEnabled, isAuthMisconfigured, isAuthRequired, passwordMatches, signToken } from '../config/auth';
 
 const router = Router();
 
@@ -30,11 +30,29 @@ const loginLimiter = rateLimit({
   message: { error: 'Too many login attempts. Try again later.' },
 });
 
+/**
+ * A misconfigured instance answers 503 here too, and reports `authRequired:
+ * true` below.
+ *
+ * Both matter to the same trap: the frontend treats `authRequired: false` as
+ * "no login needed and the app may render". An instance that demands a password
+ * it does not have must therefore not answer `false` — it is not an open
+ * instance, it is a broken one, and the honest report is "a password is
+ * required" plus a login route that cannot mint a token.
+ */
 router.get('/status', (_req: Request, res: Response) => {
-  res.json({ authRequired: isAuthEnabled() });
+  res.json({ authRequired: isAuthEnabled() || isAuthRequired() });
 });
 
 router.post('/login', loginLimiter, (req: Request, res: Response) => {
+  if (isAuthMisconfigured()) {
+    res.status(503).json({
+      error: 'Service Unavailable',
+      message: 'Authentication is required on this instance but is not configured.',
+    });
+    return;
+  }
+
   if (!isAuthEnabled()) {
     res.status(400).json({ error: 'Authentication is not enabled' });
     return;

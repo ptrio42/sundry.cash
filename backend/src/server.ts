@@ -20,6 +20,7 @@ import insightsRoutes from './routes/insights';
 import { requireAuth } from './middleware/auth';
 import { receiptsEnabled } from './middleware/features';
 import { isDemoMode, isReceiptsEnabled } from './config/instance';
+import { authConfigurationProblems, isAuthRequired, secretSource } from './config/auth';
 import { closeDatabase } from './config/database';
 
 // Initialize Express app
@@ -98,9 +99,33 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   });
 });
 
+/**
+ * Refuse to start in a configuration that cannot enforce what it promises.
+ *
+ * Two fatal cases, both from docs/hosted-security.md §3: AUTH_REQUIRED with no
+ * password (the instance would serve a stranger's ledger to anyone), and
+ * AUTH_REQUIRED with no AUTH_SECRET (tokens signed with the password itself).
+ * `requireAuth` also answers 503 for the first one — belt and braces, because
+ * the password is going to move into SQLite later, where "no row" is a state
+ * this process can reach *after* boot.
+ */
+function assertSecureConfiguration(): void {
+  const { fatal, warnings } = authConfigurationProblems();
+  for (const warning of warnings) {
+    console.warn(`⚠️  ${warning}`);
+  }
+  if (fatal.length === 0) return;
+
+  console.error('❌ Refusing to start — the auth configuration is unsafe:');
+  for (const problem of fatal) console.error(`   • ${problem}`);
+  process.exit(1);
+}
+
 // Start the server only when run directly — not when imported by tests
 // (importing `app` should not bind a port or register signal handlers).
 if (process.env.NODE_ENV !== 'test') {
+  assertSecureConfiguration();
+
   const server = app.listen(PORT, () => {
     console.log(`✅ Server is running on http://localhost:${PORT}`);
     console.log(`📊 API available at http://localhost:${PORT}/api/expenses`);
@@ -108,6 +133,9 @@ if (process.env.NODE_ENV !== 'test') {
     // say: an unrecognised value falls back to the default (see config/instance.ts),
     // and this line is where a typo becomes visible instead of silent.
     console.log(`⚙️  Instance: demoMode=${isDemoMode()} receiptsEnabled=${isReceiptsEnabled()}`);
+    // The security posture gets its own line for the same reason: these three
+    // are the difference between a laptop install and one a stranger can reach.
+    console.log(`🔒 Security: authRequired=${isAuthRequired()} tokensSignedWith=${secretSource()}`);
   });
 
   // Graceful shutdown

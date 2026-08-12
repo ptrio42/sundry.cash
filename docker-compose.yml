@@ -41,6 +41,11 @@ services:
       # Falls back to APP_PASSWORD when empty. Set it per instance so a leaked
       # token is not also an oracle for the password itself.
       - AUTH_SECRET=${AUTH_SECRET:-}
+      # Turns the opt-in above into a requirement: with this true and no
+      # password, the backend refuses to start and every guarded route answers
+      # 503 instead of serving the ledger. Set it on anything with a public
+      # hostname; leave it false for a laptop.
+      - AUTH_REQUIRED=${AUTH_REQUIRED:-false}
       # Instance flags, reported publicly by GET /api/config. Orthogonal on
       # purpose: a demo is not automatically read-only, and an instance with
       # uploads off is not automatically a demo.
