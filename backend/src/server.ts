@@ -21,26 +21,41 @@ import { requireAuth } from './middleware/auth';
 import { receiptsEnabled } from './middleware/features';
 import { isDemoMode, isReceiptsEnabled } from './config/instance';
 import { authConfigurationProblems, isAuthRequired, secretSource } from './config/auth';
+import { allowedOrigins, corsOptions, helmetOptions, resolveTrustProxy, trustProxyWarnings } from './config/security';
 import { closeDatabase } from './config/database';
 
 // Initialize Express app
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
-// nginx is the only way in for a Docker/LAN install, so without this every
-// client shares one apparent IP and the login rate limiter would throttle the
-// whole network as a single caller. One hop = the bundled reverse proxy.
-app.set('trust proxy', 1);
+// How many proxies append to X-Forwarded-For in front of this process. The old
+// hardcoded 1 was right for exactly one deployment (the bundled nginx) and turns
+// the per-IP login limiter into one global bucket anywhere the chain is longer.
+// TRUST_PROXY is the knob; `config/security.ts` documents the correct values.
+app.set('trust proxy', resolveTrustProxy());
 
-// Security headers. contentSecurityPolicy is off because this process only
-// serves JSON and receipt images — the frontend (and its CSP) is nginx's job,
-// and a default CSP here would apply to responses that never render as pages.
-app.use(helmet({ contentSecurityPolicy: false }));
+// Security headers, including a CSP. This process serves JSON and receipt
+// images and never a rendered page, so the policy is `default-src 'none'` —
+// nothing to load, nothing to frame, nothing to submit. The SPA's own policy
+// belongs to whatever serves it (frontend/nginx.conf), which is a different
+// document and a different answer. See config/security.ts for the sources.
+app.use(helmet(helmetOptions()));
 
-// Middleware
-app.use(cors()); // Enable CORS for frontend
+// CORS, allowlisted rather than open. Both supported setups serve the SPA
+// same-origin (nginx in production, the Vite dev proxy in development), so the
+// default allows nothing at all — see config/security.ts.
+app.use(cors(corsOptions()));
 app.use(express.json({ limit: '1mb' })); // Parse JSON request bodies
 app.use(express.urlencoded({ extended: true, limit: '1mb' })); // Parse URL-encoded bodies
+
+// The ledger, its receipts and its budgets are the sensitive data OWASP's HTTP
+// Security Response Headers cheat sheet has in mind for `no-store`: without it
+// a browser (or any shared cache in a chain the operator did not choose) may
+// keep a copy of someone's finances on disk after they log out.
+app.use('/api', (_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 
 // Request logging middleware
 app.use((req: Request, _res: Response, next: NextFunction) => {
@@ -90,13 +105,15 @@ app.use((req: Request, res: Response) => {
   });
 });
 
-// Global error handler
+// Global error handler.
+//
+// The message stays in the log and never goes on the wire: `err.message` is
+// written by whatever threw, so it can carry a file path, a SQL fragment or a
+// row's contents, and this handler catches everything from a JSON parse failure
+// to a driver error. The client gets the status and nothing else.
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('Unhandled error:', err);
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: err.message
-  });
+  res.status(500).json({ error: 'Internal Server Error' });
 });
 
 /**
@@ -111,7 +128,7 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
  */
 function assertSecureConfiguration(): void {
   const { fatal, warnings } = authConfigurationProblems();
-  for (const warning of warnings) {
+  for (const warning of [...warnings, ...trustProxyWarnings()]) {
     console.warn(`⚠️  ${warning}`);
   }
   if (fatal.length === 0) return;
@@ -135,7 +152,10 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`⚙️  Instance: demoMode=${isDemoMode()} receiptsEnabled=${isReceiptsEnabled()}`);
     // The security posture gets its own line for the same reason: these three
     // are the difference between a laptop install and one a stranger can reach.
-    console.log(`🔒 Security: authRequired=${isAuthRequired()} tokensSignedWith=${secretSource()}`);
+    console.log(
+      `🔒 Security: authRequired=${isAuthRequired()} tokensSignedWith=${secretSource()} ` +
+      `trustProxy=${String(resolveTrustProxy())} corsOrigins=${allowedOrigins().length}`
+    );
   });
 
   // Graceful shutdown

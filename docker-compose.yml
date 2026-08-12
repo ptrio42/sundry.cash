@@ -46,6 +46,14 @@ services:
       # 503 instead of serving the ledger. Set it on anything with a public
       # hostname; leave it false for a laptop.
       - AUTH_REQUIRED=${AUTH_REQUIRED:-false}
+      # Proxies in front of the backend that append to X-Forwarded-For. 1 is
+      # this compose file (the bundled nginx). 2 if a front proxy such as Caddy
+      # or Fly sits in front of that — otherwise the login limiter counts every
+      # visitor as one address. See backend/src/config/security.ts.
+      - TRUST_PROXY=${TRUST_PROXY:-1}
+      # Cross-origin callers, comma-separated. Empty is correct here: nginx
+      # serves the SPA on the same origin as /api, so nothing is cross-origin.
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
       # Instance flags, reported publicly by GET /api/config. Orthogonal on
       # purpose: a demo is not automatically read-only, and an instance with
       # uploads off is not automatically a demo.
