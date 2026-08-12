@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img">
+  <title>Sundry sign-out</title>
+  <defs>
+  <mask id="signOutMask">
+    <rect width="24" height="24" fill="white"/>
+    
+    <rect x="6.8" y="6.7" width="4.2" height="10.6" rx=".7" fill="black"/>
+
+  </mask>
+</defs>
+  
+  <path fill="currentColor" mask="url(#signOutMask)" d="M4.1 3.4h9.2q1.1 0 1.1 1.1v15q0 1.1-1.1 1.1H4.1V3.4Z"/>
+  <path fill="currentColor" d="M12.4 10.6h5.1l-1.8-1.8 1.6-1.6 4.5 4.8-4.5 4.8-1.6-1.6 1.8-1.8h-5.1v-2.8Z"/>
+
+</svg>

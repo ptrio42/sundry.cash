@@ -1,0 +1,38 @@
+{
+  "name": "sundry-icon-set-cplus-drop-b",
+  "system": "C+ light-first",
+  "masterGrid": "24x24",
+  "baseIcons": [
+    "receipt-scan",
+    "compose",
+    "receipt-view",
+    "sign-out",
+    "retry",
+    "external-link",
+    "recurring",
+    "merchant",
+    "calendar-week",
+    "category"
+  ],
+  "microIcons": [
+    "external-link"
+  ],
+  "rules": {
+    "baseUsesCurrentColor": true,
+    "hardcodedHexInDeliverableSvg": false,
+    "sameGeometryAcrossThemes": true,
+    "perStateColorFilesIncluded": false,
+    "microRule": "Use svg/micro at 14px where supplied; otherwise svg/base."
+  },
+  "semanticNotes": {
+    "compose": "Keyboard/form metaphor so it cannot be confused with Drop A edit/pencil.",
+    "receipt-scan": "Receipt plus scan frame for the camera path.",
+    "receipt-view": "Receipt plus eye, distinct from scan.",
+    "sign-out": "Door plus outward arrow; designed to read without a label.",
+    "retry": "Circular retry, distinct from Drop A undo.",
+    "merchant": "Storefront = who you paid.",
+    "category": "Tag = what for.",
+    "calendar-week": "Seven-day pattern, distinct from Drop A calendar/date-range."
+  },
+  "briefConsistencyNote": "The brief says two icons are marked [micro], but only external-link is explicitly marked 14px/[micro]. No unmarked second micro icon was guessed."
+}

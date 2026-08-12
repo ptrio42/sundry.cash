@@ -89,3 +89,28 @@ a section heading only.
 1. `receipt-scan` + `compose` — the Add sheet's two tabs
 2. `receipt-view`, `sign-out`, `retry`, `external-link`
 3. the four section marks
+
+---
+
+## Status — delivered
+
+All ten. 10/10 base SVGs on `currentColor` with no hardcoded hex, `micro` supplied for
+`external-link` alone — the only one marked for it — and `perStateColorFilesIncluded: false`, which
+is the inheritance decision honoured rather than worked around.
+
+Every semantic constraint in this brief is answered in the drop's own manifest, so the reasoning
+survives without this file:
+
+- **`compose`** — "Keyboard/form metaphor so it cannot be confused with Drop A edit/pencil." This
+  was the one real trap and it was taken head-on rather than resolved with a second pencil.
+- **`receipt-view`** — receipt plus eye, distinct from `receipt-scan`'s scan frame.
+- **`retry`** — circular, distinct from drop A's `undo`.
+- **`merchant`** storefront = *who you paid*; **`category`** tag = *what for*. The two sections that
+  sit apart on Home now read apart.
+- **`calendar-week`** — a seven-day pattern, distinct from drop A's date-range `calendar`.
+- **`sign-out`** — door plus outward arrow, "designed to read without a label", which is what the
+  sidebar's label-less caller needs.
+
+**The icon system is complete: 7 nav + 22 drop A + 10 drop B = 39.** Every icon-bearing control in
+the app is covered. What remains is wiring them in — replacing the emoji in `NAV`, and the literal
+`↑ ↓ ⇅ →` still in the components.

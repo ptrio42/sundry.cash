@@ -1,0 +1,61 @@
+{
+  "base": {
+    "category.svg": {
+      "usesCurrentColor": true,
+      "containsHex": false,
+      "viewBox24": true
+    },
+    "receipt-scan.svg": {
+      "usesCurrentColor": true,
+      "containsHex": false,
+      "viewBox24": true
+    },
+    "recurring.svg": {
+      "usesCurrentColor": true,
+      "containsHex": false,
+      "viewBox24": true
+    },
+    "external-link.svg": {
+      "usesCurrentColor": true,
+      "containsHex": false,
+      "viewBox24": true
+    },
+    "retry.svg": {
+      "usesCurrentColor": true,
+      "containsHex": false,
+      "viewBox24": true
+    },
+    "receipt-view.svg": {
+      "usesCurrentColor": true,
+      "containsHex": false,
+      "viewBox24": true
+    },
+    "merchant.svg": {
+      "usesCurrentColor": true,
+      "containsHex": false,
+      "viewBox24": true
+    },
+    "calendar-week.svg": {
+      "usesCurrentColor": true,
+      "containsHex": false,
+      "viewBox24": true
+    },
+    "compose.svg": {
+      "usesCurrentColor": true,
+      "containsHex": false,
+      "viewBox24": true
+    },
+    "sign-out.svg": {
+      "usesCurrentColor": true,
+      "containsHex": false,
+      "viewBox24": true
+    }
+  },
+  "micro": {
+    "external-link.svg": {
+      "usesCurrentColor": true,
+      "containsHex": false,
+      "viewBox24": true
+    }
+  }
+}

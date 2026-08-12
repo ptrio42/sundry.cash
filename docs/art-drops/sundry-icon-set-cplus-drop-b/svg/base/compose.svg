@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img">
+  <title>Sundry compose</title>
+  <defs>
+  <mask id="composeMask">
+    <rect width="24" height="24" fill="white"/>
+    <rect x="7.2" y="8.2" width="1.7" height="1.7" rx=".45" fill="black"/>
+    <rect x="10.3" y="8.2" width="1.7" height="1.7" rx=".45" fill="black"/>
+    <rect x="13.4" y="8.2" width="1.7" height="1.7" rx=".45" fill="black"/>
+    <rect x="16.5" y="8.2" width="1.7" height="1.7" rx=".45" fill="black"/>
+    <rect x="8.0" y="11.3" width="1.7" height="1.7" rx=".45" fill="black"/>
+    <rect x="11.1" y="11.3" width="1.7" height="1.7" rx=".45" fill="black"/>
+    <rect x="14.2" y="11.3" width="1.7" height="1.7" rx=".45" fill="black"/>
+    <rect x="8.1" y="15" width="7.8" height="1.7" rx=".8" fill="black"/>
+  </mask>
+</defs>
+  
+  <rect x="3.4" y="5.1" width="17.2" height="13.8" rx="3.2"
+        fill="currentColor" mask="url(#composeMask)"/>
+
+</svg>

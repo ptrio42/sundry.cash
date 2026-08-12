@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img">
+  <title>Sundry category</title>
+  <defs>
+  <mask id="categoryMask">
+    <rect width="24" height="24" fill="white"/>
+    <circle cx="15.85" cy="8.15" r="1.15" fill="black"/>
+  </mask>
+</defs>
+  
+  <path fill="currentColor" mask="url(#categoryMask)" d="
+    M4.2 8.1 9.1 3.2h8.1q.65 0 1.1.45l2.05 2.05q.45.45.45 1.1v8.1L15.9 19.8a2.1 2.1 0 0 1-3 0L4.2 11.1a2.1 2.1 0 0 1 0-3Z"/>
+
+</svg>
