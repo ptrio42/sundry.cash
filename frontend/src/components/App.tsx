@@ -43,6 +43,12 @@ import { Destination, useRoute } from '../utils/route';
    does not, and a hashed name is what lets nginx serve it immutable. */
 import logoLight from '../assets/brand/logo-horizontal-light.svg';
 import logoDark from '../assets/brand/logo-horizontal-dark.svg';
+/* The same pair cut square, for the rail. The horizontal lockup's own minimum is
+   120px wide and the rail is 68px, so a collapsed sidebar cannot show it: the
+   choice is the symbol or nothing, and nothing would leave the app's one piece
+   of identity on exactly the layout a user picked to keep it visible. */
+import symbolLight from '../assets/brand/symbol-light.svg';
+import symbolDark from '../assets/brand/symbol-dark.svg';
 import '../App.css';
 
 type NavItem = { key: Destination; label: string; icon: IconName };
@@ -125,6 +131,19 @@ const PRODUCT_URL = 'https://sundry.cash';
  */
 const THEME_KEY = 'sundry-theme';
 
+/**
+ * Whether the sidebar is a rail. Namespaced like the other three keys, and read
+ * in the state initialiser rather than from an inline script the way the theme
+ * is: the theme paints before React exists, this does not — the sidebar has no
+ * width until the shell renders, so there is no flash to head off.
+ *
+ * The value is written out in full ('collapsed' / 'expanded') rather than left
+ * absent for the default. A key that only ever appears when it is set reads as
+ * "never chosen" and "chose the default" the same way, and this one is going to
+ * be read by a human debugging their own install.
+ */
+const SIDEBAR_KEY = 'sundry-sidebar';
+
 const DEFAULT_SETTINGS: AppSettings = {
   defaultCurrency: 'USD',
   defaultCategory: 'groceries',
@@ -188,6 +207,20 @@ export default function App() {
   );
 
   const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'));
+
+  /* Desktop only, and by construction rather than by a check: every control this
+     state moves lives inside `.sidebar`, which under 680px is `display: none`.
+     A phone has a bottom bar and nothing to collapse, so there is no width to
+     remember and no toggle to press down there. */
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() =>
+    typeof localStorage !== 'undefined' && localStorage.getItem(SIDEBAR_KEY) === 'collapsed'
+  );
+
+  const toggleSidebar = () => setSidebarCollapsed(c => !c);
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_KEY, sidebarCollapsed ? 'collapsed' : 'expanded');
+  }, [sidebarCollapsed]);
 
   // Apply and persist the theme (light-first: light is the default)
   useEffect(() => {
@@ -466,7 +499,7 @@ export default function App() {
   const rightTabs = NAV.slice(2);
 
   return (
-    <div className="shell">
+    <div className={`shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
       {/*
         The banner is what makes the demo honest — not distorted data. The seed
         uses believable amounts and real shop names on purpose, so the
@@ -491,14 +524,41 @@ export default function App() {
         </div>
       )}
 
-      <aside className="sidebar">
+      <aside className="sidebar" id="sidebar">
         {/* The horizontal logo carries the wordmark, so the `<span>Sundry</span>`
             that used to sit beside a 26px app icon would now be the name twice.
             The alt text is what keeps it once for a screen reader. Picked at
             render rather than at build: the mark has a light and a dark cut and
-            the toggle has to move it. */}
+            the toggle has to move it — and a second axis since the rail landed,
+            because 68px has no room for a wordmark.
+
+            One `<img>`, not two swapped by CSS: `.sidebar-brand img` is how the
+            theme test finds the mark, and a hidden second copy would make that
+            selector ambiguous for the sake of saving a ternary. */}
         <div className="sidebar-brand">
-          <img className="logo" src={theme === 'dark' ? logoDark : logoLight} alt="Sundry" />
+          <img
+            className="logo"
+            src={sidebarCollapsed
+              ? (theme === 'dark' ? symbolDark : symbolLight)
+              : (theme === 'dark' ? logoDark : logoLight)}
+            alt="Sundry"
+          />
+          {/* In the rail this button sits *on* the mark rather than beside it and
+              is revealed by hovering or focusing it, which is the only way a
+              68px column affords a control without spending a row on one. That
+              is why it keeps a real accessible name and does not rely on the
+              chevron: at rest it is invisible, and a screen reader has to be
+              able to find it anyway. */}
+          <button
+            className="sidebar-toggle"
+            onClick={toggleSidebar}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!sidebarCollapsed}
+            aria-controls="sidebar"
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <Icon name={sidebarCollapsed ? 'chevron-right' : 'chevron-left'} size={NAV_ICON} />
+          </button>
         </div>
 
         {/* Above the destinations and styled unlike them, because it is not a
@@ -512,7 +572,7 @@ export default function App() {
           aria-expanded={addOpen}
         >
           <span className="nav-icon" aria-hidden="true"><Icon name="add" size={NAV_ICON} /></span>
-          {ADD_LABEL}
+          <span className="nav-label">{ADD_LABEL}</span>
         </button>
 
         <nav className="sidebar-nav" aria-label="Main">
@@ -524,19 +584,24 @@ export default function App() {
               aria-current={destination === item.key ? 'page' : undefined}
             >
               <span className="nav-icon" aria-hidden="true"><Icon name={item.icon} size={NAV_ICON} /></span>
-              {item.label}
+              <span className="nav-label">{item.label}</span>
             </button>
           ))}
         </nav>
 
         <div className="sidebar-footer">
           {/* Icon and label both name the *destination* state, not the current
-              one: on dark you are offered a sun and the word "Light mode". */}
+              one: on dark you are offered a sun and the word "Light mode".
+
+              The label is wrapped like the rest of them because in the rail it
+              *is* the tooltip — the word is what keeps every one of these named
+              once the column is 68px wide, so it stays in the DOM rather than
+              being replaced by an `aria-label` the sighted user cannot read. */}
           <button onClick={toggleTheme} title="Toggle light/dark theme">
             <span className="nav-icon" aria-hidden="true">
               <Icon name={theme === 'dark' ? 'light-mode' : 'dark-mode'} size={NAV_ICON} />
             </span>
-            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            <span className="nav-label">{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
           </button>
           {/* Decorative, despite the icon spec calling this "the label-less
               sign-out button": the word Logout is right there, so the button is
@@ -545,7 +610,7 @@ export default function App() {
           {authRequired && (
             <button onClick={handleLogout} title="Sign out">
               <span className="nav-icon" aria-hidden="true"><Icon name="sign-out" size={NAV_ICON} /></span>
-              Logout
+              <span className="nav-label">Logout</span>
             </button>
           )}
         </div>

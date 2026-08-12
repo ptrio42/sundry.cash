@@ -57,6 +57,10 @@
   --ring: 0 0 0 3px var(--accent-soft);
 
   --sidebar-w: 248px;
+  /* The rail: 44px of button between 12px gutters. 44 is the target size, not a
+     round number — it is what a 20px icon column needs on either side before a
+     pointer starts missing it, and it is what sets the 68. */
+  --sidebar-rail-w: 68px;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
   /* Three strings wide: the wordmark, Home's headline and the finding
@@ -228,7 +232,23 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
   min-height: 100vh;
+  /* The track, not the aside's width: the sidebar is sticky and sized by its
+     column, so animating the column is what moves the content edge with it in
+     one pass. Both values are lengths, which is what makes the track
+     interpolable at all; a browser that will not interpolate it snaps instead,
+     and a snap is the same layout arriving sooner. */
+  transition: grid-template-columns 0.18s ease;
 }
+/* The rail redefines the *width*, not the track — and that is the whole trick.
+   A media query adds no specificity, so a `.shell.sidebar-collapsed` that set
+   `grid-template-columns` outranked the phone rule that flattens the shell to
+   one column, from inside the media query: a phone whose owner had collapsed
+   the sidebar on a desktop kept a 68px first track that the hidden sidebar no
+   longer occupied, auto-placement dropped the *content* into it, and the app
+   rendered 68px wide. Overriding the variable leaves exactly one rule naming
+   the track, so there is nothing left to outrank. */
+.shell.sidebar-collapsed { --sidebar-w: var(--sidebar-rail-w); }
+@media (prefers-reduced-motion: reduce) { .shell { transition: none; } }
 
 .sidebar {
   background: var(--bg-elevated);
@@ -245,6 +265,8 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
 .sidebar-brand {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 10px 18px;
 }
 /* 32px tall puts the mark at 120px wide, which is the drop's stated minimum for
@@ -344,6 +366,114 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
    danger zone, so the red `.danger-button` rule that used to live here went
    with it. */
 
+/* ---------- The rail (a collapsed sidebar) ---------- */
+/* Desktop only, and by construction rather than by a media query: every selector
+   below is inside `.sidebar`, which under 680px is `display: none`. The phone
+   has a bottom bar, so there is nothing down there to collapse and no toggle to
+   reach.
+
+   The rail keeps all seven controls, which is where it parts company with the
+   sidebars it is modelled on: they drop most entries when they narrow, because
+   they have a header to navigate from. Sundry's sidebar *is* the navigation on
+   desktop — dropping Budgets at 68px would strand it. */
+
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.12s ease;
+}
+.sidebar-toggle:hover { background: var(--surface-2); color: var(--text); }
+
+/* The mark and the button share one cell here rather than sitting side by side:
+   68px fits one 28px control, and a row spent on a chevron is a row not spent on
+   a destination. Hover swaps them — which is why the button keeps a real name
+   (see App.tsx) rather than leaning on the chevron to say what it does. */
+.sidebar-collapsed .sidebar-brand {
+  position: relative;
+  justify-content: center;
+  padding: 6px 0 18px;
+}
+.sidebar-collapsed .sidebar-brand .logo {
+  height: 30px;
+  transition: opacity 0.12s ease;
+}
+/* Covers the mark's box exactly, rather than sitting as a 28px square in the
+   middle of it: hover reveals the button, so anywhere the reveal fires has to be
+   somewhere the click lands. A dead corner would be a control that appears and
+   then does nothing. */
+.sidebar-collapsed .sidebar-toggle {
+  position: absolute;
+  inset: 6px 0 18px;
+  width: auto;
+  height: auto;
+  opacity: 0;
+}
+/* One condition drives both halves of the swap — the brand is pointed at, or it
+   holds the focus — and it has to: hanging the reveal on the button and the fade
+   on `:hover` alone drew the chevron *over* the mark for anyone who arrived by
+   Tab. `:focus-within` rather than `:focus-visible` because there is no
+   `:focus-visible-within`, and the only way to focus this while it is a rail is
+   to Tab to it: a click on it stops it being one. */
+.sidebar-collapsed .sidebar-brand:hover .logo,
+.sidebar-collapsed .sidebar-brand:focus-within .logo { opacity: 0; }
+.sidebar-collapsed .sidebar-brand:hover .sidebar-toggle,
+.sidebar-collapsed .sidebar-brand:focus-within .sidebar-toggle { opacity: 1; }
+
+.sidebar-collapsed .sidebar { padding: 22px 12px; }
+
+/* 44px wide, centred on the icon column. `gap: 0` matters: the label is still in
+   the button, and 11px of gap to an out-of-flow element would push the icon off
+   centre by half of it. */
+.sidebar-collapsed .btn-add-expense,
+.sidebar-collapsed .sidebar-nav button,
+.sidebar-collapsed .sidebar-footer button {
+  position: relative;
+  justify-content: center;
+  padding: 11px 0;
+  gap: 0;
+}
+
+/* The label does not leave — it becomes the tooltip. Hiding it with
+   `display: none` would take the accessible name of all seven controls with it
+   and leave a rail of unlabelled pictures; this way the name is unchanged in the
+   tree and the word is one hover from being on screen. Inverted, because a
+   tooltip that shares the sidebar's own surface reads as a menu that opened. */
+.sidebar-collapsed .nav-label {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 6px 10px;
+  background: var(--text);
+  color: var(--bg);
+  border-radius: var(--radius-xs);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 40;
+}
+.sidebar-collapsed .sidebar button:hover > .nav-label,
+.sidebar-collapsed .sidebar button:focus-visible > .nav-label { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-collapsed .nav-label,
+  .sidebar-collapsed .sidebar-brand .logo,
+  .sidebar-toggle { transition: none; }
+}
+
 .content { display: flex; flex-direction: column; min-width: 0; }
 
 .topbar {
@@ -412,7 +542,9 @@ h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.01em; }
 .bottom-nav { display: none; }
 
 @media (max-width: 680px) {
-  /* The sidebar is replaced by a fixed bottom tab bar on phones. */
+  /* The sidebar is replaced by a fixed bottom tab bar on phones. One column
+     whatever the rail was left at, and this one line is enough for that: the
+     collapsed shell overrides `--sidebar-w`, which nothing down here reads. */
   .shell { grid-template-columns: 1fr; }
   .sidebar { display: none; }
 

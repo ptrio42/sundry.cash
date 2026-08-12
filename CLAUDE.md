@@ -141,6 +141,20 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   is mounted with the shell, before layout, and `window.innerWidth` is 0 then, which makes every
   `max-width` query true and would open a desktop on Scan (`isPhone` in `AddSheet.tsx` guards the
   same case for a cold load straight into `#/home/add`).
+- **The sidebar collapses to a rail, and the rail keeps all seven controls.** The toggle sits in the
+  brand row; collapsed, it sits *on* the mark and is revealed by hovering or focusing it, because a
+  68px column has no row to spare for a chevron. Three things are load-bearing. **The collapsed shell
+  overrides `--sidebar-w`, never `grid-template-columns`** — a media query adds no specificity, so a
+  `.shell.sidebar-collapsed` naming the track outranked the phone rule that flattens the shell to one
+  column, and a phone belonging to someone who had collapsed the sidebar on a desktop kept a 68px
+  first track the hidden sidebar no longer occupied: auto-placement put the *content* in it and the
+  app rendered 68px wide. **The labels stay in the DOM** and become the tooltips, so the accessible
+  name of every control survives a `display: none` that would have left a rail of unlabelled
+  pictures. And **the mark swaps to the square cut**, since the horizontal lockup's own stated minimum
+  is 120px. Desktop-only by construction rather than by a check: it all lives inside `.sidebar`, which
+  under 680px is `display: none`, and a phone has a bottom bar and nothing to collapse. The choice is
+  remembered in `sundry-sidebar`, read in the state initialiser — unlike the theme it needs no inline
+  script, because nothing paints a sidebar before React exists.
 - **Insight selection lives on the server, and Home refetches findings per currency** —
   `/insights/summary?scope=primary|<code>&period=&window=` scores every candidate finding against the
   user's own window spend (`SCORING` in `models/insights.ts`, one exported block on purpose) and
@@ -241,7 +255,7 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (278 backend + 613 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (278 backend + 654 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).

@@ -111,6 +111,9 @@ beforeEach(() => {
   // localStorage too. Cleared, every case opens on the desktop default (Type),
   // which is what these tests type into.
   localStorage.removeItem('sundry-add-method');
+  // Same reason, for the same shared localStorage: the sidebar remembers whether
+  // it is a rail, so a case that collapses it would hand the next one a rail.
+  localStorage.removeItem('sundry-sidebar');
 });
 
 /** Render and wait for the shell — the nav appears once the config call settles. */
@@ -719,5 +722,133 @@ describe('App — theme', () => {
     fireEvent.click(screen.getByRole('button', { name: /dark mode/i }));
 
     await waitFor(() => expect(mark().getAttribute('src')).toMatch(/logo-horizontal-dark/));
+  });
+});
+
+/**
+ * The rail — the sidebar collapsed to its icon column.
+ *
+ * jsdom applies no stylesheet, so nothing here can assert a width. What it can
+ * assert is everything the width is decided from: the class the shell carries,
+ * the key that outlives the reload, and the two things a 68px column must not
+ * cost — an accessible name on each control, and a way back out.
+ */
+describe('App — the sidebar rail', () => {
+  const SIDEBAR_KEY = 'sundry-sidebar';
+  const shell = () => document.querySelector('.shell') as HTMLElement;
+  const mark = () => document.querySelector('.sidebar-brand img') as HTMLImageElement;
+  const toggle = () => screen.getByRole('button', { name: /(collapse|expand) sidebar/i });
+
+  beforeEach(() => {
+    // The theme block above leaves its last choice in the localStorage jsdom
+    // shares across this file, and two cases here read the mark — which is cut
+    // per theme, and named for the theme it was cut for.
+    localStorage.removeItem('sundry-theme');
+  });
+
+  it('opens as a full sidebar when nothing has been chosen', async () => {
+    await renderApp();
+
+    expect(shell()).not.toHaveClass('sidebar-collapsed');
+    // Written out rather than left absent: "never chose" and "chose the default"
+    // have to be different states on disk for anyone reading their own storage.
+    expect(localStorage.getItem(SIDEBAR_KEY)).toBe('expanded');
+  });
+
+  it('opens as a rail when that is what the device chose last', async () => {
+    localStorage.setItem(SIDEBAR_KEY, 'collapsed');
+
+    await renderApp();
+
+    expect(shell()).toHaveClass('sidebar-collapsed');
+  });
+
+  it('treats a stored value it does not recognise as the default', async () => {
+    localStorage.setItem(SIDEBAR_KEY, 'narrow');
+
+    await renderApp();
+
+    expect(shell()).not.toHaveClass('sidebar-collapsed');
+  });
+
+  it('collapses on the toggle and remembers the choice', async () => {
+    await renderApp();
+
+    fireEvent.click(toggle());
+
+    await waitFor(() => expect(shell()).toHaveClass('sidebar-collapsed'));
+    expect(localStorage.getItem(SIDEBAR_KEY)).toBe('collapsed');
+
+    fireEvent.click(toggle());
+
+    await waitFor(() => expect(shell()).not.toHaveClass('sidebar-collapsed'));
+    expect(localStorage.getItem(SIDEBAR_KEY)).toBe('expanded');
+  });
+
+  it('names the toggle for what it is about to do, in both states', async () => {
+    // At rest in the rail the button is invisible — it is revealed by hovering
+    // the mark it sits on — so the name is the only thing that can carry it.
+    await renderApp();
+
+    expect(toggle()).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle()).toHaveAccessibleName('Collapse sidebar');
+
+    fireEvent.click(toggle());
+
+    await waitFor(() => expect(toggle()).toHaveAccessibleName('Expand sidebar'));
+    expect(toggle()).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('keeps every control of the sidebar in the rail', async () => {
+    // Where this parts company with the sidebars it is modelled on: they drop
+    // entries when they narrow because they have a header to navigate from.
+    // This one *is* the navigation, so a dropped destination is a stranded one.
+    mocked(getAuthStatus).mockResolvedValue({ authRequired: true });
+    mocked(getToken).mockReturnValue('token');
+    localStorage.setItem(SIDEBAR_KEY, 'collapsed');
+
+    await renderApp();
+
+    expect(within(sidebarNav()).getAllByRole('button')).toHaveLength(4);
+    for (const label of [...DESTINATIONS, 'Add expense', 'Dark mode', 'Logout']) {
+      expect(screen.getAllByRole('button', { name: label }).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('leaves the labels as the accessible names once they are tooltips', async () => {
+    // The word is hidden by CSS, not removed: `display: none` here would take
+    // the name of all seven controls with it and leave a rail of pictures.
+    localStorage.setItem(SIDEBAR_KEY, 'collapsed');
+
+    await renderApp();
+
+    const buttons = within(sidebarNav()).getAllByRole('button');
+    expect(buttons.map(b => b.textContent?.trim())).toEqual(DESTINATIONS);
+    for (const button of buttons) {
+      expect(button.querySelector('.nav-label')).toBeInTheDocument();
+    }
+  });
+
+  it('wears the square cut of the mark, which is the only one that fits', async () => {
+    // The horizontal lockup's stated minimum is 120px wide and the rail is 68.
+    localStorage.setItem(SIDEBAR_KEY, 'collapsed');
+
+    await renderApp();
+
+    expect(mark()).toHaveAttribute('alt', 'Sundry');
+    expect(mark().getAttribute('src')).toMatch(/symbol-light/);
+
+    fireEvent.click(screen.getByRole('button', { name: /dark mode/i }));
+
+    await waitFor(() => expect(mark().getAttribute('src')).toMatch(/symbol-dark/));
+  });
+
+  it('offers the toggle on the desktop sidebar and nowhere else', async () => {
+    // A phone has no sidebar to collapse: the bottom bar replaces it outright,
+    // so the toggle has to be inside the thing it hides and not in the shell.
+    await renderApp();
+
+    expect(document.querySelector('.sidebar')?.contains(toggle())).toBe(true);
+    expect(within(mobileNav()).queryByRole('button', { name: /sidebar/i })).not.toBeInTheDocument();
   });
 });
