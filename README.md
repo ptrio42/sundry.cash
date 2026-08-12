@@ -74,8 +74,12 @@ multi-tenant; each instance stays one container pair with its own SQLite file.
 - **Your own categories** — seven ship with the app; add, rename and recolour as many more as you like
   from Settings. Deleting one asks where its expenses should go rather than orphaning them, and the
   seven built-ins stay put because auto-categorization depends on them.
-- **Budgets** — a monthly limit per category and currency, with per-category progress bars and a
-  cumulative burn-down against the month's total.
+- **Budgets** — a monthly limit per category and currency, and a screen that answers rather than
+  displays: "2 over · 1 close · 5 on track" at the top, then the pace (`43% used · day 11 of 31 · on
+  pace`) with a tick on each bar showing where the calendar is, then the cumulative burn-down. Step
+  back through past months — limits are standing figures with no month of their own, so a past month
+  is compared with your current ones and the screen says so. The list reads as text until you press
+  **Edit limits**.
 - **Multi-currency** — 60 currencies to choose from, three enabled to start (USD, PLN and BTC, the last
   stored to satoshi precision). Each carries its own decimal count, so ¥1,480 is stored and shown as
   whole yen rather than as cents. Totals are grouped per currency by default; set a primary currency and

@@ -29,7 +29,7 @@ import EditExpenseModal from './EditExpenseModal';
 import Login from './Login';
 import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getInstanceConfig, getToken, logout, getSettings, getFxRates, getCategories, getCurrencies } from '../services/api';
 import { Expense, AppSettings, Category, CurrencyInfo, FxRates, InstanceConfig } from '../types/expense.types';
-import { setCurrencyRegistry, currentMonthKey, monthLabel } from '../utils/format';
+import { setCurrencyRegistry } from '../utils/format';
 import { Destination, useRoute } from '../utils/route';
 import '../App.css';
 
@@ -396,7 +396,9 @@ export default function App() {
   const STATUS: Record<Destination, string> = {
     home: 'What stands out, and what you spent — every section states its own period.',
     expenses: 'Every expense you have recorded — filter it, chart it, import and export it.',
-    budgets: `Limits and spending for ${monthLabel(currentMonthKey())}.`,
+    // No month here since wave 3c: Budgets carries a stepper, and a status line
+    // naming August above a screen showing July is the contradiction F10 was.
+    budgets: 'Your standing limits, against the month you pick.',
     settings: 'Defaults, currencies and categories for this install.',
   };
 
@@ -531,7 +533,7 @@ export default function App() {
                   onExpensesStale={refreshExpenses}
                 />
               )}
-              {destination === 'budgets' && <Budgets expenses={expenses} settings={settings} categories={categories} currencies={currencies} />}
+              {destination === 'budgets' && <Budgets expenses={expenses} settings={settings} categories={categories} currencies={currencies} rates={fxRates} />}
               {destination === 'settings' && (
                 <Settings
                   settings={settings}

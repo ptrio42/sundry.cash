@@ -85,9 +85,12 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   `categories.ts` (slug -> label/colour), `currencies.ts` (which currencies a control should offer —
   three different questions, see the file header), `insights.ts` (currency scoping for the four data
   endpoints), `home.ts` (Home's windows, its section arithmetic, and the sentence one finding becomes),
-  `expenses.ts` (the Expenses query: range presets, filtering, the summary row and both charts —
-  it imports `home.ts`'s window arithmetic rather than repeating it), `route.ts`, `export.ts`
-  (client-side .xlsx). Charts: recharts. Styling: single dark-first `src/App.css`.
+  `expenses.ts` (the Expenses query: range presets, filtering, the summary row and both charts),
+  `budgets.ts` (the month stepper's arithmetic and the pace band), `route.ts`, `export.ts`
+  (client-side .xlsx). **Both import their shared arithmetic from `home.ts`** — window ranges in one
+  case, the over/close classification in the other — rather than re-implementing it, which is how
+  the app ended up with four currency controls that disagreed. Charts: recharts. Styling: single
+  dark-first `src/App.css`.
 
 ## Key design decisions (the non-obvious "why")
 
@@ -168,7 +171,16 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 - **Budget limits have no month dimension**, so Home scales them: the allowance is the standing monthly
   limit times `monthsInWindow(days)` (1 for both month-length windows, 12 for the year), and the
   section says which limits it compared against. Comparing a year of spending with one monthly limit
-  would report everybody as 1100% over.
+  would report everybody as 1100% over. **Budgets' month stepper is the same fact from the other end**
+  — it moves the *spending* window only, so any past month is measured against today's limits and the
+  screen prints that caveat. Do not remove it to tidy the layout: the inaccuracy is the price of the
+  feature and the sentence is what makes the price fair.
+- **On Budgets, reading and editing are two states, not one widget** (F11). The limit input saves on
+  blur and treats a blank, NaN or ≤ 0 value as *delete*, so while the list was always editable a stray
+  keystroke on a figure you clicked to read removed it silently. The list is text until **Edit limits**
+  is pressed — keep the toggle. It is also why the combined `All → primary` scope is read-only: a limit
+  is stored in one currency, and writing back an edit made against a converted figure would rewrite it
+  at today's rate.
 - **Dark-first UI** — `index.html` sets the dark background before React mounts to avoid a flash.
 
 ## Gotchas
@@ -189,7 +201,7 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (268 backend + 385 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (268 backend + 410 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).
