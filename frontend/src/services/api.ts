@@ -495,42 +495,6 @@ export async function deleteAllExpenses(): Promise<{
   return handleResponse(response);
 }
 
-/**
- * Get analytics for time period and categories
- */
-export async function getAnalytics(params: {
-  startDate?: string;
-  endDate?: string;
-  categories?: string[];
-  currency?: string;
-}): Promise<{
-  total: number;
-  count: number;
-  average: number;
-  byCategory: Array<{ category: string; currency: string; total: number; count: number; average: number }>;
-  byCurrency: Array<{ currency: string; total: number; count: number; average: number }>;
-}> {
-  const queryParams = new URLSearchParams();
-
-  if (params.startDate) {
-    queryParams.append('startDate', params.startDate);
-  }
-  if (params.endDate) {
-    queryParams.append('endDate', params.endDate);
-  }
-  if (params.categories && params.categories.length > 0) {
-    queryParams.append('categories', params.categories.join(','));
-  }
-  if (params.currency) {
-    queryParams.append('currency', params.currency);
-  }
-
-  const response = await apiFetch(
-    `/expenses/stats/analytics${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-  );
-  return handleResponse(response);
-}
-
 // --- Insights ------------------------------------------------------------
 
 /**

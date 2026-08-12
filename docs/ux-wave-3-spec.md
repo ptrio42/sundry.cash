@@ -182,3 +182,47 @@ click in order to read.
   falls back to the host OS locale — "11 sie 2025" renders in an English UI. Confirmed on the demo
   preview after wave 2. Not one of the 28, but it belongs in wave 4: it lands in every screenshot,
   and the gallery is regenerated right after.
+
+*(from 3b)*
+
+- **The bulk-assign `<select>` has no accessible name.** `ExpenseTable`'s `.bulk-category-select`,
+  shown once rows are selected, is a bare `<select>` with no `<label>` and no `aria-label`; a screen
+  reader announces it as an unnamed combo box. One attribute, and left alone deliberately — it is
+  not one of the 28 and this wave's rule is to record rather than build.
+- **The README gallery still shows Analytics.** `README.md` links `gallery/analytics.png` under an
+  **Analytics** heading, for a screen that no longer exists. The images cannot be regenerated from
+  a worktree, and the report already schedules the gallery for regeneration after wave 4 — this is
+  one more reason it has to happen.
+- **`.time-grouping` is unreferenced CSS.** It went unused when the Dashboard's grouping control left
+  in wave 2 and nothing has claimed it since. Same class of finding as the `.btn-danger` note wave 0
+  recorded; delete it with whatever sweep collects the rest.
+- **On mobile the filter bar is 603px tall, and the first number sits at 813px.** Measured at
+  375×812 on the demo: ten category chips wrap to five rows, so the summary row lands exactly one
+  scroll below the fold. That is F8's own complaint at phone width — the desktop figure is 505px,
+  which is fine. Any fix (a `Categories ▾` disclosure, or one horizontally scrolling chip row)
+  either adds a control or trades discoverability, so it is a design decision rather than a bug fix
+  and it is not one of the 28.
+- **The two exports disagree about the filter.** `Export ▾` now offers CSV and Excel from one control:
+  CSV writes the rows the filter left standing, while Excel calls `/expenses/export` and writes the
+  **whole ledger** regardless. Both behaviours predate this wave — they were simply 40px apart in a
+  table header, and putting them in one menu is what makes the disagreement visible. Either the
+  endpoint learns the filter or the menu says which is which; not one of the 28 either way.
+
+## Decisions 3b took where the spec left two readings
+
+Recorded because a later reader will otherwise re-open them.
+
+1. **`All time` is the default range, and it is a fifth button.** §3b says the bar "arrives with a
+   default range … showing everything" and its test list says "arrival shows every row … the summary
+   reflects the whole ledger". Only a neutral range satisfies both, and it makes the date control
+   behave exactly like the category one: unset means everything, and the presets narrow from there.
+2. **No one-click `Last month`.** The preset list in the report and in §3b is
+   `Last 30 days · This month · Last 12 months · Custom`, and it is stated twice; the previous
+   calendar month is reachable through `Custom`, which is what "the whole previous calendar month is
+   reachable" now rests on. Analytics' `Last 7 Days` and `Last Year` go the same way.
+3. **The table's `<tfoot>` total is gone.** "The table as today" collided with the new summary row,
+   which carries the same figures converted and with the exact natives beneath. Two totals 200px
+   apart is the duplication change 4 exists to delete, so the summary row won it.
+4. **`getAnalytics` is gone from `services/api.ts`.** The backend endpoint stays; the screen computes
+   everything client-side, because the search box has no server-side equivalent and a chart fetched
+   from the API could never honour it.

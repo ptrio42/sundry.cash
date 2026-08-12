@@ -71,19 +71,23 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 *second segment*, the Add sheet's open/closed state over the destination it covers:
 - `src/main.tsx` -> `src/components/App.tsx`. Feature components: `Home` (the boot screen — six
   sections over six endpoints, findings as section headings; `Dashboard`, `Insights` and
-  `InsightsStrip` merged into it in wave 2), `AddSheet` (the overlay, plus the `AddedLine`
-  confirmation the shell renders after a save), `Analytics`, `Budgets`, `Fx`, `ExpenseForm`,
-  `ExpenseTable`, `ExcelImport`, `EditExpenseModal`, `Login`, `Settings`, `ReceiptScan`,
-  `CurrencyScope`. `ExpenseForm` and `ReceiptScan` are the sheet's two tabs rather than screens
-  (wave 3a); `Analytics` and `Fx` have no nav entry until waves 3b–4 re-enter them from their new
-  homes; `ExcelImport` is reached from Home's empty-ledger Start card.
+  `InsightsStrip` merged into it in wave 2), `Expenses` (the ledger *and* the query tool —
+  `Analytics` merged into it in wave 3b and is deleted), `ExpenseTable` (the rows only, driven by
+  `Expenses`), `AddSheet` (the overlay, plus the `AddedLine` confirmation the shell renders after a
+  save), `Budgets`, `Fx`, `ExpenseForm`, `ExcelImport`, `EditExpenseModal`, `Login`, `Settings`,
+  `ReceiptScan`, `CurrencyScope`. `ExpenseForm` and `ReceiptScan` are the sheet's two tabs rather
+  than screens (wave 3a); **`Fx` is the last screen with no nav entry**, re-entered from Settings in
+  wave 4; `ExcelImport` is reached from the Expenses toolbar and from Home's empty-ledger Start card,
+  and from no destination of its own.
 - `src/services/api.ts` — central `apiFetch` wrapper (base `/api`, bearer from localStorage key
   `sundry-token`, 401 -> `auth-expired` window event). Add API calls here.
 - `src/utils/` — `format.ts` (currency/date display, backed by a registry App refreshes),
   `categories.ts` (slug -> label/colour), `currencies.ts` (which currencies a control should offer —
   three different questions, see the file header), `insights.ts` (currency scoping for the four data
   endpoints), `home.ts` (Home's windows, its section arithmetic, and the sentence one finding becomes),
-  `route.ts`, `export.ts` (client-side .xlsx). Charts: recharts. Styling: single dark-first `src/App.css`.
+  `expenses.ts` (the Expenses query: range presets, filtering, the summary row and both charts —
+  it imports `home.ts`'s window arithmetic rather than repeating it), `route.ts`, `export.ts`
+  (client-side .xlsx). Charts: recharts. Styling: single dark-first `src/App.css`.
 
 ## Key design decisions (the non-obvious "why")
 
@@ -144,11 +148,23 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   Neither may be collapsed into the other: over 30 days a weekday has about four samples and the
   merchant list goes thin, and mixing a 12-month numerator with a 1-month denominator breaks
   `materiality`. Printing both windows is what makes this safe — do not "simplify" it to one control.
-- **Home is not Analytics** — Analytics answers "how much on X between A and B?" and is driven by the
+- **Home is not Expenses** — Expenses answers "how much on X between A and B?" and is driven by the
   user's filters; Home answers "what should I know that I did not ask about?" and is driven by the
   data. Home therefore has **no filter wall**: a default window, no category checkboxes, no required
-  currency, no custom range. A section that needs configuring before it says anything belongs in
-  Analytics (wave 3 folds that into Expenses). Stated in the component header; keep it.
+  currency, no custom range. A section that needs configuring before it says anything belongs on
+  Expenses, which is where wave 3 folded Analytics (ruling R4). Stated in both component headers;
+  keep it.
+- **Expenses computes everything client-side, from one query object.** The filter bar drives the
+  table, the summary row and both charts through a single `LedgerQuery`; nothing on the screen asks
+  the server. Analytics used to fetch its aggregates from `/expenses/stats/analytics` while the table
+  filtered the same rows in the browser, so the two could describe different sets — and the search
+  box settles it on its own, because the API has no search parameter and a chart fetched from it
+  could never honour one. The endpoint still exists; the frontend has no caller.
+- **Every control on Expenses arrives neutral** — no search, no category, every currency, `All time`.
+  Analytics opened with eleven category checkboxes all ticked (F8), and a ledger defaulting to a
+  30-day window would be the same mistake pointed the other way: the screen shows what it has, and
+  the controls narrow from there. `Last 30 days` means thirty days (F2); any other window, including
+  a whole past calendar month, is reachable through `Custom`.
 - **Budget limits have no month dimension**, so Home scales them: the allowance is the standing monthly
   limit times `monthsInWindow(days)` (1 for both month-length windows, 12 for the year), and the
   section says which limits it compared against. Comparing a year of spending with one monthly limit
@@ -173,7 +189,7 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (268 backend + 347 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (268 backend + 385 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).

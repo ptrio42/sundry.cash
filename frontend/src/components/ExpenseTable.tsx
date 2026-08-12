@@ -1,29 +1,43 @@
 /**
- * ExpenseTable Component
- * Displays expenses in a table with sorting, filtering, and actions
+ * ExpenseTable — the rows, and nothing that decides which rows.
+ *
+ * The filter bar, the search box, the currency picker and the export buttons
+ * left this file in wave 3: `Expenses.tsx` owns them now, because the table was
+ * the second of two filter bars asking the same question of the same ledger
+ * (change 4, F3). What is left is what a table is for — selecting, sorting,
+ * paginating and editing rows — driven by props.
+ *
+ * **The sort is a prop, not state.** The screen holds it so that "export as
+ * currently filtered and sorted" still means that once `Export` sits in the
+ * toolbar rather than in this file's own header.
+ *
+ * **There is no footer total.** The summary row above the table carries it,
+ * converted, with the exact per-currency subtotals beneath — printing the same
+ * figures again 200px lower is the duplication this wave exists to remove.
  */
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ExpenseTableProps, ExpenseCategory, SortField, SortOrder, Currency } from '../types/expense.types';
+import { ExpenseTableProps, ExpenseCategory, SortField } from '../types/expense.types';
 import { formatCurrency, formatDate } from '../utils/format';
 import { categoryColor, categoryLabel } from '../utils/categories';
-import { relevantCurrencies } from '../utils/currencies';
-import { exportExpensesCsv } from '../utils/export';
-import { exportExpensesXlsx, fetchReceiptObjectUrl } from '../services/api';
+import { fetchReceiptObjectUrl } from '../services/api';
 
 // Rows rendered at once. The whole ledger is still fetched — the charts need
 // it — but an unwindowed <tbody> of several thousand <tr>s is what actually
 // makes the page crawl, so only a slice reaches the DOM.
 const PAGE_SIZE = 50;
 
-export default function ExpenseTable({ expenses, categories, currencies, onEdit, onDelete, onUpdate }: ExpenseTableProps) {
-  const [sortField, setSortField] = useState<SortField>('date');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [filterCurrency, setFilterCurrency] = useState<string>('all');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+export default function ExpenseTable({
+  expenses,
+  categories,
+  onEdit,
+  onDelete,
+  onUpdate,
+  sortField,
+  sortOrder,
+  onSort,
+  queryKey
+}: ExpenseTableProps) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   // 'other' is a built-in, so it is always a valid target for a bulk reassign.
   const [bulkCategory, setBulkCategory] = useState<ExpenseCategory>('other');
@@ -89,78 +103,7 @@ export default function ExpenseTable({ expenses, categories, currencies, onEdit,
     }
   };
 
-  /**
-   * Handle sort by a specific field
-   */
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      // Toggle sort order
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      // New field, default to descending
-      setSortField(field);
-      setSortOrder('desc');
-    }
-  };
-
-  /**
-   * Filter and sort expenses
-   */
-  const filteredAndSortedExpenses = useMemo(() => {
-    let result = [...expenses];
-
-    // Filter by search query. Both the slug and the label are searchable: the
-    // label is what the row shows, the slug is what a user who renamed a
-    // category may still think in (and what an exported file holds).
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(exp =>
-        exp.description.toLowerCase().includes(query) ||
-        exp.category.toLowerCase().includes(query) ||
-        categoryLabel(categories, exp.category).toLowerCase().includes(query) ||
-        exp.amount.toString().includes(query)
-      );
-    }
-
-    // Filter by category
-    if (filterCategory !== 'all') {
-      result = result.filter(exp => exp.category === filterCategory);
-    }
-
-    // Filter by currency
-    if (filterCurrency !== 'all') {
-      result = result.filter(exp => exp.currency === filterCurrency);
-    }
-
-    // Filter by date range
-    if (startDate) {
-      result = result.filter(exp => exp.date >= startDate);
-    }
-    if (endDate) {
-      result = result.filter(exp => exp.date <= endDate);
-    }
-
-    // Sort
-    result.sort((a, b) => {
-      let compareValue = 0;
-
-      if (sortField === 'date') {
-        compareValue = a.date.localeCompare(b.date);
-      } else if (sortField === 'amount') {
-        compareValue = a.amount - b.amount;
-      } else if (sortField === 'category') {
-        // By the label, which is the column the user is looking at — not by the
-        // slug underneath it, which a rename would leave pointing elsewhere.
-        compareValue = categoryLabel(categories, a.category).localeCompare(categoryLabel(categories, b.category));
-      }
-
-      return sortOrder === 'asc' ? compareValue : -compareValue;
-    });
-
-    return result;
-  }, [expenses, categories, searchQuery, filterCategory, filterCurrency, startDate, endDate, sortField, sortOrder]);
-
-  const pageCount = Math.max(1, Math.ceil(filteredAndSortedExpenses.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(expenses.length / PAGE_SIZE));
 
   // Filtering can shrink the list under the current page (or a delete can empty
   // the last page); snap back rather than showing a blank table.
@@ -168,14 +111,16 @@ export default function ExpenseTable({ expenses, categories, currencies, onEdit,
     if (page > pageCount) setPage(pageCount);
   }, [page, pageCount]);
 
-  // Any change to what is being listed should start from the top again.
+  // Any change to *what is being asked* starts from the top again — and a change
+  // to the ledger itself deliberately does not, so deleting a row on page 3
+  // leaves you on page 3.
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, filterCategory, filterCurrency, startDate, endDate, sortField, sortOrder]);
+  }, [queryKey]);
 
   const visibleExpenses = useMemo(
-    () => filteredAndSortedExpenses.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [filteredAndSortedExpenses, page]
+    () => expenses.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [expenses, page]
   );
 
   /**
@@ -184,14 +129,6 @@ export default function ExpenseTable({ expenses, categories, currencies, onEdit,
   const handleDelete = (id: number, description: string) => {
     if (window.confirm(`Are you sure you want to delete "${description}"?`)) {
       onDelete(id);
-    }
-  };
-
-  const handleExportExcel = async () => {
-    try {
-      await exportExpensesXlsx();
-    } catch {
-      alert('Export failed. Please try again.');
     }
   };
 
@@ -223,16 +160,14 @@ export default function ExpenseTable({ expenses, categories, currencies, onEdit,
   };
 
   /**
-   * Toggle selection of all visible expenses
+   * Toggle selection of all rows the filter left standing — not just the page.
    */
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredAndSortedExpenses.length) {
+    if (selectedIds.size === expenses.length) {
       // Deselect all
       setSelectedIds(new Set());
     } else {
-      // Select all visible expenses
-      const allIds = new Set(filteredAndSortedExpenses.map(exp => exp.id));
-      setSelectedIds(allIds);
+      setSelectedIds(new Set(expenses.map(exp => exp.id)));
     }
   };
 
@@ -279,16 +214,6 @@ export default function ExpenseTable({ expenses, categories, currencies, onEdit,
     <div className="expense-table">
       {/* No heading: the page title one line above already says "Expenses", and
           saying it twice at two ranks is change 28's second half. */}
-      <div className="table-toolbar">
-        <div className="export-buttons">
-          <button type="button" className="btn-secondary" onClick={() => exportExpensesCsv(filteredAndSortedExpenses)}>
-            ⬇ CSV
-          </button>
-          <button type="button" className="btn-secondary" onClick={handleExportExcel}>
-            ⬇ Excel
-          </button>
-        </div>
-      </div>
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
@@ -332,88 +257,9 @@ export default function ExpenseTable({ expenses, categories, currencies, onEdit,
         </div>
       )}
 
-      {/* Filters */}
-      <div className="filters">
-        <div className="filter-group search-group">
-          <label htmlFor="searchQuery">Search:</label>
-          <input
-            type="text"
-            id="searchQuery"
-            placeholder="Search description, category, or amount..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-
-        <div className="filter-group">
-          <label htmlFor="filterCategory">Category:</label>
-          <select
-            id="filterCategory"
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-          >
-            <option value="all">All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat.slug} value={cat.slug}>
-                {cat.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="filter-group">
-          <label htmlFor="filterCurrency">Currency:</label>
-          <select
-            id="filterCurrency"
-            value={filterCurrency}
-            onChange={(e) => setFilterCurrency(e.target.value)}
-          >
-            <option value="all">All Currencies</option>
-            {relevantCurrencies(currencies, expenses.map(e => e.currency)).map((curr) => (
-              <option key={curr.code} value={curr.code}>
-                {curr.code} ({curr.symbol})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="filter-group">
-          <label htmlFor="startDate">From:</label>
-          <input
-            type="date"
-            id="startDate"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-        </div>
-
-        <div className="filter-group">
-          <label htmlFor="endDate">To:</label>
-          <input
-            type="date"
-            id="endDate"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
-        </div>
-
-        <button
-          onClick={() => {
-            setSearchQuery('');
-            setFilterCategory('all');
-            setFilterCurrency('all');
-            setStartDate('');
-            setEndDate('');
-          }}
-          className="clear-filters"
-        >
-          Clear Filters
-        </button>
-      </div>
-
       {/* Table */}
       <div className="table-container">
-        {filteredAndSortedExpenses.length === 0 ? (
+        {expenses.length === 0 ? (
           <p className="no-data">No expenses found. Add some to get started!</p>
         ) : (
           <table>
@@ -422,24 +268,24 @@ export default function ExpenseTable({ expenses, categories, currencies, onEdit,
                 <th className="checkbox-cell">
                   <input
                     type="checkbox"
-                    checked={selectedIds.size > 0 && selectedIds.size === filteredAndSortedExpenses.length}
+                    checked={selectedIds.size > 0 && selectedIds.size === expenses.length}
                     onChange={toggleSelectAll}
                     aria-label="Select all expenses"
                   />
                 </th>
                 <th className="sortable" scope="col" aria-sort={ariaSort('date')}>
-                  <button type="button" onClick={() => handleSort('date')}>
+                  <button type="button" onClick={() => onSort('date')}>
                     Date <span aria-hidden="true">{getSortIcon('date')}</span>
                   </button>
                 </th>
                 <th>Description</th>
                 <th className="sortable" scope="col" aria-sort={ariaSort('category')}>
-                  <button type="button" onClick={() => handleSort('category')}>
+                  <button type="button" onClick={() => onSort('category')}>
                     Category <span aria-hidden="true">{getSortIcon('category')}</span>
                   </button>
                 </th>
                 <th className="sortable" scope="col" aria-sort={ariaSort('amount')}>
-                  <button type="button" onClick={() => handleSort('amount')}>
+                  <button type="button" onClick={() => onSort('amount')}>
                     Amount <span aria-hidden="true">{getSortIcon('amount')}</span>
                   </button>
                 </th>
@@ -501,27 +347,6 @@ export default function ExpenseTable({ expenses, categories, currencies, onEdit,
                 </tr>
               ))}
             </tbody>
-            <tfoot>
-              <tr>
-                <td></td>
-                <td colSpan={3} className="total-label">Total:</td>
-                <td className="total-amount">
-                  {(() => {
-                    // Group by currency and calculate totals
-                    const totals = filteredAndSortedExpenses.reduce((acc, exp) => {
-                      acc[exp.currency] = (acc[exp.currency] || 0) + exp.amount;
-                      return acc;
-                    }, {} as Record<Currency, number>);
-
-                    // Format and display all currency totals
-                    return Object.entries(totals)
-                      .map(([currency, total]) => formatCurrency(total, currency as Currency))
-                      .join(' + ');
-                  })()}
-                </td>
-                <td></td>
-              </tr>
-            </tfoot>
           </table>
         )}
 
@@ -539,8 +364,8 @@ export default function ExpenseTable({ expenses, categories, currencies, onEdit,
             <span className="pagination-status" aria-live="polite">
               Page {page} of {pageCount}
               <span className="pagination-count">
-                {' '}· {filteredAndSortedExpenses.length} expense
-                {filteredAndSortedExpenses.length === 1 ? '' : 's'}
+                {' '}· {expenses.length} expense
+                {expenses.length === 1 ? '' : 's'}
               </span>
             </span>
             <button

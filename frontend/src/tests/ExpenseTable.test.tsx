@@ -1,25 +1,29 @@
 /**
  * Tests for the ExpenseTable component.
  *
- * The table is the most stateful piece of the UI: it filters, searches, sorts
- * and — since the ledger can run to thousands of rows — paginates. These tests
- * drive it through props only and assert on what a user would see: which rows
- * are in the DOM, what the pagination control says, the aria-sort on the
- * headers, and the per-currency footer total.
+ * The table stopped deciding *which* rows it shows in wave 3 — the filter bar,
+ * the search box and the export buttons moved to `Expenses`, and those
+ * behaviours are tested there. What is left here is what a table still owns:
+ * paginating a long list, reporting the sort its screen is holding, selecting
+ * rows, and rendering a category by its own label and colour.
  *
- * The API layer is mocked because the component imports the Excel export and
- * the authenticated receipt fetch from it at module load.
+ * Sorting is driven through a harness that holds the state the screen holds, so
+ * these cases exercise the same `sortExpenses` the real screen uses rather than
+ * a copy of it.
+ *
+ * The API layer is mocked because the component imports the authenticated
+ * receipt fetch from it at module load.
  */
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
+import { useState } from 'react';
 import ExpenseTable from '../components/ExpenseTable';
+import { sortExpenses } from '../utils/expenses';
 import { TEST_CATEGORIES } from './categories.fixture';
-import { TEST_CURRENCIES } from './currencies.fixture';
-import { Category, Expense } from '../types/expense.types';
+import { Category, Expense, SortField, SortOrder } from '../types/expense.types';
 
 vi.mock('../services/api', () => ({
-  exportExpensesXlsx: vi.fn(),
   fetchReceiptObjectUrl: vi.fn(),
 }));
 
@@ -48,26 +52,50 @@ const manyExpenses = (n: number): Expense[] =>
     currency: 'USD' as const,
   }));
 
-const renderTable = (expenses: Expense[], categories: Category[] = TEST_CATEGORIES) =>
-  render(
+/**
+ * The state the screen holds around the table: the sort, and the key that says
+ * "the question changed" as opposed to "the ledger changed".
+ */
+function Harness({ expenses, categories = TEST_CATEGORIES, queryKey = 'q' }: {
+  expenses: Expense[];
+  categories?: Category[];
+  queryKey?: string;
+}) {
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  const onSort = (field: SortField) => {
+    if (field === sortField) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+    setSortField(field);
+    setSortOrder('desc');
+  };
+
+  return (
     <ExpenseTable
-      expenses={expenses}
+      expenses={sortExpenses(expenses, sortField, sortOrder, categories)}
       categories={categories}
-      currencies={TEST_CURRENCIES}
       onEdit={vi.fn()}
       onDelete={vi.fn()}
       onUpdate={vi.fn().mockResolvedValue(undefined)}
+      sortField={sortField}
+      sortOrder={sortOrder}
+      onSort={onSort}
+      queryKey={`${queryKey}|${sortField}|${sortOrder}`}
     />
   );
+}
+
+const renderTable = (expenses: Expense[], categories: Category[] = TEST_CATEGORIES) =>
+  render(<Harness expenses={expenses} categories={categories} />);
 
 /** Descriptions of the rows currently in the table body, top to bottom. */
 const rowDescriptions = (container: HTMLElement): string[] =>
   Array.from(container.querySelectorAll('tbody tr')).map(
     (tr) => tr.children[2].textContent?.trim() ?? ''
   );
-
-const footerTotal = (container: HTMLElement): string =>
-  container.querySelector('.total-amount')?.textContent?.trim() ?? '';
 
 const paginationStatus = () => screen.getByText(/Page \d+ of \d+/);
 
@@ -129,79 +157,38 @@ describe('ExpenseTable pagination', () => {
     expect(screen.queryByText(/Page \d+ of \d+/)).not.toBeInTheDocument();
   });
 
-  it('returns to page 1 when the filter changes', () => {
-    const { container } = renderTable(manyExpenses(120));
+  it('returns to page 1 when the query changes', () => {
+    const rows = manyExpenses(120);
+    const { rerender } = render(<Harness expenses={rows} queryKey="everything" />);
 
     fireEvent.click(screen.getByRole('button', { name: /next/i }));
     expect(paginationStatus()).toHaveTextContent('Page 2 of 3');
 
-    // Matches Item 001–Item 099, i.e. still two pages — so landing on page 1
-    // has to come from the reset, not from clamping to a shorter list.
-    fireEvent.change(screen.getByLabelText('Search:'), { target: { value: 'Item 0' } });
+    // Still three pages, so landing on page 1 has to come from the reset rather
+    // than from clamping to a shorter list.
+    rerender(<Harness expenses={rows} queryKey="filtered" />);
 
-    expect(paginationStatus()).toHaveTextContent('Page 1 of 2');
-    expect(rowDescriptions(container)[0]).toBe('Item 099');
+    expect(paginationStatus()).toHaveTextContent('Page 1 of 3');
   });
 
-  it('totals every filtered row, not just the visible page', () => {
-    const { container } = renderTable(manyExpenses(120));
+  it('stays on the page you are reading when the ledger changes underneath', () => {
+    // Deleting a row on page 3 must not throw the reader back to page 1 — which
+    // is why the reset watches the query and not the rows.
+    const rows = manyExpenses(120);
+    const { rerender } = render(<Harness expenses={rows} queryKey="everything" />);
 
-    // Amount === id, so the whole ledger sums to 120 * 121 / 2 = 7260.
-    expect(rowDescriptions(container)).toHaveLength(PAGE_SIZE);
-    expect(footerTotal(container)).toBe('$7,260.00');
-  });
-});
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    expect(paginationStatus()).toHaveTextContent('Page 2 of 3');
 
-describe('ExpenseTable filtering', () => {
-  it('filters by category', () => {
-    const { container } = renderTable(SAMPLE);
+    rerender(<Harness expenses={rows.filter(row => row.id !== 1)} queryKey="everything" />);
 
-    fireEvent.change(screen.getByLabelText('Category:'), { target: { value: 'transport' } });
-
-    expect(rowDescriptions(container)).toEqual(['Bus ticket']);
+    expect(paginationStatus()).toHaveTextContent('Page 2 of 3');
   });
 
-  it('filters by currency', () => {
-    const { container } = renderTable(SAMPLE);
+  it('counts every row it was handed, not just the visible page', () => {
+    renderTable(manyExpenses(120));
 
-    fireEvent.change(screen.getByLabelText('Currency:'), { target: { value: 'PLN' } });
-
-    expect(rowDescriptions(container)).toEqual(['Hardware store', 'Bus ticket']);
-  });
-
-  it('searches across description, category and amount', () => {
-    const { container } = renderTable(SAMPLE);
-    const search = screen.getByLabelText('Search:');
-
-    fireEvent.change(search, { target: { value: 'netflix' } });
-    expect(rowDescriptions(container)).toEqual(['Netflix']);
-
-    // The category name is searchable even though it is not in the description.
-    fireEvent.change(search, { target: { value: 'entertainment' } });
-    expect(rowDescriptions(container)).toEqual(['Cinema']);
-
-    // …and so is the raw amount.
-    fireEvent.change(search, { target: { value: '15.99' } });
-    expect(rowDescriptions(container)).toEqual(['Netflix']);
-  });
-
-  it('shows an empty state when nothing matches', () => {
-    renderTable(SAMPLE);
-
-    fireEvent.change(screen.getByLabelText('Search:'), { target: { value: 'nothing here' } });
-
-    expect(screen.getByText(/no expenses found/i)).toBeInTheDocument();
-  });
-
-  it('restores every row via Clear Filters', () => {
-    const { container } = renderTable(SAMPLE);
-
-    fireEvent.change(screen.getByLabelText('Category:'), { target: { value: 'transport' } });
-    expect(rowDescriptions(container)).toHaveLength(1);
-
-    fireEvent.click(screen.getByRole('button', { name: /clear filters/i }));
-
-    expect(rowDescriptions(container)).toHaveLength(SAMPLE.length);
+    expect(paginationStatus()).toHaveTextContent('120 expenses');
   });
 });
 
@@ -244,34 +231,37 @@ describe('ExpenseTable sorting', () => {
     fireEvent.click(within(header('Category')).getByRole('button'));
 
     // A newly-chosen sort field starts descending, so this is reverse
-    // alphabetical order by the stored category name.
+    // alphabetical order by the label the row is showing.
     expect(header('Category')).toHaveAttribute('aria-sort', 'descending');
     expect(rowDescriptions(container)).toEqual([
-      'Bus ticket',      // transport
-      'Netflix',         // media
-      'Hardware store',  // maintenance
-      'Coffee beans',    // groceries
-      'Cinema',          // entertainment
+      'Bus ticket',      // Transport
+      'Netflix',         // Media
+      'Hardware store',  // Maintenance
+      'Coffee beans',    // Groceries
+      'Cinema',          // Entertainment
     ]);
   });
 });
 
-describe('ExpenseTable totals', () => {
-  it('groups the footer total per currency', () => {
-    const { container } = renderTable(SAMPLE);
+describe('ExpenseTable rows', () => {
+  it('shows an empty state when it was handed nothing', () => {
+    renderTable([]);
 
-    // 12.50 + 15.99 + 30 USD and 4.40 + 100 PLN, kept apart rather than added.
-    expect(footerTotal(container)).toMatch(/\$58\.49/);
-    expect(footerTotal(container)).toMatch(/104,40\s*zł/);
+    expect(screen.getByText(/no expenses found/i)).toBeInTheDocument();
   });
 
-  it('recomputes the total from the filtered rows only', () => {
+  it('selects every row it holds, not just the visible page', () => {
+    renderTable(manyExpenses(120));
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /select all expenses/i }));
+
+    expect(screen.getByText('120 selected')).toBeInTheDocument();
+  });
+
+  it('has no footer total — the summary row above the table carries it', () => {
     const { container } = renderTable(SAMPLE);
 
-    fireEvent.change(screen.getByLabelText('Currency:'), { target: { value: 'PLN' } });
-
-    expect(footerTotal(container)).toMatch(/104,40\s*zł/);
-    expect(footerTotal(container)).not.toMatch(/\$/);
+    expect(container.querySelector('tfoot')).not.toBeInTheDocument();
   });
 });
 
@@ -292,24 +282,6 @@ describe('ExpenseTable categories', () => {
     const cell = categoryCell(container, 'Kibble');
     expect(cell).toHaveTextContent('Pet food');
     expect(cell.querySelector('.category-dot')).toHaveStyle({ background: '#f472b6' });
-  });
-
-  it('offers custom categories in the filter, and filters by them', () => {
-    const { container } = renderTable([...SAMPLE, petExpense], [...TEST_CATEGORIES, CUSTOM]);
-
-    fireEvent.change(screen.getByLabelText('Category:'), { target: { value: 'pet-food' } });
-
-    expect(rowDescriptions(container)).toEqual(['Kibble']);
-  });
-
-  it('finds a row by its category label as well as its slug', () => {
-    const { container } = renderTable([...SAMPLE, petExpense], [...TEST_CATEGORIES, CUSTOM]);
-
-    fireEvent.change(screen.getByLabelText('Search:'), { target: { value: 'Pet food' } });
-    expect(rowDescriptions(container)).toEqual(['Kibble']);
-
-    fireEvent.change(screen.getByLabelText('Search:'), { target: { value: 'pet-food' } });
-    expect(rowDescriptions(container)).toEqual(['Kibble']);
   });
 
   it('still renders a row whose category has been deleted elsewhere', () => {

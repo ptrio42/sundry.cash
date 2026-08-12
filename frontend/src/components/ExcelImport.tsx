@@ -1,6 +1,13 @@
 /**
  * ExcelImport Component
- * Allows users to upload Excel files and import expenses with column mapping
+ * Allows users to upload Excel files and import expenses with column mapping.
+ *
+ * **Not a destination.** It held one of ten nav slots for a single file picker
+ * while its mirror image, Export, was two buttons inside a table header — the
+ * same job at two levels of hierarchy (F17 in `docs/ux-review-findings.md`).
+ * Change 12 puts it beside Export in the Expenses toolbar, and it is rendered
+ * inline from there and from Home's Start card, which is the empty-ledger case
+ * where importing is the lead action.
  */
 
 import { useState, FormEvent, ChangeEvent } from 'react';
@@ -153,7 +160,7 @@ export default function ExcelImport({ settings, currencies, onImported }: ExcelI
 
   return (
     <div className="excel-import">
-      <h2>Import Expenses from Excel</h2>
+      <h2>Import from a spreadsheet</h2>
 
       {error && <div className="error-message">{error}</div>}
 

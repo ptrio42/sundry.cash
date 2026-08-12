@@ -6,18 +6,22 @@
  * per-screen status line and the application state every screen is fed from.
  *
  * Home is the real thing as of wave 2: `Dashboard`, `Insights` and
- * `InsightsStrip` merged into one screen that leads with what it found. Wave 3a
- * turned Add into a sheet over whatever you were reading, so `ExpenseForm` and
- * `ReceiptScan` are mounted by `AddSheet` rather than by a route here.
- * `Analytics` and `Fx` are still not reachable: they lose their nav entries here
- * and are re-entered from within their new homes, so they are deliberately not
- * imported rather than deleted. `ExcelImport` is reachable again, but from
- * inside Home's Start card rather than from a destination of its own.
+ * `InsightsStrip` merged into one screen that leads with what it found.
+ *
+ * Wave 3 finished the other two. Add is a sheet over whatever you were reading,
+ * so `ExpenseForm` and `ReceiptScan` are mounted by `AddSheet` rather than by a
+ * route here (3a). Expenses is the ledger, the query tool and the door for bulk
+ * data at once — `Analytics` folded into it and is gone from the repo (3b).
+ *
+ * `Fx` is the last screen still unreachable: it loses its nav entry here and is
+ * re-entered from Settings in wave 4, so it is deliberately not imported rather
+ * than deleted. `ExcelImport` is reachable from two places now — Home's Start
+ * card and the Expenses toolbar — and from no destination of its own.
  */
 
 import { useState, useEffect } from 'react';
 import AddSheet, { AddedLine } from './AddSheet';
-import ExpenseTable from './ExpenseTable';
+import Expenses from './Expenses';
 import Home from './Home';
 import Budgets from './Budgets';
 import Settings from './Settings';
@@ -385,12 +389,13 @@ export default function App() {
    *
    * Home is the one screen this line cannot state a window for, and says so:
    * it carries two on purpose (ruling R2) and each of its sections prints its
-   * own. Expenses still states the window it actually has, which is the whole
-   * ledger, until wave 3 gives it a filter bar.
+   * own. Expenses is the other one, for the opposite reason: since wave 3 the
+   * window is the user's own choice, so the screen prints it back under its
+   * filter bar rather than having the shell guess at it.
    */
   const STATUS: Record<Destination, string> = {
     home: 'What stands out, and what you spent — every section states its own period.',
-    expenses: 'Your whole ledger — filter, sort and export it.',
+    expenses: 'Every expense you have recorded — filter it, chart it, import and export it.',
     budgets: `Limits and spending for ${monthLabel(currentMonthKey())}.`,
     settings: 'Defaults, currencies and categories for this install.',
   };
@@ -503,13 +508,16 @@ export default function App() {
           ) : (
             <>
               {destination === 'expenses' && (
-                <ExpenseTable
+                <Expenses
                   expenses={expenses}
+                  settings={settings}
                   categories={categories}
                   currencies={currencies}
+                  rates={fxRates}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onUpdate={handleUpdateExpense}
+                  onExpensesStale={refreshExpenses}
                 />
               )}
               {destination === 'home' && (
