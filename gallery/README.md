@@ -10,8 +10,8 @@ frame proves that without showing every screen twice.
 | --- | --- | --- |
 | `home.png` | Home — the headline, findings as section headings, and each section's own window beside it | 1360×1385 @2x |
 | `expenses.png` | Expenses — the ledger and the query tool in one: filter bar, summary row, spend over time and spend by category | 1360×2957 @2x |
-| `budgets.png` | Budgets — the verdict line, the month stepper, the pace figure and the read/edit split | 1360×1270 @2x |
-| `add.png` | The Add sheet over Expenses, with its **Scan a receipt** / **Type it** tabs and the screen still visible underneath | 1360×900 @2x |
+| `budgets.png` | Budgets — the verdict line first, then the month stepper and the pace figure | 1360×1270 @2x |
+| `add.png` | The Add sheet over Expenses, with its **Scan a receipt** / **Type it** tabs and the screen still visible underneath | 1360×926 @2x |
 | `settings.png` | Settings — one row per currency carrying enable, symbol, decimals and its rate, which is where the FX screen went | 1360×1223 @2x |
 | `mobile.png` | Home on a phone: the bottom bar's four destinations and the raised **+** | 390×844 @3x |
 | `home-dark.png` | Home again, in dark, so the pair reads as one product in two themes | 1360×1385 @2x |
@@ -43,7 +43,9 @@ these images are pictures of the product rather than of that instance.
 
 - **Desktop 1360 wide at 2×.** Height is chosen per screen and ends in the gap *between* two
   sections — a card cut in half looks like a bug rather than a crop. `home.png` stops after
-  Subscriptions; `settings.png` stops after Currencies.
+  Subscriptions; `settings.png` stops after Currencies. `add.png` is a viewport rather than a whole
+  screen, since the sheet is the subject, so its height is snapped to a ledger-row boundary of the
+  page behind it — blurred and dimmed is not a licence to cut a row through the middle.
 - **Phone 390×844 at 3×** for `mobile.png`.
 - Start the frame at the top of the content, not mid-page.
 - **Light is the default**, so nothing needs setting for the six light shots; `home-dark.png` wants
