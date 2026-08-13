@@ -17,6 +17,13 @@ docker compose up --build
 
 To stop: `docker compose down` (add `-v` to also drop the named volume).
 
+Both containers declare a healthcheck, so `docker compose up -d --wait` returns
+only once the app is actually serving — use it if a deploy gates on health. Both
+probes address **`127.0.0.1`**, not `localhost`: the busybox `wget` in these
+images resolves `localhost` to `[::1]` first, and nginx listens on IPv4 only, so
+a probe written the other way reported the frontend `unhealthy` forever while it
+served every request fine.
+
 ## Access from other devices (phones on your LAN)
 
 The frontend container publishes port **8847** on all interfaces, so once the

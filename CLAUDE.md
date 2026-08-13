@@ -283,6 +283,13 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   header inherited from the server block. That is why the security headers live in
   `frontend/security-headers.conf` and are `include`d per location — and why `location ^~ /api` does
   *not* include them, since Express sets its own and `add_header` would append a second copy.
+- **A container healthcheck must say `127.0.0.1`, never `localhost`.** busybox `wget` resolves
+  `localhost` to `[::1]` first; nginx's `listen 80` is IPv4-only, so the frontend's probe collected
+  "Connection refused" forever and the container reported `unhealthy` while serving every request —
+  which `depends_on`, `--wait` and any orchestrator gate believe. The compose network declares no
+  `enable_ipv6`, so the only IPv6 address either container has is `::1` on `lo`: making nginx
+  `listen [::]:80` would have built a listener for the probe alone. The backend's probe passed only
+  because Node's `app.listen(PORT)` binds dual-stack.
 
 ## Definition of done
 

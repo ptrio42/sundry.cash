@@ -69,7 +69,11 @@ services:
     expose:
       - "5000"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/api/health"]
+      # 127.0.0.1 rather than localhost — see the frontend's healthcheck below
+      # for why. This one would pass either way, but only by luck: Node's
+      # `app.listen(PORT)` with no host binds dual-stack (`:::5000`), so ::1
+      # answers. Pinning the host would break it exactly as it broke nginx.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:5000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -96,7 +100,22 @@ services:
     # service name and the app failed to start. For a real no-egress posture, put
     # the backend on a dedicated `internal: true` network instead (see docs/DEPLOYMENT.md).
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      # 127.0.0.1, never localhost: busybox wget resolves `localhost` to [::1]
+      # first, and nginx listens on IPv4 only (frontend/nginx.conf), so this
+      # probe collected "Connection refused" forever and the container sat
+      # `unhealthy` while serving the app perfectly. That matters beyond the
+      # word: `depends_on` and any `--wait` or orchestrator gate reads it, so a
+      # healthy deploy rolls back.
+      #
+      # The other repair — `listen [::]:80` in nginx.conf — was rejected. This
+      # network declares no `enable_ipv6`, so the container's only IPv6 address
+      # is ::1 on `lo` (eth0 is IPv4-only) and that listener would serve nobody
+      # but this probe, while leaving it resolver-dependent about which stack it
+      # tested. Name the address the traffic actually uses instead: Docker
+      # publishes to the container's IPv4 address, and deploy/Caddyfile
+      # reverse-proxies to 127.0.0.1. If this ever needs to answer over IPv6,
+      # that is an addressable network plus the nginx listen, together.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80"]
       interval: 30s
       timeout: 10s
       retries: 3
