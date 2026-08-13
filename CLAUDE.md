@@ -55,7 +55,8 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 - `src/routes/` — Express routers: `expenses`, `import`, `budgets`, `categories`, `currencies`, `fx`,
   `auth`, `settings`, `receipts`, `insights`. New endpoints go here. `GET /categories/suggest` exposes
   `services/categorize.ts` so the manual form can guess a category too (change 21) — it ran on the
-  import and the scan paths and nowhere else.
+  import and the scan paths and nowhere else. `GET /expenses/people` answers with the "who added it"
+  names in the ledger and is registered **before** `/:id`, like `/export`.
 - `src/models/` — better-sqlite3 prepared statements (`expense`, `budget`, `category`, `currency`,
   `fx`, `settings`, `insights`, `rateLimit`). All SQL lives here.
 - `src/config/` — `database.ts` (schema + idempotent migrations + seeds), `currencies.ts` (the shipped
@@ -65,7 +66,7 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 - `src/middleware/` — `auth` (`requireAuth`), `rateLimit` (the SQLite store for the per-IP login
   limiter plus the per-instance backstop), `validation`.
 - `src/services/` — `categorize.ts` (keyword auto-categorization, EN + PL); `receipt/` (OCR factory — see gotchas).
-- `src/tests/` — Jest + supertest, 329 cases across 18 files (plus `env.ts` / `paths.ts` /
+- `src/tests/` — Jest + supertest, 339 cases across 18 files (plus `env.ts` / `paths.ts` /
   `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
 
 **frontend/** — React 18 + Vite, single-page UI (no state library — plain hooks). Four destinations
@@ -91,7 +92,8 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   three different questions, see the file header), `insights.ts` (currency scoping for the four data
   endpoints), `home.ts` (Home's windows, its section arithmetic, and the sentence one finding becomes),
   `expenses.ts` (the Expenses query: range presets, filtering, the summary row and both charts),
-  `budgets.ts` (the month stepper's arithmetic and the pace band), `route.ts`, `export.ts`
+  `budgets.ts` (the month stepper's arithmetic and the pace band), `who.ts` (this device's "who added
+  it" name, its three storage states and the normalisation the backend mirrors), `route.ts`, `export.ts`
   (client-side CSV — the .xlsx comes from the backend's `GET /expenses/export`, called via
   `exportExpensesXlsx` in `services/api.ts`). **Both import their shared arithmetic from `home.ts`** — window ranges in one
   case, the over/close classification in the other — rather than re-implementing it, which is how
@@ -130,6 +132,19 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   `server.ts` (`app.use('/api/receipts', requireAuth, receiptRoutes)`) and drives a real two-step
   UI: scan -> review/edit -> save. The provider seam exists so Claude Vision can replace Tesseract
   without touching routes or frontend — don't collapse it.
+- **`expenses.who` is a label, not a login** — several people already share one instance and one
+  password, so anyone can add an expense under any name; the column only says which device recorded
+  the row. The name lives in `localStorage` under `sundry-who`, **per device and never on the
+  server**: one name per instance is exactly what the feature exists to avoid, so there is no
+  server-side fallback for an empty key. Three states, not two — absent (the Add sheet asks), a name,
+  and the empty *skip* sentinel that "Not now" writes so the prompt cannot come back. `utils/who.ts`
+  owns all of it and all three creation paths read it at save time. Nullable and never backfilled;
+  its `ALTER TABLE` runs *after* the enum migrations for the same reason `merchant`'s does. Unlike
+  `merchant` it is editable — there is no receipt to contradict, so a typo has to be fixable. The
+  ledger's Who column and person filter appear only once **more than one** name is in the ledger, and
+  both are computed from the whole ledger rather than the filtered set. Home is untouched: a
+  per-person breakdown is a question you ask, and that belongs on Expenses. See
+  `docs/who-label-spec.md`.
 - **`expenses.merchant` is write-only and has no UI** — the scanner detects a shop, `ReceiptScan`
   sends it alongside the description the user is free to rewrite, and only `models/insights.ts` ever
   reads it (`getMerchants` falls back to the description when it is NULL). It is deliberately absent
@@ -325,7 +340,7 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (329 backend + 662 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (339 backend + 720 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).

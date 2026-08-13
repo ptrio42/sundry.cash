@@ -99,6 +99,11 @@ multi-tenant; each instance stays one container pair with its own SQLite file.
   spending rather than against a fixed amount. Each one it keeps becomes the heading of the section
   that proves it, and the section with a finding far ahead of the rest moves to the top. Nothing is
   shown where there is nothing to say — no empty boxes, no "0" tiles.
+- **Who added it** — a household shares one instance, and each expense carries the name of the device
+  that recorded it. The name lives in that browser, so the second phone is a second name rather than
+  a second account; it is asked for once, in the Add sheet, and changed in Settings. The ledger grows
+  a Who column and a person filter once more than one name is in it. **A label, not a login** —
+  everyone shares one password, so anyone can add an expense under any name.
 - **Export** — the whole ledger as `.xlsx` from the server, or CSV generated in the browser.
 - **Optional login** — set `APP_PASSWORD` and the app gates behind a 7-day HMAC bearer token.
 - **Light-first UI, mobile layout, installable PWA** — charcoal, sage and off-white, with a dark
@@ -181,6 +186,7 @@ Base URL `http://localhost:5000/api`. Everything except `/health`, `/auth/*` and
 | `DELETE` | `/expenses/:id` | Delete one, plus its receipt image |
 | `DELETE` | `/expenses/all` | Wipe everything and reset the id counter |
 | `GET` | `/expenses/export` | Download the ledger as `.xlsx` |
+| `GET` | `/expenses/people` | The "who added it" names in the ledger, most-used first |
 | `GET` | `/expenses/stats/by-category` | Totals grouped by category and currency |
 | `GET` | `/expenses/stats/by-date` | Totals grouped by date and currency |
 | `GET` | `/expenses/stats/analytics` | Aggregates for a filtered slice |
@@ -229,6 +235,11 @@ Once anything is recorded in a currency its exponent is frozen, enforced in the 
 just the UI. Disabling a currency stops it being offered for new entries and never touches the
 history already in it. See [`docs/categories-currencies-spec.md`](docs/categories-currencies-spec.md).
 
+**Who added it** is a nullable `expenses.who`, stamped at creation from a name the *browser* holds
+(`sundry-who` in `localStorage`), never from anything the server knows — one name per instance is the
+thing the column exists to avoid. NULL means nobody said, and no row is ever backfilled. Unlike
+`merchant` it is editable, because there is no receipt to contradict.
+
 **Exchange rates** are manual and user-editable — there is no live feed, because the app is meant to run
 offline. A rate is the value of one unit in USD; seeds are `USD 1`, `PLN 0.25`, `BTC 65000`.
 
@@ -251,7 +262,10 @@ builds and tests both packages, and builds the Docker images.
 
 Worth knowing before you rely on it:
 
-- **Single user.** One password, one ledger. No accounts, no sharing model, no per-user data.
+- **One credential, however many people.** A household can share an instance and each row says who
+  added it, but they share the password: no accounts, no per-person access, no per-person revocation,
+  and nothing that could serve as an audit trail. Anyone who can reach the app can add an expense
+  under any name, and removing one person's access means changing the password for everyone.
 - **The whole ledger is fetched in one request.** The table pages 50 rows at a time so the DOM stays
   small, but Home's heatmap and the ledger's two charts need every row to draw, so there is no
   server-side paging. Fine for the thousands of expenses a person actually records; not built for a

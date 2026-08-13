@@ -6,6 +6,12 @@ is meant to — but they share the password, so there is no per-person access, n
 revocation, and nothing that could serve as an audit trail. Removing one person's access means
 changing the password for everyone.
 
+That last point survives the "who added it" label, which is why it is worth stating plainly: each
+expense carries a name, and the name is **self-declared by the browser that saved the row**. It is a
+convenience for a household, not evidence of anything — anyone with the password can add an expense
+under any name, and can edit the name on a row somebody else added. Do not read the Who column as
+attribution.
+
 What has changed is where it runs. There are now two deployment models, and they have different
 threat models — read the section that applies to you.
 

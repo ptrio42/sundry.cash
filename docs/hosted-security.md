@@ -18,8 +18,15 @@ before a stranger pays and types real numbers in.
 
 ## 1. The threat model
 
-**What we protect.** One person's expense history, receipt photographs, and the email address they
-bought with. Not identity documents, not card numbers — Stripe holds those and we never see them.
+**What we protect.** A household's expense history, receipt photographs, and the email address the
+instance was bought with. Not identity documents, not card numbers — Stripe holds those and we never
+see them.
+
+A household rather than one person since the "who added it" label shipped: one instance is meant to
+serve everyone in a home, and each row now carries the first name of whoever recorded it. That
+widens the blast radius of a breach without changing its shape — the same one credential, the same
+one SQLite file, and now several people's spending in it plus the names they call each other. It is
+also the reason the buyer is not the only data subject, which §6 has to settle.
 
 **From whom, in the order these actually happen:**
 
@@ -372,8 +379,11 @@ in plain language, at the verified address they bought with.
 - **Whether Fly issues per-app certificates for `.fly.dev`** — one `openssl s_client` away.
 - **Four questions for a Polish lawyer, in one session, before the pricing page goes live:** whether
   we are controller or processor for the expense rows themselves (Recital 18 says we are in scope as
-  the provider of the means; the boundary is contested); whether a trial starts the 14-day
-  withdrawal clock; the wording of the Art 6(1) pre-purchase disclosure; and VAT OSS registration.
+  the provider of the means; the boundary is contested — and the "who added it" label sharpens it,
+  because the instance now holds the first names of people who never bought anything and never
+  agreed to anything, so the buyer is not the only data subject in it); whether a trial starts the
+  14-day withdrawal clock; the wording of the Art 6(1) pre-purchase disclosure; and VAT OSS
+  registration.
   Adjacent and equally unavoidable: signing the Fly and email-provider DPAs (Art 28) and writing the
   one-page record of processing (Art 30 — do not assume the under-250-employee exemption, since a
   subscription is by definition not "occasional").
