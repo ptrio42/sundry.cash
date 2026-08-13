@@ -150,3 +150,34 @@ describe('The per-instance backstop', () => {
     db.prepare('INSERT INTO auth_backstop (id, consecutive_failures, blocked_until) VALUES (1, 0, 0)').run();
   });
 });
+
+describe('A missing table fails closed', () => {
+  // config/database.ts swallows the enum migrations' errors by design, so
+  // "the table never appeared" is a state this codebase can genuinely reach.
+  // Its DDL runs outside that try/catch, but these two cases pin the deeper
+  // guarantee: even with the storage gone, a login attempt is refused — the
+  // prepare() throws at call time and the error handler answers 500. What must
+  // never happen is the permissive reading, a login processed as if nobody had
+  // ever guessed wrong.
+  it('refuses logins when the backstop table is gone, rather than skipping the check', async () => {
+    db.exec('ALTER TABLE auth_backstop RENAME TO auth_backstop_gone');
+    try {
+      const res = await request(app).post('/api/auth/login').send({ password: 'wrong' });
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ error: 'Internal Server Error' });
+    } finally {
+      db.exec('ALTER TABLE auth_backstop_gone RENAME TO auth_backstop');
+    }
+  });
+
+  it('refuses logins when the per-IP table is gone, rather than counting nothing', async () => {
+    db.exec('ALTER TABLE auth_rate_limit RENAME TO auth_rate_limit_gone');
+    try {
+      const res = await request(app).post('/api/auth/login').send({ password: 'wrong' });
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ error: 'Internal Server Error' });
+    } finally {
+      db.exec('ALTER TABLE auth_rate_limit_gone RENAME TO auth_rate_limit');
+    }
+  });
+});
