@@ -1,5 +1,5 @@
 # Backend Dockerfile for Sundry
-FROM node:22-alpine
+FROM node:24-alpine
 
 # su-exec lets the entrypoint drop from root to `node` after fixing ownership of
 # the bind-mounted data directory. See docker-entrypoint.sh.
