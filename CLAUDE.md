@@ -92,7 +92,8 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   endpoints), `home.ts` (Home's windows, its section arithmetic, and the sentence one finding becomes),
   `expenses.ts` (the Expenses query: range presets, filtering, the summary row and both charts),
   `budgets.ts` (the month stepper's arithmetic and the pace band), `route.ts`, `export.ts`
-  (client-side .xlsx). **Both import their shared arithmetic from `home.ts`** — window ranges in one
+  (client-side CSV — the .xlsx comes from the backend's `GET /expenses/export`, called via
+  `exportExpensesXlsx` in `services/api.ts`). **Both import their shared arithmetic from `home.ts`** — window ranges in one
   case, the over/close classification in the other — rather than re-implementing it, which is how
   the app ended up with four currency controls that disagreed. Charts: recharts. Styling: single
   light-first `src/App.css`; brand assets in `src/assets/` (the two logo cuts, the two symbol cuts,
