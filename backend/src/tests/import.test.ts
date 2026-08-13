@@ -95,10 +95,15 @@ describe('Import API Endpoints', () => {
      * ledger's person filter useless — docs/who-label-spec.md.
      */
     it('stamps the who label on every imported row', async () => {
+      // 2028: dates no other case in the suite uses. The whole run shares one
+      // database, and "should take numeric cells at face value" below reads
+      // *by date* — two USD rows on one of its dates and its lookup keeps
+      // whichever the sort put last, which is a coin flip when `created_at`
+      // has one-second resolution.
       const testData = [
         ['Date', 'Amount', 'Description'],
-        ['2024-03-01', 11.0, 'Imported one'],
-        ['2024-03-02', 12.0, 'Imported two'],
+        ['2028-03-01', 11.0, 'Imported one'],
+        ['2028-03-02', 12.0, 'Imported two'],
       ];
 
       const response = await request(app)

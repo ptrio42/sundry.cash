@@ -112,7 +112,10 @@ describe('POST /api/receipts (save with image)', () => {
     const res = await request(app)
       .post('/api/receipts')
       .field('amount', '4.50')
-      .field('date', '2024-02-03')
+      // 2028: a date no other case uses. The run shares one database, and
+      // import.test.ts reads its own PLN rows *by date* — a second PLN row on
+      // one of its dates makes its lookup a coin flip.
+      .field('date', '2028-02-03')
       .field('description', 'Kawa')
       .field('category', 'other')
       .field('currency', 'PLN')
@@ -127,7 +130,7 @@ describe('POST /api/receipts (save with image)', () => {
     const res = await request(app)
       .post('/api/receipts')
       .field('amount', '4.50')
-      .field('date', '2024-02-04')
+      .field('date', '2028-02-04')
       .field('description', 'Herbata')
       .field('category', 'other')
       .field('currency', 'PLN')
