@@ -92,9 +92,12 @@ So regenerate them, against the same anchor the screenshots use, and never trans
 ```bash
 DB_PATH=/tmp/landing-check.db npm --prefix backend run seed -- --anchor=2026-08-12 --force
 cd backend && PORT=5397 DB_PATH=/tmp/landing-check.db npx ts-node src/server.ts &
-curl -s 'http://localhost:5397/api/insights/summary?scope=primary&limit=10&period=month&window=rolling'
+curl -s 'http://localhost:5397/api/insights/summary?scope=primary&limit=10&period=month&window=rolling&anchor=2026-08-12'
 ```
 
+`anchor` on the query must repeat the seed's: the endpoint defaults to the day it is asked, so a
+check run any later day shifts the 366-day habit windows by that many days — the weekday figure
+moves while every 30-day figure still matches, which looks like a transcription error and is not.
 `scope=primary` is the `All → PLN` the shots are taken in; the PLN-only scope answers differently
 and mixing the two is how you end up with a weekend figure from one and a weekday figure from the
 other. The payload carries numbers only — the sentences live in `findingSentence` in
