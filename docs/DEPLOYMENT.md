@@ -55,6 +55,46 @@ so expenses added from any phone show up everywhere — one shared "bucket".
 
 See `backend/.env.example` and `frontend/.env.example`.
 
+## Receipt scanning and OCR language data
+
+`RECEIPTS_ENABLED` defaults to `true`, and the image is built so that promise
+holds on a machine that has never run the app before.
+
+Tesseract needs a `*.traineddata` file per language. The two the app defaults to
+— `pol` and `eng`, ~5.6 MB gzipped — are **baked into the backend image**: the
+Dockerfile runs `npm run tessdata`, which copies them out of the
+`@tesseract.js-data` packages (devDependencies, so they arrive with the same
+`npm ci` and the same `package-lock.json` integrity check as everything else)
+into `/app/tessdata`, and then prunes the packages away. Nothing is fetched at
+runtime and nothing is fetched from a second network host at build time. The
+image did not grow: clearing npm's cache inside the `npm ci` layer, which is the
+only layer that can reclaim it, took the backend from 463 MB to **451 MB** with
+the language data now inside it.
+
+That replaces a download on first scan, which is where this used to break: with
+no local copy, tesseract.js fetches the data from a CDN *inside its worker
+thread*, and when that fetch failed the library never settled the promise it had
+returned — the scan hung until nginx answered `504 Gateway Time-out` and
+`data/tesseract/` stayed empty, so every retry did it again. The extractor now
+imposes its own ceilings and turns a failure into a 500 with a message
+(`src/services/receipt/tesseract.ts`).
+
+Three consequences worth knowing:
+
+- **Running outside Docker**, `npm run install:all` does *not* stage the data —
+  run `npm run tessdata --prefix backend` once if you want a laptop to scan
+  offline. Without it the first scan still works, by downloading.
+- **Another language** (`RECEIPT_OCR_LANGS=deu`) is not in the image, so it is
+  downloaded and cached under `TESSERACT_CACHE_PATH`. The bundle is only used
+  when it covers *every* requested language — tesseract.js reads one directory
+  and fails the whole worker on a language it cannot find there, rather than
+  falling back per language. To bundle more, add `@tesseract.js-data/<lang>` to
+  `backend/package.json` and rebuild.
+- **A strictly no-egress instance** should set `TESSERACT_LANG_PATH` explicitly
+  at the folder holding its `*.traineddata.gz` (`/app/tessdata` in the image).
+  Set, it is never second-guessed: a language missing from that folder is an
+  error, not a reason to reach for the network.
+
 ## The public demo instance
 
 `demo.sundry.cash` serves a throwaway ledger produced by `backend/src/scripts/seed.ts`

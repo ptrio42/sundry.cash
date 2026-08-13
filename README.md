@@ -150,10 +150,16 @@ environment or set them in `docker-compose.yml`. See [`backend/.env.example`](ba
 | `DEMO_MODE` | `false` | Public demo: the UI banners that the data is fictional and resets |
 | `RECEIPTS_ENABLED` | `true` | `false` makes `/receipts` answer 403 and hides the tab |
 | `RECEIPT_OCR_PROVIDER` | `tesseract` | `tesseract` or `stub`. `claude` is a documented placeholder that throws |
-| `RECEIPT_OCR_LANGS` | `pol+eng` | Tesseract language packs |
+| `RECEIPT_OCR_LANGS` | `pol+eng` | Tesseract language packs. `pol` and `eng` ship with the app; anything else is downloaded |
 | `RECEIPTS_DIR` | `<dir of DB_PATH>/receipts` | Where receipt images are written |
 | `TESSERACT_CACHE_PATH` | `<dir of DB_PATH>/tesseract` | Cache for downloaded language data |
-| `TESSERACT_LANG_PATH` | *(unset)* | Point at local `*.traineddata` for fully offline OCR |
+| `TESSERACT_LANG_PATH` | *(unset — `backend/tessdata` is used when it covers the languages)* | A folder of `*.traineddata.gz` (or `*.traineddata`) to read instead. Set it and nothing is ever downloaded |
+
+OCR language data is ~5.6 MB and is **bundled**: `npm run tessdata --prefix backend` copies it out of
+the `@tesseract.js-data` packages into `backend/tessdata/`, and the Docker image does the same at
+build time. `npm run install:all` does not — run it once if you want a laptop to scan receipts
+offline. Without a local copy the first scan downloads from a CDN, which is the one thing a
+freshly installed self-hosted box tends not to manage.
 
 The frontend reads one variable, baked in at build time: `VITE_API_BASE_URL` (default `/api`).
 
