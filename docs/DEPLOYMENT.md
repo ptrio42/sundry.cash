@@ -50,9 +50,11 @@ See `backend/.env.example` and `frontend/.env.example`.
 
 ## The public demo instance
 
-`sundry.cash` serves a throwaway ledger produced by `backend/src/scripts/seed.ts`
+`demo.sundry.cash` serves a throwaway ledger produced by `backend/src/scripts/seed.ts`
 — a few hundred fictional expenses over eighteen months, generated relative to
-the day it runs so the last 30 days always contain spending:
+the day it runs so the last 30 days always contain spending (the apex
+`sundry.cash` serves the static landing page from `/srv/sundry/landing` — see
+`deploy/Caddyfile`):
 
 ```bash
 DB_PATH=./data/demo.db npm run seed --prefix backend
