@@ -701,7 +701,11 @@ h3 { font-size: 1.05rem; }
 .form-group input,
 .form-group select,
 .filter-group input,
-.filter-group select {
+.filter-group select,
+/* The sheet's "who is adding this?" field is neither: it belongs to a note
+   above the form rather than to a form group, and an unstyled browser input
+   inside a styled dialog is the one place that shows. */
+.who-prompt-entry input {
   width: 100%;
   padding: 11px 13px;
   background: var(--surface-2);
@@ -711,11 +715,13 @@ h3 { font-size: 1.05rem; }
   color: var(--text);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.form-group input::placeholder { color: var(--text-muted); }
+.form-group input::placeholder,
+.who-prompt-entry input::placeholder { color: var(--text-muted); }
 .form-group input:focus,
 .form-group select:focus,
 .filter-group input:focus,
-.filter-group select:focus {
+.filter-group select:focus,
+.who-prompt-entry input:focus {
   border-color: var(--accent);
   box-shadow: var(--ring);
   outline: none;
