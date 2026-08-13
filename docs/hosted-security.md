@@ -94,7 +94,8 @@ fit — in which case a lower-N/higher-p row is the documented equal-defense tra
 | Decision | Value | Source |
 |---|---|---|
 | Absolute cap | 30 days, anchored to `auth_time` that renewal copies verbatim | ASVS 7.3.2; NIST SP 800-63B-4 |
-| Inactivity timeout | **required, currently absent entirely** | ASVS 7.3.1 (L2) |
+| Inactivity timeout | **7 days**, advanced by renewal — decided 2026-08-12 | ASVS 7.3.1 (L2) |
+| Re-authentication | the password again before `DELETE /api/expenses/all`, whatever the session age | our judgement |
 | Revocation | per-tenant `session_epoch` mixed into the signing key | ASVS 7.4.1 names this exact mechanism |
 | Token payload | `jti` (≥128-bit CSPRNG), `iat`, `auth_time`, `exp`, `sub`, `typ`, key id — no PII | ASVS 7.2.3, 7.2.4, 9.2.2 |
 | Signing key | `HMAC(AUTH_SECRET, session_epoch)`; `AUTH_SECRET` = 32 random bytes per instance, in Fly secrets | our judgement, see below |
@@ -106,12 +107,23 @@ is exactly the top of the band we are entitled to. If MFA ever appears, or marke
 AAL2, the cap drops to 24 hours with a 1-hour idle timeout. ASVS 7.1.1 requires these numbers to be
 *written down with the justification for deviating from 800-63B*; this table is that record.
 
-**The inactivity timeout is missing outright.** A 7-day TTL with no idle rule is a 7-day idle
-window. OWASP's published band for high-value applications is 2–5 minutes, which is unusable for an
-app people keep on a phone home screen; NIST allows up to an hour at AAL2. Our decision: enforce a
-server-side last-seen that renewal advances, with a value chosen and recorded here — and record that
-it is a deliberate deviation from the cheat sheet's high-value band, justified by the product being
-a single-user ledger behind one password rather than a bank.
+**The inactivity timeout: 7 days idle, under the 30-day cap.** Today's 7-day TTL with no idle rule
+is a 7-day idle window that expires even on a device in daily use, so this is an improvement in both
+directions rather than a compromise between them. Someone who opens the app weekly stops seeing the
+login screen at all; a device that goes quiet for a week needs the password, which is exactly today's
+behaviour for the phone that matters — the lost one. The concession is bounded and singular: the
+worst case grows from 7 days to 30.
+
+OWASP's published band for high-value applications is 2–5 minutes and we are deliberately far outside
+it. The justification, as ASVS 7.1.1 requires it to be written down: this is single-factor password
+authentication, which pins us to AAL1 whatever we do, and NIST's AAL1 ceiling is a 30-day session
+with the inactivity timeout optional — so 7 days idle is stricter than the standard we are entitled
+to claim, not looser. A 5-minute timeout on an app people keep on a home screen does not produce a
+more secure product; it produces a password written on a sticky note.
+
+**One step-up, where the irreversible damage is.** `DELETE /api/expenses/all` asks for the password
+again regardless of session age. That is the whole reason the rest can be comfortable: the cheap
+exception buys the expensive convenience.
 
 **The signing key must not be derived from the password hash.** That was this project's own earlier
 idea and it fails twice: key material in the DB means every snapshot and backup mints live tokens,

@@ -11,8 +11,10 @@ threat models — read the section that applies to you.
 
 ## Reporting a vulnerability
 
-Email **security@entereighth.com**. You will get a reply within **5 working days**. There is no
-bounty programme and no on-call rota; there is one person who reads that address.
+Email **security@entereighth.com**. I aim to reply within **five working days** — and if two weeks
+pass with nothing, assume the message went astray and send it again rather than concluding the
+address is a black hole. There is no bounty programme and no on-call rota; there is one person who
+reads that address.
 
 Useful things to include: the version or commit, which deployment model you were looking at, and
 enough detail to reproduce. If you found it against a hosted instance that is not yours, please stop
