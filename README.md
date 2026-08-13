@@ -119,7 +119,7 @@ grosze or satoshis; the REST API speaks major units and conversion happens only 
 `0.1 + 0.2 !== 0.3` — which is invisible on one row and wrong on a thousand. BTC forced the issue: two
 decimal places would have been useless, so the per-currency scale is explicit (100, 100, 100 000 000).
 
-**better-sqlite3, synchronously.** This is a single-user app on a home server. An async driver plus a pool
+**better-sqlite3, synchronously.** This is one household on a home server, not a service. An async driver plus a pool
 would buy concurrency nobody needs, at the cost of every query becoming a promise. The prepared statements
 in [`models/`](backend/src/models) are the entire data layer, and there is no ORM.
 

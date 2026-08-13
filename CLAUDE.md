@@ -1,6 +1,7 @@
 # Sundry — CLAUDE.md
 
-Self-hosted, single-user personal expense tracker. Two-package **TypeScript monorepo**:
+Self-hosted personal expense tracker, one credential per instance — a household shares the
+password and each row says who added it, but there are no accounts. Two-package **TypeScript monorepo**:
 `backend/` (Express + better-sqlite3 REST API) and `frontend/` (React 18 + Vite SPA).
 The root `package.json` orchestrates both with `concurrently` — **this is NOT an npm-workspaces
 repo**, so dependencies and most scripts are per-package.
@@ -103,8 +104,9 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 
 ## Key design decisions (the non-obvious "why")
 
-- **better-sqlite3, synchronous** — single-user self-hosted app; no async DB layer needed. The
-  prepared statements in `models/` are the whole data layer.
+- **better-sqlite3, synchronous** — one household on one box, not a service; no async DB layer
+  needed, and WAL is what covers several phones hitting it at once. The prepared statements in
+  `models/` are the whole data layer.
 - **Auth is opt-in, unless it is required** — enabled only when `APP_PASSWORD` is set; issues a 7-day
   HMAC bearer signed with `AUTH_SECRET || APP_PASSWORD`. **With no password the API is fully open** —
   fine for localhost, deliberate for self-hosting, and catastrophic on a public host, which is what

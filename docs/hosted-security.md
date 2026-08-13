@@ -332,7 +332,7 @@ This list is what makes the plan finite. Each is a decision, not an oversight.
   is a direct trade against the feature the product is sold on: findings are scored server-side, and
   a server holding ciphertext has nothing to rank. So the honest answer to "can the operator read my
   expenses" is **yes, technically** — and the marketing must say something no stronger than that.
-- **No customer MFA.** On a single-user instance it adds an account-recovery problem a one-person
+- **No customer MFA.** On a single-account instance it adds an account-recovery problem a one-person
   operator cannot support, and the mailbox already gates recovery either way.
 - **No log aggregation, SIEM or alerting stack** beyond a per-tenant authentication log.
 - **No certification** — SOC 2, ISO 27001. Meaningless at this size and enormously expensive.
