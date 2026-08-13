@@ -51,9 +51,218 @@ so expenses added from any phone show up everywhere — one shared "bucket".
 | -------------------- | --------- | ------------------- | ----------------------------------------- |
 | `PORT`               | backend   | `5000`              | API listen port                           |
 | `DB_PATH`            | backend   | `<cwd>/data/…`      | SQLite file location                      |
+| `APP_PASSWORD`       | backend   | unset (API open)    | Enables auth; required for anything with a public hostname |
+| `AUTH_SECRET`        | backend   | unset (falls back to the password) | Independent token-signing key — `openssl rand -hex 32` |
+| `AUTH_REQUIRED`      | backend   | `false`             | Fail closed: no password ⇒ refuse to boot, guarded routes answer 503. Set on any instance a stranger can reach |
+| `TRUST_PROXY`        | backend   | `1`                 | Proxies that append to `X-Forwarded-For`: 1 = bundled nginx, 2 = a front proxy in front of it |
+| `CORS_ORIGINS`       | backend   | empty (allow nothing) | Cross-origin callers, comma-separated. Empty is correct for every setup here |
+| `DEMO_MODE`          | backend   | `false`             | The UI shows a fictional-data banner      |
+| `RECEIPTS_ENABLED`   | backend   | `true`              | Off ⇒ `/api/receipts` answers 403 and the Scan tab disappears |
 | `VITE_API_BASE_URL`  | frontend  | `/api`              | Override only for non-proxied setups      |
 
-See `backend/.env.example` and `frontend/.env.example`.
+See `backend/.env.example`, `frontend/.env.example` and
+[`deploy/instance.env.example`](../deploy/instance.env.example) — the last one
+documents every auth knob in detail, with the generation commands.
+
+## Serving `frontend/dist/` with your own web server
+
+**The security headers do not travel with the build output.** The CSP, HSTS,
+`X-Frame-Options` and the rest of the SPA's response headers live in
+[`frontend/security-headers.conf`](../frontend/security-headers.conf), and the
+only thing that ships them is the bundled nginx image —
+`frontend/Dockerfile` copies that file into the container as an nginx snippet.
+Serve `frontend/dist/` with your own Apache, Caddy or nginx and you get **no
+security headers at all**: no CSP, no HSTS, nothing. The app will work; it just
+loses every protection that file provides.
+
+If you bring your own server, port the headers yourself and treat
+`frontend/security-headers.conf` as the reference set — its comments explain
+each value, including the two CSP hashes that admit `index.html`'s inline
+blocks. Two traps to carry over:
+
+- The API responses must **not** get these headers a second time: Express sets
+  its own (see `backend/src/config/security.ts`), so whatever proxies `/api`
+  must leave them alone or every API response carries two CSP headers.
+- If you use nginx, remember `add_header` in a `location` **replaces** all
+  headers inherited from the server block — which is exactly why the bundled
+  config `include`s the snippet per location.
+
+## Hosting several instances on one host
+
+Sundry is not multi-tenant and this section does not make it so. One instance
+is one user, one container pair, one SQLite file, one password. A "hosted
+account" is therefore a container with its own volume and its own password —
+which is exactly what makes onboarding a customer by hand viable long before
+self-serve accounts exist.
+
+Everything you need is host configuration, not application code: an env file
+per instance (template in
+[`deploy/instance.env.example`](../deploy/instance.env.example)), one front
+proxy ([`deploy/Caddyfile`](../deploy/Caddyfile)), and a cron script for the
+demo ([`deploy/reset-demo.sh`](../deploy/reset-demo.sh)).
+
+**`deploy/*.env` is gitignored and must stay that way.** A filled-in instance
+file holds a real password; only the `.example` belongs in git. The repo's hard
+rule about `.env` files exists for the database's sake, and a hosting setup is
+exactly where it gets forgotten.
+
+### One instance
+
+```bash
+cp deploy/instance.env.example deploy/acme.env
+$EDITOR deploy/acme.env                    # COMPOSE_PROJECT_NAME, INSTANCE, HTTP_PORT, DATA_DIR, APP_PASSWORD, AUTH_SECRET
+docker compose --env-file deploy/acme.env up -d
+```
+
+The env file carries `COMPOSE_PROJECT_NAME` itself (verified against Compose
+v5.0.1), so the project name travels with `--env-file` instead of having to be
+retyped in front of every command — get that wrong once on a `down` and you have
+stopped somebody else's instance. The explicit form still works if you prefer
+it:
+
+```bash
+COMPOSE_PROJECT_NAME=acme docker compose --env-file deploy/acme.env up -d
+```
+
+That project name namespaces everything Compose creates — the network, the
+volumes, the internal service names. It does **not** namespace two things, and
+both are host-wide:
+
+- **`container_name`**, which comes from `INSTANCE` (`acme-backend`,
+  `acme-frontend`). Two instances that both leave it at the default collide with
+  "container name already in use".
+- **the published port**, which comes from `HTTP_PORT`. Second instance, second
+  port.
+
+Add `DATA_DIR` (one directory per instance — nothing is ever shared) and you
+have the four variables that must differ. The rest have defaults, and those
+defaults are the original single-instance install: `docker compose up --build`
+with no env file still gives you `sundry-backend`, `./data` and port 8847.
+
+Day-to-day, pass the same env file to every command — it is what tells Compose
+which project you mean:
+
+```bash
+docker compose --env-file deploy/acme.env logs -f backend
+docker compose --env-file deploy/acme.env down
+```
+
+### Auth on anything with a hostname
+
+With no `APP_PASSWORD` the API is fully open. That is deliberate for localhost
+and wrong for a public name — someone who finds the port can read the ledger,
+add to it, or wipe it. Three variables, and a public instance sets all three:
+
+- `APP_PASSWORD` — the password itself: `openssl rand -base64 24`.
+- `AUTH_SECRET` — an independent token-signing key: `openssl rand -hex 32`.
+  Left empty, tokens are signed with the password itself, and one captured
+  token becomes an offline, unthrottled cracker for it.
+- `AUTH_REQUIRED=true` — turns the opt-in into a requirement. If the password
+  or the secret ever fails to resolve, the backend refuses to boot and every
+  guarded route answers 503 instead of quietly serving the ledger open.
+
+The template sets `AUTH_REQUIRED=true` already, so a copied env file fails
+loudly until the two secrets are filled in. The one instance that legitimately
+runs open is the demo, because there is nothing real in it — see below.
+
+### The front proxy and TLS
+
+One Caddy maps hostnames to instance ports. Caddy is here because it obtains and
+renews Let's Encrypt certificates by itself: adding a customer is a four-line
+block and a reload, not a certificate task.
+
+```
+demo.<your-domain>       → the demo instance's port
+<customer>.<your-domain> → that customer's port
+```
+
+Edit [`deploy/Caddyfile`](../deploy/Caddyfile) — real hostnames, real email, one
+block per instance — then:
+
+```bash
+caddy run --config /srv/sundry/deploy/Caddyfile
+```
+
+Two settings make a proxied instance correct, and both live in its env file:
+
+- **`BIND_ADDR=127.0.0.1`** — without it the container also publishes on every
+  interface, so the app answers on a bare port over plain HTTP and the
+  certificate is decoration.
+- **`TRUST_PROXY=2`** — behind Caddy there are two proxies appending to
+  `X-Forwarded-For` (Caddy, then the bundled nginx). At the default `1` the
+  login rate limiter counts every visitor as the proxy's address, so one
+  stranger's failed logins throttle the owner. See
+  `backend/src/config/security.ts` for the values.
+
+### The demo instance
+
+The seed script itself — what it generates and its refusals — is covered in
+*The public demo instance* below; this section is the container mechanics. The
+demo adds two flags on top of a normal instance, and
+[`docker-compose.demo.yml`](../docker-compose.demo.yml) is the whole difference:
+
+- `DEMO_MODE=true` — the UI shows a banner saying the data is fictional and
+  resets nightly. **The banner is what makes the demo honest, not distorted
+  data:** the seed uses believable amounts and real shop names on purpose, so
+  the disclosure has to live in the UI.
+- `RECEIPTS_ENABLED=false` — `/api/receipts` answers 403 and the Scan Receipt
+  tab disappears. OCR is Tesseract on this machine's CPU, and the demo has no
+  password: an open scan endpoint is a free compute service for the internet.
+
+The two flags are independent in the code. A customer instance can switch
+uploads off without pretending to be a demo, and a demo on a laptop can leave
+them on; only this compose file sets both.
+
+> `RECEIPTS_ENABLED=false` gates the whole `/api/receipts` router, reading
+> included — the flag means "this instance does not do receipts", not "it has
+> stopped accepting new ones". On an instance that already has receipt photos,
+> turning it off makes those images unviewable too (the table says "Could not
+> load the receipt image"; nothing is deleted, and turning the flag back on
+> restores them). Fine for a demo, worth knowing before you set it on a
+> customer's box.
+
+The demo stays **writable** on purpose — a visitor who cannot add an expense has
+not tried the product. That includes the Wipe Database button, so a bored
+visitor can empty the ledger until the next reset. If that turns out to matter
+once the demo is public, run `reset-demo.sh` more often than nightly; hiding the
+button is a code change and a worse demo.
+
+```bash
+cp deploy/instance.env.example deploy/demo.env
+$EDITOR deploy/demo.env   # project/INSTANCE=demo, HTTP_PORT=8848, no password — and AUTH_REQUIRED=false
+docker compose -f docker-compose.yml -f docker-compose.demo.yml \
+  --env-file deploy/demo.env up -d
+```
+
+> The template ships with `AUTH_REQUIRED=true`, which is right for a customer
+> and fatal for a passwordless demo — the backend will refuse to boot. Set
+> `AUTH_REQUIRED=false` in `demo.env`; the demo is the one instance that runs
+> open on purpose.
+
+#### Nightly reset
+
+[`deploy/reset-demo.sh`](../deploy/reset-demo.sh) stops the backend, deletes the
+database file (and its `-wal`/`-shm` sidecars), runs the seed and starts the
+backend again. It reads `DB_PATH` from `deploy/demo.env`, because the seed
+script refuses to run without an explicit one — its default would be a real
+ledger.
+
+```bash
+chmod +x deploy/reset-demo.sh          # once
+0 4 * * * /srv/sundry/deploy/reset-demo.sh >> /var/log/sundry-demo-reset.log 2>&1
+```
+
+The seed runs as **build output**, not through `ts-node`: the image's command is
+`node dist/server.js`, so the reset calls `node dist/scripts/seed.js`. The script
+checks that file exists and fails loudly if it does not — a demo that silently
+stops resetting looks fine for a week and then reads as abandoned.
+
+Point `ENV_FILE` at another file to reset a different instance, if you ever want
+a second demo:
+
+```bash
+ENV_FILE=/srv/sundry/deploy/demo-pl.env /srv/sundry/deploy/reset-demo.sh
+```
 
 ## Receipt scanning and OCR language data
 
