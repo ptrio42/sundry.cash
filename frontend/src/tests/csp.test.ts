@@ -128,4 +128,16 @@ describe('The other headers', () => {
     expect(nginxHeaders).toContain('add_header X-Frame-Options "DENY" always;');
     expect(nginxHeaders).toContain('add_header X-Content-Type-Options "nosniff" always;');
   });
+
+  it('denies the camera — the receipt scan does not need the permission', () => {
+    // Settled after research (see the comment in security-headers.conf): the
+    // 'camera' policy feature gates getUserMedia() only, and the scan flow is
+    // an <input type="file" capture> whose native picker returns a finished
+    // file. If a camera stream is ever genuinely needed (live preview, say),
+    // this assertion is the reminder that the policy must change first.
+    const permissions = nginxHeaders.match(/add_header Permissions-Policy "([^"]+)"/)?.[1] ?? '';
+    expect(permissions).toContain('camera=()');
+    expect(permissions).toContain('microphone=()');
+    expect(permissions).toContain('geolocation=()');
+  });
 });
