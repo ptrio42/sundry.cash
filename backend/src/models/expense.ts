@@ -16,6 +16,28 @@ import {
 } from '../types/expense.types';
 
 /**
+ * Longest "who added it" label worth storing. A first name or a nickname, not a
+ * sentence — the ledger renders it in a table column beside four other fields.
+ */
+const MAX_WHO_LENGTH = 24;
+
+/**
+ * The device label as it should be stored: trimmed, inner whitespace collapsed,
+ * capped — and **kept in the case it was typed in**, because people want to see
+ * "Ania" rather than "ania". The suggestion list in `getPeople` is what folds
+ * case, and only for deduplication.
+ *
+ * Truncated rather than rejected, like `merchant`: it is a label nobody else
+ * depends on, so a 40-character answer is worth keeping the first 24 of instead
+ * of failing a save the user cares about.
+ */
+export function normalizeWho(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const collapsed = value.trim().replace(/\s+/g, ' ');
+  return collapsed.length === 0 ? null : collapsed.slice(0, MAX_WHO_LENGTH);
+}
+
+/**
  * Get all expenses with optional filtering
  */
 export function getAll(filters?: ExpenseFilters): Expense[] {
@@ -55,7 +77,8 @@ export function getAll(filters?: ExpenseFilters): Expense[] {
     category: row.category,
     currency: row.currency,
     createdAt: row.created_at,
-    receiptImage: row.receipt_image ?? null
+    receiptImage: row.receipt_image ?? null,
+    who: row.who ?? null
   }));
 }
 
@@ -76,7 +99,8 @@ export function getById(id: number): Expense | undefined {
     category: row.category,
     currency: row.currency,
     createdAt: row.created_at,
-    receiptImage: row.receipt_image ?? null
+    receiptImage: row.receipt_image ?? null,
+    who: row.who ?? null
   };
 }
 
@@ -85,13 +109,18 @@ export function getById(id: number): Expense | undefined {
  */
 export function create(expense: CreateExpenseDTO): Expense {
   const stmt = db.prepare(`
-    INSERT INTO expenses (amount, date, description, category, currency, receipt_image, merchant)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO expenses (amount, date, description, category, currency, receipt_image, merchant, who)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   // `merchant` is written but never read back into `Expense`: it is the
   // scanner's observation, not a field of the expense the user owns. Only
   // `models/insights.ts` reads it. See the DTO for why.
+  //
+  // `who` is normalized here rather than in each route, so all three creation
+  // paths — typed, scanned, imported — stamp it the same way. An import that
+  // landed unlabelled while everything else was labelled would make the ledger's
+  // person filter useless.
   const result = stmt.run(
     toMinorUnits(expense.amount, expense.currency),
     expense.date,
@@ -99,7 +128,8 @@ export function create(expense: CreateExpenseDTO): Expense {
     expense.category,
     expense.currency,
     expense.receiptImage ?? null,
-    expense.merchant ?? null
+    expense.merchant ?? null,
+    normalizeWho(expense.who)
   );
 
   // Fetch and return the created expense
@@ -152,6 +182,14 @@ export function update(id: number, expense: UpdateExpenseDTO): Expense | undefin
     params.push(expense.currency);
   }
 
+  // The deliberate opposite of `merchant`, which no update can touch: `who` has
+  // no external source to protect, so a typo has to be fixable. `null` (and
+  // anything that normalizes to it, such as an emptied field) clears the label.
+  if (expense.who !== undefined) {
+    updates.push('who = ?');
+    params.push(normalizeWho(expense.who));
+  }
+
   // If no fields to update, return existing
   if (updates.length === 0) return existing;
 
@@ -177,6 +215,51 @@ export function deleteExpense(id: number): boolean {
     deleteReceiptImage(existing.receiptImage);
   }
   return result.changes > 0;
+}
+
+/**
+ * The names already in the ledger, most-used first.
+ *
+ * This is what makes the second phone pick "Ania" from a button instead of
+ * typing it and inventing "ania": the set of people is whatever has been
+ * recorded, never a list anyone configures.
+ *
+ * **Case is folded for deduplication only.** The stored value keeps whatever
+ * case it was typed in, so "Ania" and "ania" are one person here and the
+ * spelling that appears most often is the one offered — ties going to the
+ * lexicographically first, so the answer is stable rather than arbitrary.
+ * Merged in JS rather than by `GROUP BY lower_unicode(who)`: SQLite picks a bare
+ * column from an arbitrary row of the group, which would make the offered
+ * spelling change for no reason.
+ */
+export function getPeople(): string[] {
+  const rows = db
+    .prepare(
+      `SELECT who, COUNT(*) AS n
+         FROM expenses
+        WHERE who IS NOT NULL AND TRIM(who) <> ''
+        GROUP BY who`
+    )
+    .all() as Array<{ who: string; n: number }>;
+
+  const merged = new Map<string, { name: string; total: number; best: number }>();
+  for (const row of rows) {
+    const key = row.who.toLowerCase();
+    const entry = merged.get(key);
+    if (!entry) {
+      merged.set(key, { name: row.who, total: row.n, best: row.n });
+      continue;
+    }
+    entry.total += row.n;
+    if (row.n > entry.best || (row.n === entry.best && row.who < entry.name)) {
+      entry.name = row.who;
+      entry.best = row.n;
+    }
+  }
+
+  return Array.from(merged.values())
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
+    .map(entry => entry.name);
 }
 
 /**

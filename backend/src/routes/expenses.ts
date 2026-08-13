@@ -70,6 +70,25 @@ router.get('/export', (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/expenses/people
+ * The names already in the ledger, most-used first, so a second device can pick
+ * one instead of inventing a spelling. Registered before /:id so "people" is not
+ * matched as an id.
+ *
+ * Behind `requireAuth` like everything else on this router (mounted that way in
+ * `server.ts`): a public endpoint listing the names of the people in a household
+ * is a small, needless leak.
+ */
+router.get('/people', (_req: Request, res: Response) => {
+  try {
+    res.json({ people: expenseModel.getPeople() });
+  } catch (error) {
+    console.error('Error fetching people:', error);
+    res.status(500).json({ error: 'Failed to fetch people' });
+  }
+});
+
+/**
  * GET /api/expenses/:id
  * Get a single expense by ID
  */
@@ -107,7 +126,10 @@ router.post('/', validateExpense, (req: Request, res: Response) => {
       date: req.body.date,
       description: req.body.description,
       category: req.body.category,
-      currency: req.body.currency
+      currency: req.body.currency,
+      // The device's own label, normalized by the model. Optional: a device
+      // that never answered the question saves NULL, which is a value.
+      who: req.body.who
     };
 
     const newExpense = expenseModel.create(expenseData);
@@ -136,7 +158,11 @@ router.put('/:id', validateExpense, (req: Request, res: Response) => {
       date: req.body.date,
       description: req.body.description,
       category: req.body.category,
-      currency: req.body.currency
+      currency: req.body.currency,
+      // Editable, unlike `merchant`: there is no receipt to contradict, so a
+      // misspelt name has to be fixable. An explicit `null` clears it; an
+      // absent key leaves it alone, like every other field here.
+      who: req.body.who
     };
 
     // Remove undefined values

@@ -115,6 +115,7 @@ export function initializeDatabase(): void {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       receipt_image TEXT,
       merchant TEXT,
+      who TEXT,
       FOREIGN KEY(category) REFERENCES categories(slug),
       FOREIGN KEY(currency) REFERENCES currencies(code)
     )
@@ -371,6 +372,25 @@ export function initializeDatabase(): void {
   } catch (error: any) {
     if (!error.message.includes('duplicate column name')) {
       console.error('merchant migration failed:', error.message);
+    }
+  }
+
+  // Migration: which person on which phone recorded the row — a **label, not a
+  // login**. Everyone on the instance shares one password, so anyone can add an
+  // expense as anyone; this only answers "who typed it in". Nullable, never
+  // backfilled: NULL means nobody said, which is what every row predating this
+  // column will always mean. See docs/who-label-spec.md.
+  //
+  // Placed here for the same reason `merchant` is, and it is the trap that
+  // column set: both enum migrations rebuild `expenses` from an explicit column
+  // list, so a column added before them is silently dropped on the one start
+  // that migrates.
+  try {
+    db.exec(`ALTER TABLE expenses ADD COLUMN who TEXT`);
+    console.log('Added who column to expenses table');
+  } catch (error: any) {
+    if (!error.message.includes('duplicate column name')) {
+      console.error('who migration failed:', error.message);
     }
   }
 

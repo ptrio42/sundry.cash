@@ -104,6 +104,39 @@ describe('POST /api/receipts (save with image)', () => {
     createdIds.push(res.body.id);
   });
 
+  /**
+   * The scanned path stamps the device label too — the second of the three
+   * creation paths the spec requires to carry it.
+   */
+  it('stamps the who label from the scanning device', async () => {
+    const res = await request(app)
+      .post('/api/receipts')
+      .field('amount', '4.50')
+      .field('date', '2024-02-03')
+      .field('description', 'Kawa')
+      .field('category', 'other')
+      .field('currency', 'PLN')
+      .field('who', 'Ola-scan')
+      .expect(201);
+    createdIds.push(res.body.id);
+
+    expect(res.body.who).toBe('Ola-scan');
+  });
+
+  it('leaves the label NULL when the scanning device has no name', async () => {
+    const res = await request(app)
+      .post('/api/receipts')
+      .field('amount', '4.50')
+      .field('date', '2024-02-04')
+      .field('description', 'Herbata')
+      .field('category', 'other')
+      .field('currency', 'PLN')
+      .expect(201);
+    createdIds.push(res.body.id);
+
+    expect(res.body.who).toBeNull();
+  });
+
   it('stores the detected merchant beside a description the user rewrote', async () => {
     const res = await request(app)
       .post('/api/receipts')

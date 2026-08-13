@@ -244,7 +244,7 @@ router.post('/confirm', upload.single('file'), async (req: Request, res: Respons
     }
 
     // Parse request body
-    const { dateColumn, amountColumn, descriptionColumn, currency, categoryColumn } = req.body;
+    const { dateColumn, amountColumn, descriptionColumn, currency, categoryColumn, who } = req.body;
 
     // Validate required fields
     if (!dateColumn || !amountColumn || !descriptionColumn || !currency) {
@@ -407,13 +407,16 @@ router.post('/confirm', upload.single('file'), async (req: Request, res: Respons
           category = autoCategorizeByKeywords(description);
         }
 
-        // Create expense
+        // Create expense. Every row carries the importing device's own label —
+        // an import that landed unlabelled while everything else was labelled
+        // would make the ledger's person filter useless (docs/who-label-spec.md).
         await ExpenseModel.create({
           amount,
           date: dateStr,
           description,
           category,
           currency: currency as Currency,
+          who,
         });
 
         results.success++;

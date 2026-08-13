@@ -89,6 +89,37 @@ describe('Import API Endpoints', () => {
       expect(response.body.results.failed).toBe(0);
     });
 
+    /**
+     * The importing device's own label lands on every row. An import that
+     * arrived unlabelled while everything else was labelled would make the
+     * ledger's person filter useless — docs/who-label-spec.md.
+     */
+    it('stamps the who label on every imported row', async () => {
+      const testData = [
+        ['Date', 'Amount', 'Description'],
+        ['2024-03-01', 11.0, 'Imported one'],
+        ['2024-03-02', 12.0, 'Imported two'],
+      ];
+
+      const response = await request(app)
+        .post('/api/import/confirm')
+        .attach('file', createTestExcelFile(testData), 'test.xlsx')
+        .field('dateColumn', '0')
+        .field('amountColumn', '1')
+        .field('descriptionColumn', '2')
+        .field('currency', 'USD')
+        .field('who', '  Kasia-import  ')
+        .expect(200);
+
+      expect(response.body.results.success).toBe(2);
+
+      const ledger = await request(app).get('/api/expenses').expect(200);
+      const imported = ledger.body.filter((e: any) => e.description.startsWith('Imported '));
+      expect(imported).toHaveLength(2);
+      // Trimmed by the model, exactly as the typed and scanned paths are.
+      imported.forEach((expense: any) => expect(expense.who).toBe('Kasia-import'));
+    });
+
     it('should return 400 if required fields are missing', async () => {
       const testData = [
         ['Date', 'Amount', 'Description'],

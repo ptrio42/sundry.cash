@@ -57,6 +57,21 @@ export interface Expense {
   currency: Currency;
   createdAt?: string; // ISO 8601 datetime
   receiptImage?: string | null; // filename of an attached receipt photo, if any
+  /**
+   * Which person on which device recorded this — a **label, not a login**.
+   *
+   * One instance already serves a household behind one shared password, so
+   * anyone who can reach the app can add an expense under any name; this says
+   * who typed it in and nothing more. It is not authentication, not a
+   * permission and not an audit trail. See docs/who-label-spec.md.
+   *
+   * NULL is a value, not a missing field: it means nobody said, which is what
+   * every row predating the column will always mean. Unlike `merchant` it is on
+   * `Expense` and therefore editable — `merchant` is write-only so an edit
+   * cannot overwrite what the receipt said, and `who` has no external source,
+   * so a typo has to be fixable.
+   */
+  who?: string | null;
 }
 
 // DTO for creating a new expense (excludes id and createdAt)

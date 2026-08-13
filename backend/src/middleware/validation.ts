@@ -24,7 +24,7 @@ function currencyError(): string {
  * Validate expense data for create/update operations
  */
 export function validateExpense(req: Request, res: Response, next: NextFunction): void {
-  const { amount, date, description, category, currency } = req.body;
+  const { amount, date, description, category, currency, who } = req.body;
 
   const errors: string[] = [];
 
@@ -93,6 +93,17 @@ export function validateExpense(req: Request, res: Response, next: NextFunction)
   } else if (req.method === 'POST') {
     // Currency is required for POST (create)
     errors.push('Currency is required');
+  }
+
+  // Validate the "who added it" label.
+  //
+  // Never required, on either method: it is a label, and a device that has not
+  // been told a name saves NULL. `null` is accepted explicitly because that is
+  // how an edit clears one. Length is capped by the model rather than refused
+  // here — truncating a 40-character answer is better than failing a save over
+  // a field nothing depends on.
+  if (who !== undefined && who !== null && typeof who !== 'string') {
+    errors.push('Who must be a string');
   }
 
   // If there are validation errors, return 400

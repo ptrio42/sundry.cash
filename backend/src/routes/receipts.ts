@@ -126,7 +126,7 @@ function detectedMerchant(value: unknown): string | null {
 router.post('/', uploadReceipt, (req: Request, res: Response) => {
   try {
     const amount = parseFloat(String(req.body.amount ?? ''));
-    const { date, description, category, currency, merchant } = req.body as Record<string, string>;
+    const { date, description, category, currency, merchant, who } = req.body as Record<string, string>;
 
     const errors: string[] = [];
     if (!isFinite(amount) || amount <= 0) errors.push('Amount must be a positive number');
@@ -153,6 +153,10 @@ router.post('/', uploadReceipt, (req: Request, res: Response) => {
         currency: currency as Currency,
         receiptImage,
         merchant: detectedMerchant(merchant),
+        // One of the three creation paths that must stamp the device label —
+        // typed, scanned, imported. Normalized by the model; absent means the
+        // device never answered, which is a value.
+        who,
       });
       res.status(201).json(expense);
     } catch (dbError) {
