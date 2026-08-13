@@ -14,6 +14,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import App from '../components/App';
+
+/**
+ * Longer than the 5s default, for this file only.
+ *
+ * These 53 cases each render the entire shell, and several of them render all
+ * four destinations in a loop. Every `getByRole` with a name then computes an
+ * accessible name for every control on the screen, so the cost of a case tracks
+ * the size of the screens rather than the number of assertions in it — and the
+ * screens keep growing (the who label alone put a field in Settings and a column
+ * in Expenses). The heaviest cases were finishing in about 3s against a 5s
+ * ceiling, which makes machine load, not correctness, decide whether the suite
+ * is green. Nothing here waits on a timer, so a generous ceiling costs nothing
+ * when the code is right and only changes how long a genuine hang takes to
+ * report.
+ */
+vi.setConfig({ testTimeout: 30_000 });
 import { TEST_CATEGORIES } from './categories.fixture';
 import { TEST_CURRENCIES } from './currencies.fixture';
 import { currentMonthKey, monthLabel } from '../utils/format';
@@ -449,11 +465,7 @@ describe('App — the Add sheet', () => {
 
   /**
    * The heaviest case in the file: four destinations rendered in full, each with
-   * a dialog opened and closed over it. Every role query here computes an
-   * accessible name for every control on the screen underneath, so the cost
-   * tracks the size of the four screens — and the who label added a field to
-   * Settings and a column to Expenses. Given its own timeout rather than left
-   * to inherit 5s, which it now sits close enough to for machine load to decide.
+   * a dialog opened and closed over it.
    */
   it('opens over every one of them, not over one chosen for you', async () => {
     await renderApp();
@@ -473,7 +485,7 @@ describe('App — the Add sheet', () => {
       // the next destination race the pop and lose.
       await waitFor(() => expect(window.location.hash).toBe(`#/${label.toLowerCase()}`));
     }
-  }, 20_000);
+  });
 
   it('closes on save, leaves you where you were, and says what was saved', async () => {
     // F7: this used to `navigate('expenses')` and say nothing at all, so the
