@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+
+    <title>Run Sundry yourself</title>
+    <meta
+      name="description"
+      content="Sundry on your own machine: two containers, one folder of data, MIT licensed and free."
+    />
+
+    <meta name="theme-color" content="#F7F7F5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1A1A1A" media="(prefers-color-scheme: dark)" />
+
+    <link rel="icon" type="image/png" href="../assets/favicon-64.png" />
+    <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png" />
+    <link rel="canonical" href="https://sundry.cash/run-it-yourself/" />
+
+    <!-- Same reason as the landing page: the heading paints in Newsreader or it
+         paints twice. Fonts are fetched in CORS mode even same-origin. -->
+    <link rel="preload" href="../assets/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin />
+
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <a class="brand" href="../">
+        <picture>
+          <source srcset="../assets/logo-horizontal-dark.svg" media="(prefers-color-scheme: dark)" />
+          <img
+            class="wordmark"
+            src="../assets/logo-horizontal-light.svg"
+            width="451"
+            height="120"
+            alt="Sundry"
+          />
+        </picture>
+      </a>
+      <a class="header-link" href="https://demo.sundry.cash">Try the demo</a>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <section class="doc">
+        <h1>Run it yourself</h1>
+
+        <p class="lede">
+          Sundry is MIT licensed, and running it on your own machine is free. It stays free — self-hosting
+          is the free tier.
+        </p>
+
+        <p>Two containers and one folder of data:</p>
+
+        <pre><code>docker compose up --build</code></pre>
+
+        <p>
+          Then open <code>http://localhost:8847</code>. There is no config file to write and no
+          database to create. To reach it from the other devices in the house, use the machine's LAN
+          address on the same port and set a password first.
+        </p>
+
+        <h2>Your data</h2>
+
+        <p>
+          Everything sits in <code>./data</code> beside the compose file: one SQLite database and your
+          receipt photos. Stop the app, copy the folder, and you have a backup. The app also exports
+          to CSV and .xlsx when you want a file to hand someone.
+        </p>
+
+        <h2>The variables that matter</h2>
+
+        <ul>
+          <li>
+            <code>APP_PASSWORD</code> — the password gate. Unset, the API is open, which suits
+            localhost and nothing else. Set it on anything the network can reach.
+          </li>
+          <li>
+            <code>AUTH_SECRET</code> — an independent signing key for the login token. Without one,
+            tokens are signed with the password itself.
+          </li>
+          <li>
+            <code>DB_PATH</code> — where the SQLite file lives. Defaults to
+            <code>data/expenses.db</code>.
+          </li>
+          <li>
+            <code>RECEIPTS_ENABLED</code> — receipt upload and OCR. Turn it off on any instance a
+            stranger can open without a password: the text is read on your own CPU, and an open
+            endpoint is a free compute service for whoever finds it.
+          </li>
+          <li>
+            <code>TESSERACT_LANG_PATH</code> — a local copy of the OCR language data. See the next
+            section.
+          </li>
+        </ul>
+
+        <p class="fine">
+          The full list, with defaults, is in <code>backend/.env.example</code> and
+          <code>docs/DEPLOYMENT.md</code>.
+        </p>
+
+        <h2>One outbound request</h2>
+
+        <p>
+          The first receipt scan downloads its OCR language data from a public CDN, onto your server.
+          Point <code>TESSERACT_LANG_PATH</code> at a folder of local language files and the app makes
+          no outbound request at all. The photograph never leaves the machine either way — the text is
+          read there.
+        </p>
+
+        <h2>The source</h2>
+
+        <p>
+          The repository is not public yet. It is available on request, and the contact route is in
+          the <a href="../terms/">terms</a>.
+        </p>
+
+        <h2>Or do not run it</h2>
+
+        <p>
+          A <a href="../#pricing">hosted instance</a> is the same software with the server part done
+          for you: your own address, your own data, 30 days free.
+        </p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p><a href="../">Sundry</a> · <a href="../terms/">Terms</a> · <a href="../privacy/">Privacy</a></p>
+      <p class="fine">
+        Set in Newsreader by the Newsreader Project Authors, served from this domain under the
+        <a href="../assets/fonts/OFL.txt">SIL Open Font License 1.1</a>.
+      </p>
+    </footer>
+  </body>
+</html>
