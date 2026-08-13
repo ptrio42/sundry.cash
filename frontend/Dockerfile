@@ -24,8 +24,13 @@ FROM nginx:alpine
 # Copy built files from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration
+# Copy nginx configuration. The security headers are a separate snippet because
+# nginx's add_header does not merge across contexts, so each location that sets
+# a header of its own has to include them again — see security-headers.conf.
+# Kept out of conf.d/ so nginx's own `include conf.d/*.conf` does not also load
+# it as a top-level config.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY security-headers.conf /etc/nginx/snippets/security-headers.conf
 
 # Expose port
 EXPOSE 80

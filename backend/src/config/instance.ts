@@ -26,8 +26,12 @@ const FALSY = new Set(['0', 'false', 'no', 'off']);
  * (`RECEIPTS_ENABLED=flase`) silently resolves to the default, `server.ts` logs
  * the flags it resolved at start-up: the operator sees what the instance
  * actually decided, not what they meant to write.
+ *
+ * Exported because `config/auth.ts` reads AUTH_REQUIRED with exactly these
+ * rules. A second parser would be a second answer to "is `AUTH_REQUIRED=`
+ * true?", and that one has a fail-open branch.
  */
-function flag(name: string, fallback: boolean): boolean {
+export function flag(name: string, fallback: boolean): boolean {
   const raw = process.env[name];
   if (raw === undefined) return fallback;
 
