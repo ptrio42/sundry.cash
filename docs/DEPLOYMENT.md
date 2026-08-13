@@ -68,7 +68,7 @@ Dockerfile runs `npm run tessdata`, which copies them out of the
 into `/app/tessdata`, and then prunes the packages away. Nothing is fetched at
 runtime and nothing is fetched from a second network host at build time. The
 image did not grow: clearing npm's cache inside the `npm ci` layer, which is the
-only layer that can reclaim it, took the backend from 459 MB to **447 MB** with
+only layer that can reclaim it, took the backend from 463 MB to **451 MB** with
 the language data now inside it.
 
 That replaces a download on first scan, which is where this used to break: with

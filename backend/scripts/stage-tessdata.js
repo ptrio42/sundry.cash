@@ -18,8 +18,8 @@
  * removing them. These 5.6 MB cost about 11 MB, because the `chown -R` that
  * follows rewrites every file it touches into a layer of its own. Cleaning
  * npm's cache inside the `npm ci` layer — the only layer that can reclaim it —
- * more than pays for both: measured, the image went from 459 MB before this
- * change to 447 MB with the language data inside it.
+ * more than pays for both: measured, the image went from 463 MB before this
+ * change to 451 MB with the language data inside it.
  *
  * Usage:  npm run tessdata            # honours RECEIPT_OCR_LANGS (default pol+eng)
  */
