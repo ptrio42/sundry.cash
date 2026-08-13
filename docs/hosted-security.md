@@ -54,22 +54,45 @@ That single fact is why detection and logging below are compliance artefacts and
 
 | Decision | Value | Source |
 |---|---|---|
-| Algorithm | Argon2id if we move the image to Node ≥ 24.7, otherwise scrypt as the sanctioned fallback | OWASP Password Storage CS |
-| scrypt cost, if scrypt | **N=2^17, r=8, p=1** — or a documented equal-defense row | OWASP Password Storage CS |
+| Algorithm | **Argon2id** — decided 2026-08-12, via `crypto.argon2()` on Node ≥ 24.7 | OWASP Password Storage CS |
+| Argon2id cost | **19 MiB, t=2, p=1** as the published minimum, calibrated up if the machine allows | OWASP Password Storage CS |
+| scrypt, if it ever comes back | **N=2^17, r=8, p=1** — or a documented equal-defense row | OWASP Password Storage CS |
 | Calibration | a hash must take **under one second** on the machine size we sell | OWASP Password Storage CS |
 | Salt | 16 bytes from `crypto.randomBytes`, per record, parameters stored PHC-style | OWASP Password Storage CS |
 | Pepper | HMAC the password with a secret held **outside** the tenant volume, in Fly secrets | OWASP Password Storage CS |
 | API form | async `crypto.scrypt`, never `scryptSync` | Node crypto docs |
 
-**Two corrections to what this project believed before the sources were read.**
+**Argon2id, and the runtime bump it costs — decided 2026-08-12.**
 
-OWASP puts **Argon2id first** and scrypt second, "when the former is not available". Our earlier
-plan chose scrypt without establishing unavailability — and the premise is now false anyway:
-`crypto.argon2()` landed in Node 24.7.0, so on a runtime we build ourselves it is a standard-library
-call with no native dependency. `CLAUDE.md` pins Node 22, which is the only thing making scrypt the
-fallback. **Decide this before the first paying tenant**, because changing the hash afterwards means
-a rehash-on-next-login path. This is not merely code taste: GDPR Art 32 makes "state of the art" the
-legal test, and OWASP naming Argon2id first is the most citable evidence of what that phrase means.
+OWASP puts Argon2id first and scrypt second, "when the former is not available". This project's
+earlier plan reached for scrypt without ever establishing unavailability, and the premise was false
+anyway: `crypto.argon2()` landed in Node 24.7.0, so on a runtime we build ourselves it is a
+standard-library call with no native dependency. That matters legally as well as technically — GDPR
+Art 32 makes "state of the art" the test, and OWASP's ordering is the most citable evidence of what
+the phrase means, so picking the runner-up would need a written defence and picking the first needs
+none.
+
+The decisive practical argument is memory, not doctrine. The smallest sellable Fly machine has
+256 MB. OWASP's scrypt minimum reserves **128 MiB per hash**, which does not comfortably share a
+machine with Node and better-sqlite3 and certainly not with several concurrent logins. Argon2id's
+published minimum needs **19 MiB** — seven times less, from the algorithm ranked higher.
+
+**What it costs: one dependency bump, `better-sqlite3` 11 → 12.** Measured by asking for the files
+`prebuild-install` fetches, rather than assumed:
+
+| Package version | Node 22 (ABI 127) | Node 24 (ABI 137) |
+|---|---|---|
+| 11.10.0 (current) | linux-x64 ✓ linux-arm64 ✓ | **404 — none** |
+| 12.12.0 | linux-x64 ✓ linux-arm64 ✓ | linux-x64 ✓ linux-arm64 ✓ |
+| 13.0.3 | — | **404 — none for any ABI** |
+
+So Node 24 on the current 11.x compiles the native module from source in the image; on 12.x it
+downloads. Target **12.x, not 13.x**. The only breaking change in 12.0.0 is "drop EOL Node.js v18 and
+Electron v26, v27, v28" — no API change — which also means `engines` has to stop saying `>=18`.
+
+The runtime bump is its own change, not part of the auth build: bump the Docker base images, `.nvmrc`
+and `engines`, move `better-sqlite3` to `^12`, and **verify from the build log that the image pulls a
+prebuild rather than compiling**, which is the entire point.
 
 And **N=16384 is not a work factor, it is Node's default.** OWASP's published scrypt minimum is
 N=2^17 — eight times the memory — and the only row where 2^14 is acceptable pairs it with p=5, not
@@ -335,10 +358,10 @@ in plain language, at the verified address they bought with.
 
 ## 6. Open, and not answerable by a document
 
-- **Argon2id or scrypt** — i.e. whether to move the image to Node ≥ 24.7. Decide before the first
-  paying tenant; afterwards it needs a rehash-on-login path.
-- **The scrypt or Argon2 cost row**, which is a measurement on the machine size we actually sell.
-- **The inactivity timeout value**, which is a product decision constrained by §2.2.
+- **The Argon2id cost**, which is a measurement on the machine size we actually sell rather than a
+  number to pick: hash at the published minimum on a `shared-cpu-1x`, record wall time and RSS, then
+  fire 5–10 concurrent logins and see whether it queues or dies. Calibrate up from 19 MiB only as far
+  as that leaves room.
 - **Whether Fly issues per-app certificates for `.fly.dev`** — one `openssl s_client` away.
 - **Four questions for a Polish lawyer, in one session, before the pricing page goes live:** whether
   we are controller or processor for the expense rows themselves (Recital 18 says we are in scope as
