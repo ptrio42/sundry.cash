@@ -13,14 +13,26 @@ COPY package*.json ./
 COPY tsconfig.json ./
 COPY tsconfig.prod.json ./
 
-# Install ALL dependencies (including devDependencies for build)
-RUN npm ci
+# Install ALL dependencies (including devDependencies for build).
+#
+# The cache is cleaned in the SAME layer, which is the only place it can be
+# done: `npm ci` writes ~/.npm inside this layer, and a later `RUN rm -rf` would
+# mask those bytes without reclaiming them — the same reason the
+# `npm prune --production` below does not shrink the image either.
+RUN npm ci && npm cache clean --force
 
 # Copy source code
 COPY . .
 
 # Build TypeScript to JavaScript (using production tsconfig)
 RUN npx tsc --project tsconfig.prod.json
+
+# Copy the OCR language data out of the @tesseract.js-data packages while they
+# are still installed — the prune below deletes them. ~5.6 MB in the image, and
+# the difference between a first receipt scan that works on a fresh install and
+# one that has to reach a CDN from inside a worker thread. See
+# scripts/stage-tessdata.js.
+RUN npm run tessdata
 
 # Remove devDependencies
 RUN npm prune --production

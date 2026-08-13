@@ -37,6 +37,9 @@ Thumbs.db
 dist/
 build/
 *.tsbuildinfo
+# OCR language data, copied out of node_modules by `npm run tessdata`. Derived
+# bytes with a source in package-lock.json, so it is regenerated, not tracked.
+backend/tessdata/
 
 # Logs
 logs/
