@@ -21,7 +21,14 @@ import { requireAuth } from './middleware/auth';
 import { receiptsEnabled } from './middleware/features';
 import { isDemoMode, isReceiptsEnabled } from './config/instance';
 import { authConfigurationProblems, isAuthRequired, secretSource } from './config/auth';
-import { allowedOrigins, corsOptions, helmetOptions, resolveTrustProxy, trustProxyWarnings } from './config/security';
+import {
+  allowedOrigins,
+  corsOptions,
+  helmetOptions,
+  permissionsPolicy,
+  resolveTrustProxy,
+  trustProxyWarnings,
+} from './config/security';
 import { closeDatabase } from './config/database';
 
 // Initialize Express app
@@ -40,6 +47,13 @@ app.set('trust proxy', resolveTrustProxy());
 // belongs to whatever serves it (frontend/nginx.conf), which is a different
 // document and a different answer. See config/security.ts for the sources.
 app.use(helmet(helmetOptions()));
+
+// Permissions-Policy is the one header on the OWASP list helmet cannot set, so
+// it goes on by hand — same deny-everything list as the SPA's nginx snippet.
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('Permissions-Policy', permissionsPolicy());
+  next();
+});
 
 // CORS, allowlisted rather than open. Both supported setups serve the SPA
 // same-origin (nginx in production, the Vite dev proxy in development), so the

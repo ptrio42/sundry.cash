@@ -118,6 +118,22 @@ export function corsOptions(): CorsOptions {
 }
 
 /**
+ * Permissions-Policy for API responses. helmet does not set this header, so it
+ * is applied by hand in `server.ts` — docs/hosted-security.md §3.1 promises it
+ * on both halves, and the SPA half alone is not "both".
+ *
+ * The list mirrors frontend/security-headers.conf so the two answers cannot
+ * drift apart in meaning: no feature a Sundry response could ever need. The
+ * `camera=()` entry is safe even though receipt scanning exists — the policy's
+ * 'camera' feature gates getUserMedia() only, and the scan flow is an
+ * <input type="file" capture> whose native picker returns a finished file, not
+ * a camera stream (see the longer note in security-headers.conf).
+ */
+export function permissionsPolicy(): string {
+  return 'camera=(), geolocation=(), microphone=(), interest-cohort=()';
+}
+
+/**
  * Headers for this process's responses, which are JSON and receipt images —
  * never a rendered page. The SPA's own policy is nginx's job and lives in
  * `frontend/nginx.conf`; this is the API half of the same posture.

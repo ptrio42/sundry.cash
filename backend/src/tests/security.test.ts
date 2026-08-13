@@ -165,6 +165,17 @@ describe('Response headers', () => {
     expect(res.headers['x-powered-by']).toBeUndefined();
   });
 
+  it('denies every feature in Permissions-Policy, the header helmet cannot set', async () => {
+    // docs/hosted-security.md §3.1 says this header ships on both halves; the
+    // API half is hand-set in server.ts, so a helmet upgrade cannot restore it
+    // if this line is lost. camera=() is safe: the receipt-scan flow is a file
+    // input whose native picker returns a file, never a getUserMedia stream.
+    const res = await request(app).get('/api/health').expect(200);
+    expect(res.headers['permissions-policy']).toBe(
+      'camera=(), geolocation=(), microphone=(), interest-cohort=()'
+    );
+  });
+
   it('tells caches not to keep the ledger', async () => {
     const res = await request(app).get('/api/expenses').expect(200);
     expect(res.headers['cache-control']).toBe('no-store');
