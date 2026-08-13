@@ -251,6 +251,20 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   `>=18`. better-sqlite3 is a native module: on Node releases without a prebuild it compiles from
   source, which needs a C++ toolchain.
 - **`RECEIPT_OCR_PROVIDER=claude` throws "not implemented"** — only `tesseract` and `stub` work today.
+- **A failed `createWorker` does not reject — it never settles.** tesseract.js 7.0.0 rejects its own
+  promise only for the `load` action; the `loadLanguage` rejection a failed language download produces
+  goes to `errorHandler` and is then swallowed by a trailing `.catch(() => {})` in `src/createWorker.js`.
+  A scan therefore hung until nginx answered 504, and `errorHandler` was handed a *string*, so the
+  original `cause` never reached the log. `services/receipt/tesseract.ts` rejects from the handler and
+  keeps a wall-clock ceiling as a backstop; both ceilings must stay under `proxy_read_timeout` on
+  `location ^~ /api` in `frontend/nginx.conf`, or the proxy hides the message. **Never mock
+  `createWorker` as rejecting** — the test that did passed while the real thing hung.
+- **`pol` and `eng` language data ships in the image**, staged from the `@tesseract.js-data` packages by
+  `npm run tessdata`. The CDN fallback is still there for any other language, but it is an *unpinned*
+  jsdelivr path (`npm/@tesseract.js-data/<lang>/4.0.0_best_int`, resolved to latest), so nothing that
+  matters should depend on it. `langPath` names one directory and one filename form for all languages
+  at once and does not fall back per language — which is why the bundle is only used when it covers
+  every entry in `RECEIPT_OCR_LANGS`.
 - **Tests run against a temp DB, never the real one.** `jest.config.js` wires `src/tests/env.ts` as a
   `setupFile` that repoints `DB_PATH` at `$TMPDIR/sundry-test-data/` before any app module loads —
   `receiptsDir()` derives from `DB_PATH`, so uploaded images are isolated too. Never remove this:
