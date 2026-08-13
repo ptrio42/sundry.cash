@@ -82,13 +82,20 @@ published minimum needs **19 MiB** — seven times less, from the algorithm rank
 
 | Package version | Node 22 (ABI 127) | Node 24 (ABI 137) |
 |---|---|---|
-| 11.10.0 (current) | linux-x64 ✓ linux-arm64 ✓ | **404 — none** |
-| 12.12.0 | linux-x64 ✓ linux-arm64 ✓ | linux-x64 ✓ linux-arm64 ✓ |
+| 11.10.0 (was current) | linux-x64 ✓ linux-arm64 ✓ | **404 — none** |
+| 12.11.1 | linux-x64 ✓ linux-arm64 ✓ | linux-x64 ✓ linux-arm64 ✓ |
 | 13.0.3 | — | **404 — none for any ABI** |
 
-So Node 24 on the current 11.x compiles the native module from source in the image; on 12.x it
-downloads. Target **12.x, not 13.x**. The only breaking change in 12.0.0 is "drop EOL Node.js v18 and
-Electron v26, v27, v28" — no API change — which also means `engines` has to stop saying `>=18`.
+So Node 24 on 11.x compiles the native module from source in the image; on 12.x it downloads. Target
+**12.x, not 13.x**. The only breaking change in 12.0.0 is "drop EOL Node.js v18 and Electron v26, v27,
+v28" — no API change — which also means `engines` has to stop saying `>=18`.
+
+**Correction, re-measured 2026-08-13.** The row above used to read 12.12.0. That version exists as a
+GitHub release carrying 145 prebuild assets, but it was **never published to npm** — the highest 12.x
+the registry serves is 12.11.1, so `npm install better-sqlite3@12.12.0` fails and `^12` resolves to
+12.11.1. 12.11.1 carries the ABI 137 prebuilds either way, so the decision is unchanged; only the
+version number cited for it was unreachable. The 13.x row is confirmed from the other direction: its
+GitHub releases carry zero assets.
 
 The runtime bump is its own change, not part of the auth build: bump the Docker base images, `.nvmrc`
 and `engines`, move `better-sqlite3` to `^12`, and **verify from the build log that the image pulls a

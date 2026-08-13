@@ -247,9 +247,26 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 - **`npm run install:all` installs all three package roots** (root tooling + backend + frontend).
   A bare `npm install` at root only gets `concurrently` / `cross-env`, so `npm run dev` then fails
   with missing modules in the sub-packages.
-- **Node 22** — Docker images and CI both pin Node 22; `.nvmrc` says 22 and `engines` declares
-  `>=18`. better-sqlite3 is a native module: on Node releases without a prebuild it compiles from
-  source, which needs a C++ toolchain.
+- **Node 24, and better-sqlite3 12 is what makes it free.** Docker images and CI both pin Node 24;
+  `.nvmrc` says 24 and `engines` declares `>=24`. better-sqlite3 is a native module shipping one
+  prebuilt binary per Node ABI, and Node 24 is ABI 137: **11.x publishes none for it**, so the image
+  would run node-gyp and need a C++ toolchain; 12.x publishes one, so the image downloads it. That is
+  the entire reason for the bump — after touching either version, **read the build log and confirm
+  `prebuild-install` fetched a binary rather than `node-gyp` compiling one**. Do not go to 13.x: it
+  publishes no prebuilds for any ABI at all. The runtime is 24 rather than 22 so `crypto.argon2()`
+  (Node ≥ 24.7; `node:24-alpine` is on 24.19) is available to the hosted auth work without a native
+  dependency — `docs/hosted-security.md` §2.1. `engines` says `>=24` and not `>=24.7.0` on purpose:
+  nothing calls `crypto.argon2()` yet, so the change that first does is the one that raises the floor.
+- **`npm ci` proves nothing about the prebuild, and the new npm warns about it.** `npm ci` hides
+  install-script output unless you pass `--foreground-scripts`, so a build log showing a clean
+  `npm ci` is equally consistent with a download and a compile — check the image instead: a
+  downloaded prebuild leaves `build/Release/better_sqlite3.node` and nothing else, while node-gyp
+  leaves a `Makefile`, `obj.target/` and `*.o` (and roughly doubles the package on disk, 12 MB to
+  27 MB). The alpine image has no `cc`, `make` or `python3` at all, so a missing prebuild fails the
+  build rather than silently compiling. Separately, the npm in `node:24-alpine` (11.17) now prints
+  `allow-scripts ... not yet covered by allowScripts` for better-sqlite3 and tesseract.js. It still
+  runs them, so the binary is there — but both packages depend on install scripts, so if that
+  default ever flips to blocking, the image would ship without the native module.
 - **`RECEIPT_OCR_PROVIDER=claude` throws "not implemented"** — only `tesseract` and `stub` work today.
 - **Tests run against a temp DB, never the real one.** `jest.config.js` wires `src/tests/env.ts` as a
   `setupFile` that repoints `DB_PATH` at `$TMPDIR/sundry-test-data/` before any app module loads —
