@@ -31,7 +31,7 @@ docker compose up --build
 
 Open **http://localhost:8847**. Data persists in `./data`.
 
-**Without Docker** — needs Node 18 or newer:
+**Without Docker** — needs Node 24 or newer:
 
 ```bash
 npm run install:all && npm run dev
@@ -40,9 +40,10 @@ npm run install:all && npm run dev
 Open **http://localhost:5173**. Vite proxies `/api` to the backend on `:5000`, so there is nothing else to
 configure. To try the importer, use [`sample-data/sample-expenses.xlsx`](sample-data/sample-expenses.xlsx).
 
-> The Docker images and CI both pin **Node 22**, which is what this is tested on (`.nvmrc` matches). On
-> Node releases where better-sqlite3 ships no prebuilt binary it compiles from source, so you would need a
-> C++ toolchain and Python installed.
+> The Docker images and CI both pin **Node 24**, which is what this is tested on (`.nvmrc` matches).
+> better-sqlite3 ships one prebuilt binary per Node ABI and Node 24 has one, so `npm install` downloads it.
+> On a Node release with no prebuild it compiles from source instead, so you would need a C++ toolchain
+> and Python installed.
 
 ### Sharing it across your devices
 
