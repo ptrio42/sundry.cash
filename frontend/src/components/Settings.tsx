@@ -37,7 +37,7 @@
  * configuration; the screen that reports money is Expenses.
  */
 
-import { useState, FormEvent } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
 import { Icon } from './Icon';
 import { AppSettings, BtcUnit, Category, Currency, CurrencyInfo, Expense, ExpenseCategory, FxRates } from '../types/expense.types';
 import {
@@ -51,7 +51,7 @@ import {
   setFxRate,
 } from '../services/api';
 import { offeredCurrencies, relevantCurrencies } from '../utils/currencies';
-import { MAX_WHO_LENGTH, readWho, setWho, skipWho } from '../utils/who';
+import { MAX_WHO_LENGTH, WHO_CHANGED_EVENT, readWho, setWho, skipWho } from '../utils/who';
 const BTC_UNITS: BtcUnit[] = ['BTC', 'sats'];
 
 // Slugs are what every expense row stores, so the field is derived from the
@@ -137,6 +137,19 @@ export default function Settings({
    * changes; `readWho` is the source of truth and is read once, at mount.
    */
   const [who, setWhoName] = useState<string>(() => readWho() ?? '');
+
+  /**
+   * Follow the name when something else changes it.
+   *
+   * The Add sheet is mounted over this screen, so its prompt can answer the
+   * question while these rows are on display — and this field would otherwise
+   * go on showing the answer from before it.
+   */
+  useEffect(() => {
+    const sync = () => setWhoName(readWho() ?? '');
+    window.addEventListener(WHO_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(WHO_CHANGED_EVENT, sync);
+  }, []);
 
   // --- Category management -------------------------------------------------
   const [newLabel, setNewLabel] = useState<string>('');

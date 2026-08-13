@@ -128,11 +128,14 @@ export default function AddSheet({
   /**
    * Whether this device still owes an answer to "who is adding this?".
    *
-   * Read once per mount rather than on every render: `hasAnsweredWho` reads
-   * `localStorage`, and the prompt has to disappear the moment it is answered —
-   * which is a state change here, not a storage event.
+   * Read at **render**, not once at mount. The sheet is mounted with the shell
+   * and never unmounts, so a name set in Settings — which is the obvious place
+   * to look before you have added anything — would otherwise leave this asking a
+   * question the device had already answered. The counter exists only to force
+   * the re-render, because writing to `localStorage` does not.
    */
-  const [askWho, setAskWho] = useState<boolean>(() => !demoMode && !hasAnsweredWho());
+  const [, whoAnswered] = useState<number>(0);
+  const askWho = !demoMode && !hasAnsweredWho();
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
@@ -258,8 +261,8 @@ export default function AddSheet({
         {askWho && (
           <WhoPrompt
             people={people}
-            onAnswer={name => { setWho(name); setAskWho(false); }}
-            onSkip={() => { skipWho(); setAskWho(false); }}
+            onAnswer={name => { setWho(name); whoAnswered(n => n + 1); }}
+            onSkip={() => { skipWho(); whoAnswered(n => n + 1); }}
           />
         )}
 

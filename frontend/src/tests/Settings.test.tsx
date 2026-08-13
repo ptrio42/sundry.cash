@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import Settings from '../components/Settings';
 import {
   updateSettings,
@@ -22,6 +22,7 @@ import {
   setCurrencyEnabled,
   setFxRate,
 } from '../services/api';
+import { setWho } from '../utils/who';
 import { AppSettings, Category, CurrencyInfo, Expense, FxRates } from '../types/expense.types';
 import { TEST_CATEGORIES } from './categories.fixture';
 import { TEST_CURRENCIES } from './currencies.fixture';
@@ -574,6 +575,22 @@ describe('Settings — this device', () => {
     it('says what the label is not, since a name beside a row is the shape of a login', () => {
       renderSettings();
       expect(screen.getByText(/it is not a login/i)).toBeInTheDocument();
+    });
+
+    /**
+     * The Add sheet opens *over* this screen, so its prompt can answer the
+     * question while these rows are on display. Without the event the field
+     * would go on showing the answer from before it.
+     */
+    it('follows a name the Add sheet\'s prompt set while this screen was up', () => {
+      renderSettings();
+      expect(field().value).toBe('');
+
+      // Wrapped, because the write happens outside React: the event listener is
+      // what turns it into a state update, and nothing else flushes it here.
+      act(() => setWho('Ania'));
+
+      expect(field().value).toBe('Ania');
     });
   });
 });

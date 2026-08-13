@@ -15,6 +15,7 @@ import AddSheet, { AddedLine } from '../components/AddSheet';
 import { TEST_CATEGORIES } from './categories.fixture';
 import { TEST_CURRENCIES } from './currencies.fixture';
 import { createExpense } from '../services/api';
+import { setWho } from '../utils/who';
 import { AppSettings, Expense } from '../types/expense.types';
 
 const TEST_SETTINGS: AppSettings = {
@@ -274,6 +275,20 @@ describe('AddSheet — the who prompt', () => {
   it('does not ask a device that already has a name', () => {
     localStorage.setItem('sundry-who', 'Ania');
     render(sheet({ people: ['Ania'] }));
+
+    expect(question()).not.toBeInTheDocument();
+  });
+
+  /**
+   * The sheet is mounted with the shell and never unmounts, so the answer has to
+   * be read when it renders rather than once at mount: Settings is the obvious
+   * place to look before you have added anything, and a device named there must
+   * not still be asked here.
+   */
+  it('stops asking once the name is set from somewhere else', () => {
+    const { rerender } = render(sheet({ open: false }));
+    setWho('Ania');
+    rerender(sheet({ open: true }));
 
     expect(question()).not.toBeInTheDocument();
   });

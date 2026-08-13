@@ -31,6 +31,18 @@
 const WHO_KEY = 'sundry-who';
 
 /**
+ * Fired whenever the name changes, so the two controls that show it cannot
+ * disagree: the Add sheet's prompt and Settings' "This device is…" are mounted
+ * at the same time and neither owns the value — `localStorage` does, and writing
+ * to it re-renders nothing on its own. Same shape as `auth-expired`, which is
+ * the app's existing precedent for "something outside React changed".
+ *
+ * Not the browser's own `storage` event: that one fires in *other* tabs and not
+ * in the one that wrote, which is exactly backwards for this.
+ */
+export const WHO_CHANGED_EVENT = 'sundry-who-changed';
+
+/**
  * Longest label worth storing — a first name or a nickname, not a sentence. The
  * same cap the backend applies in `models/expense.ts`; enforced here as well so
  * the field cannot accept characters the save would silently drop.
@@ -62,6 +74,9 @@ function write(value: string): void {
     // A device that cannot remember its name simply keeps being asked, which is
     // the same place an unanswered device is in.
   }
+  // Announced even when the write failed: what the controls should show is what
+  // storage now holds, and if it holds nothing they should say so.
+  window.dispatchEvent(new Event(WHO_CHANGED_EVENT));
 }
 
 /**
