@@ -25,6 +25,7 @@ import {
   grainFor,
   grainForWindow,
   isEmptyQuery,
+  ledgerPeople,
   measureWindow,
   presetRange,
   queryBounds,
@@ -111,6 +112,68 @@ describe('filterExpenses', () => {
     expect(find('transport')).toEqual(['Train fare']);   // the slug
     expect(find('Groceries')).toEqual(['Corner shop', 'Weekly shop']); // the label
     expect(find('400')).toEqual(['Weekly shop']);        // the amount as typed
+  });
+
+  it('reads an empty person selection as everybody, never as nobody', () => {
+    // The same rule the categories follow: a filter arrives neutral.
+    expect(filterExpenses(LABELLED, query({ people: [] }), TEST_CATEGORIES, TODAY)).toHaveLength(4);
+    expect(
+      filterExpenses(LABELLED, query({ people: ['Ania'] }), TEST_CATEGORIES, TODAY).map(row => row.id)
+    ).toEqual([1, 2]);
+    expect(
+      filterExpenses(LABELLED, query({ people: ['Ania', 'Alex'] }), TEST_CATEGORIES, TODAY).map(row => row.id)
+    ).toEqual([1, 2, 3]);
+  });
+
+  it('matches a person case-insensitively, because the column keeps what was typed', () => {
+    expect(
+      filterExpenses(LABELLED, query({ people: ['ania'] }), TEST_CATEGORIES, TODAY).map(row => row.id)
+    ).toEqual([1, 2]);
+  });
+
+  it('never selects an unlabelled row by a name — nobody added it', () => {
+    const found = filterExpenses(LABELLED, query({ people: ['Ania'] }), TEST_CATEGORIES, TODAY);
+    expect(found.every(row => row.who)).toBe(true);
+  });
+});
+
+/**
+ * The "who added it" filter — a label, not a login (docs/who-label-spec.md).
+ * `LABELLED` carries two spellings of one person plus a row nobody labelled.
+ */
+const LABELLED: Expense[] = [
+  { id: 1, date: '2026-08-11', description: 'Corner shop', category: 'groceries', currency: 'PLN', amount: 25, who: 'Ania' },
+  { id: 2, date: '2026-08-10', description: 'Bakery', category: 'groceries', currency: 'PLN', amount: 12, who: 'ania' },
+  { id: 3, date: '2026-08-09', description: 'Train fare', category: 'transport', currency: 'PLN', amount: 60, who: 'Alex' },
+  { id: 4, date: '2026-08-08', description: 'Netflix', category: 'media', currency: 'PLN', amount: 30, who: null },
+];
+
+describe('ledgerPeople', () => {
+  it('names only the people the rows actually carry', () => {
+    expect(ledgerPeople(LEDGER)).toEqual([]);
+    expect(ledgerPeople(LABELLED)).toContain('Alex');
+  });
+
+  it('merges the spellings of one person, keeping the one used most', () => {
+    // 'Ania' twice against 'ania' once — one chip, spelled the way the ledger
+    // mostly spells it.
+    const busier = [...LABELLED, { ...LABELLED[0], id: 5 }];
+
+    expect(ledgerPeople(busier)).toEqual(['Ania', 'Alex']);
+  });
+
+  it('orders by how much each person has added', () => {
+    expect(ledgerPeople(LABELLED)[0].toLowerCase()).toBe('ania');
+  });
+
+  it('ignores rows nobody labelled, and whitespace that labels nobody', () => {
+    const messy: Expense[] = [
+      { ...LABELLED[3], id: 6, who: '   ' },
+      { ...LABELLED[3], id: 7, who: undefined },
+      { ...LABELLED[3], id: 8, who: 'Ola' },
+    ];
+
+    expect(ledgerPeople(messy)).toEqual(['Ola']);
   });
 });
 

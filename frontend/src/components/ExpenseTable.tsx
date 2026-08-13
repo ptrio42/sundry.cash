@@ -31,6 +31,7 @@ const PAGE_SIZE = 50;
 export default function ExpenseTable({
   expenses,
   categories,
+  showWho,
   onEdit,
   onDelete,
   onUpdate,
@@ -303,6 +304,11 @@ export default function ExpenseTable({
                     Amount <span className="sort-indicator" aria-hidden="true"><Icon name={getSortIcon('amount')} size={14} /></span>
                   </button>
                 </th>
+                {/* Not sortable: it groups rather than ranks, and the filter
+                    above the table is the control for reading one person's
+                    spending. A fourth sort arrow would be a third way to ask
+                    the same question. */}
+                {showWho && <th>Who</th>}
                 <th>Actions</th>
               </tr>
             </thead>
@@ -344,6 +350,13 @@ export default function ExpenseTable({
                     {categoryLabel(categories, expense.category)}
                   </td>
                   <td className="amount">{formatCurrency(expense.amount, expense.currency)}</td>
+                  {/* An em dash, not a blank: a row nobody labelled is a
+                      complete row, and NULL is a value rather than a gap. */}
+                  {showWho && (
+                    <td className="who-cell">
+                      {expense.who || <span className="muted-text" aria-label="nobody said">—</span>}
+                    </td>
+                  )}
                   <td className="actions">
                     <button
                       onClick={() => onEdit(expense)}

@@ -17,6 +17,11 @@
  * whatever was half-typed in the other one — which is the same thing closing
  * the sheet does, and the alternative (both mounted, one `hidden`) puts two
  * "Amount" fields in the document for the sake of a case that costs one retype.
+ *
+ * The sheet also carries `WhoPrompt` (see below), because this is the one screen
+ * that exists to record something and therefore the only place worth asking a
+ * device what to call itself. That label is **not a login**: everyone on the
+ * instance shares one password, so anyone can add an expense as anyone.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -26,6 +31,7 @@ import ReceiptScan from './ReceiptScan';
 import { AppSettings, Category, CurrencyInfo, Expense } from '../types/expense.types';
 import { formatCurrency } from '../utils/format';
 import { categoryLabel } from '../utils/categories';
+import { MAX_WHO_LENGTH, hasAnsweredWho, setWho, skipWho } from '../utils/who';
 
 /** Which of the two ways in. Persisted, because it is a habit, not a setting. */
 export type AddMethod = 'scan' | 'type';
@@ -74,6 +80,15 @@ interface AddSheetProps {
   settings: AppSettings;
   categories: Category[];
   currencies: CurrencyInfo[];
+  /** The names already in the ledger, most-used first — the prompt's buttons. */
+  people: string[];
+  /**
+   * True on the public demo, where the prompt is off. The demo is a shop window
+   * and its seed is one fictional person's life; asking a visitor what to call
+   * them would be asking for a stranger's name to put in a ledger that is wiped
+   * every night.
+   */
+  demoMode: boolean;
   onExpenseAdded: (expense: Expense) => void;
   onClose: () => void;
 }
@@ -95,6 +110,8 @@ export default function AddSheet({
   settings,
   categories,
   currencies,
+  people,
+  demoMode,
   onExpenseAdded,
   onClose,
 }: AddSheetProps) {
@@ -108,6 +125,14 @@ export default function AddSheet({
    * it) is what the zero-width guard in `isPhone` is for.
    */
   const [chosen, setChosen] = useState<AddMethod | null>(null);
+  /**
+   * Whether this device still owes an answer to "who is adding this?".
+   *
+   * Read once per mount rather than on every render: `hasAnsweredWho` reads
+   * `localStorage`, and the prompt has to disappear the moment it is answered —
+   * which is a state change here, not a storage event.
+   */
+  const [askWho, setAskWho] = useState<boolean>(() => !demoMode && !hasAnsweredWho());
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
@@ -132,8 +157,13 @@ export default function AddSheet({
 
     previouslyFocused.current = document.activeElement as HTMLElement;
     const node = dialogRef.current;
+    // The panel's first field, not the dialog's: the "who is adding this?"
+    // prompt sits above the panel and is a question about the device, while the
+    // thing the reader opened this to do is type an amount. Opening focus on the
+    // prompt would make an optional label feel like a gate.
+    const panel = node?.querySelector<HTMLElement>('.add-sheet-panel') ?? node;
     const firstField =
-      node?.querySelector<HTMLElement>('input, select, textarea') ??
+      panel?.querySelector<HTMLElement>('input, select, textarea') ??
       node?.querySelector<HTMLElement>('button');
     firstField?.focus();
 
@@ -225,6 +255,14 @@ export default function AddSheet({
           ))}
         </div>
 
+        {askWho && (
+          <WhoPrompt
+            people={people}
+            onAnswer={name => { setWho(name); setAskWho(false); }}
+            onSkip={() => { skipWho(); setAskWho(false); }}
+          />
+        )}
+
         <div
           className="add-sheet-panel"
           id="add-sheet-panel"
@@ -247,6 +285,86 @@ export default function AddSheet({
             />
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+interface WhoPromptProps {
+  people: string[];
+  onAnswer: (name: string) => void;
+  onSkip: () => void;
+}
+
+/**
+ * "Who is adding this?", asked once, where the answer is about to be used.
+ *
+ * **Here rather than at the first visit.** A blocking "how should we call you?"
+ * before someone has seen the app is the worst possible place for a question,
+ * and for the many people who use this alone it is friction for nothing. The
+ * Add sheet is the one surface that exists to record something, so the question
+ * is asked there and nowhere else.
+ *
+ * **Not a gate.** It sits above the form rather than in front of it: saving
+ * without answering is allowed and lands an unlabelled row, which is a value
+ * (NULL) and not a failure. Nothing here is required.
+ *
+ * **Skipping is permanent.** "Not now" writes the empty sentinel and the prompt
+ * never comes back — a question that reappears on every save is worse than no
+ * feature. Settings carries the standing control for changing either answer.
+ *
+ * The names are buttons because the second phone in a household should pick
+ * "Ania" rather than type it and invent "ania"; the free field is what the first
+ * one has. No heading element: the sheet says "Add expense" once, and a second
+ * heading in the same dialog would be a second title.
+ */
+function WhoPrompt({ people, onAnswer, onSkip }: WhoPromptProps) {
+  const [draft, setDraft] = useState<string>('');
+  const typed = draft.trim();
+
+  return (
+    <div className="who-prompt">
+      <p className="who-prompt-question" id="who-prompt-question">Who is adding this?</p>
+      {/* Said here rather than left to be assumed: everyone on this instance
+          shares one password, so this labels rows and grants nothing. */}
+      <p className="field-hint">
+        It labels what you add on this device. It is not a login — everyone here
+        shares one password.
+      </p>
+
+      {people.length > 0 && (
+        <div className="who-prompt-people" role="group" aria-labelledby="who-prompt-question">
+          {people.map(name => (
+            <button key={name} type="button" className="btn-secondary" onClick={() => onAnswer(name)}>
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="who-prompt-entry">
+        <label htmlFor="who-name" className="sr-only">Your name</label>
+        <input
+          type="text"
+          id="who-name"
+          value={draft}
+          maxLength={MAX_WHO_LENGTH}
+          placeholder={people.length > 0 ? 'Someone else' : 'Your name'}
+          onChange={event => setDraft(event.target.value)}
+          // Enter saves the name rather than submitting the expense form below,
+          // which is not this input's form and has not been filled in yet.
+          onKeyDown={event => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            if (typed) onAnswer(typed);
+          }}
+        />
+        <button type="button" className="btn-secondary" disabled={!typed} onClick={() => onAnswer(typed)}>
+          Use this
+        </button>
+        <button type="button" className="link-button" onClick={onSkip}>
+          Not now
+        </button>
       </div>
     </div>
   );

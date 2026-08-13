@@ -508,3 +508,91 @@ describe('Expenses — the toolbar', () => {
     }
   });
 });
+
+/**
+ * The "who added it" filter (docs/who-label-spec.md).
+ *
+ * Client-side, through the same `LedgerQuery` everything else on this screen is
+ * driven by — nothing about this asks the server, exactly as with the search box
+ * and the category chips.
+ */
+describe('Expenses — filtering by who added it', () => {
+  const HOUSEHOLD: Expense[] = [
+    { ...LEDGER[0], who: 'Ania' },
+    { ...LEDGER[1], who: 'Alex' },
+    { ...LEDGER[2], who: 'ania' },
+    { ...LEDGER[3], who: null },
+  ];
+
+  const whoGroup = () => screen.queryByRole('group', { name: 'Who:' });
+
+  /** Either spelling: the chip carries whichever the ledger uses most. */
+  const ANIA = /^ania$/i;
+
+  it('offers nothing while one person has added everything', () => {
+    // Same rule as the currency scope: a control with one option is a control
+    // that cannot change the answer.
+    renderScreen(LEDGER.map(row => ({ ...row, who: 'Ania' })));
+
+    expect(whoGroup()).not.toBeInTheDocument();
+  });
+
+  it('offers nothing on a ledger nobody has labelled', () => {
+    renderScreen();
+    expect(whoGroup()).not.toBeInTheDocument();
+  });
+
+  it('offers each person once the ledger names more than one', () => {
+    renderScreen(HOUSEHOLD);
+
+    const group = whoGroup() as HTMLElement;
+    // 'Ania' and 'ania' are one person, so there are two chips and not three.
+    // Which of the two spellings the chip carries is the majority's, and this
+    // fixture has one of each — `ledgerPeople` owns that rule and pins it.
+    expect(within(group).getAllByRole('button')).toHaveLength(2);
+    expect(within(group).getByRole('button', { name: ANIA })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('narrows the table, the summary and the charts together', () => {
+    const { container } = renderScreen(HOUSEHOLD);
+
+    fireEvent.click(within(whoGroup() as HTMLElement).getByRole('button', { name: ANIA }));
+
+    // Both spellings of one person, and nobody else.
+    expect(rowDescriptions(container)).toEqual(['Corner shop', 'Train fare']);
+    expect(card('Expenses')).toHaveTextContent('2');
+    expect(barNames(container)).toEqual(['Groceries', 'Transport']);
+  });
+
+  it('leaves the rows nobody labelled out of a named selection', () => {
+    const { container } = renderScreen(HOUSEHOLD);
+
+    fireEvent.click(within(whoGroup() as HTMLElement).getByRole('button', { name: 'Alex' }));
+    expect(rowDescriptions(container)).toEqual(['Weekly shop']);
+  });
+
+  it('keeps the chip on screen and clears with everything else', () => {
+    const { container } = renderScreen(HOUSEHOLD);
+
+    const clear = screen.getByRole('button', { name: 'Clear' });
+    expect(clear).toBeDisabled();
+
+    fireEvent.click(within(whoGroup() as HTMLElement).getByRole('button', { name: ANIA }));
+    expect(clear).toBeEnabled();
+
+    fireEvent.click(clear);
+    expect(rowDescriptions(container)).toHaveLength(HOUSEHOLD.length);
+    expect(within(whoGroup() as HTMLElement).getByRole('button', { name: ANIA }))
+      .toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('draws the ledger column from the whole ledger, so filtering cannot remove it', () => {
+    const { container } = renderScreen(HOUSEHOLD);
+    expect(screen.getByRole('columnheader', { name: 'Who' })).toBeInTheDocument();
+
+    fireEvent.click(within(whoGroup() as HTMLElement).getByRole('button', { name: 'Alex' }));
+
+    expect(screen.getByRole('columnheader', { name: 'Who' })).toBeInTheDocument();
+    expect(container.querySelector('.who-cell')).toHaveTextContent('Alex');
+  });
+});

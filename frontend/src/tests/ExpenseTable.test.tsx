@@ -56,10 +56,12 @@ const manyExpenses = (n: number): Expense[] =>
  * The state the screen holds around the table: the sort, and the key that says
  * "the question changed" as opposed to "the ledger changed".
  */
-function Harness({ expenses, categories = TEST_CATEGORIES, queryKey = 'q' }: {
+function Harness({ expenses, categories = TEST_CATEGORIES, queryKey = 'q', showWho = false }: {
   expenses: Expense[];
   categories?: Category[];
   queryKey?: string;
+  /** The screen decides this from the whole ledger; the table only obeys it. */
+  showWho?: boolean;
 }) {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -77,6 +79,7 @@ function Harness({ expenses, categories = TEST_CATEGORIES, queryKey = 'q' }: {
     <ExpenseTable
       expenses={sortExpenses(expenses, sortField, sortOrder, categories)}
       categories={categories}
+      showWho={showWho}
       onEdit={vi.fn()}
       onDelete={vi.fn()}
       onUpdate={vi.fn().mockResolvedValue(undefined)}
@@ -361,5 +364,54 @@ describe('ExpenseTable categories', () => {
     const { container } = renderTable([petExpense]);
 
     expect(categoryCell(container, 'Kibble')).toHaveTextContent('Pet food');
+  });
+});
+
+/**
+ * The "who added it" column (docs/who-label-spec.md).
+ *
+ * The table only obeys `showWho`; the screen decides it, from the whole ledger
+ * rather than from the rows it hands over — which is why a table showing one
+ * person's rows can still be told to draw the column.
+ */
+describe('ExpenseTable — who added it', () => {
+  const LABELLED: Expense[] = [
+    { id: 1, date: '2024-01-05', description: 'Coffee beans', category: 'groceries', currency: 'USD', amount: 12.5, who: 'Ania' },
+    { id: 2, date: '2024-02-10', description: 'Bus ticket', category: 'transport', currency: 'PLN', amount: 4.4, who: null },
+  ];
+
+  const whoCell = (container: HTMLElement, description: string): HTMLElement | null => {
+    const row = within(container).getByText(description).closest('tr');
+    if (!row) throw new Error(`no row for "${description}"`);
+    return row.querySelector('.who-cell');
+  };
+
+  it('draws no column while the ledger names only one person', () => {
+    // A column repeating the same name on every row is noise in a table that is
+    // already dense — and one name is what a household of one always has.
+    const { container } = render(<Harness expenses={LABELLED} showWho={false} />);
+
+    expect(screen.queryByRole('columnheader', { name: 'Who' })).not.toBeInTheDocument();
+    expect(whoCell(container, 'Coffee beans')).toBeNull();
+  });
+
+  it('names the person once the ledger holds more than one', () => {
+    const { container } = render(<Harness expenses={LABELLED} showWho />);
+
+    expect(screen.getByRole('columnheader', { name: 'Who' })).toBeInTheDocument();
+    expect(whoCell(container, 'Coffee beans')).toHaveTextContent('Ania');
+  });
+
+  it('prints an em dash where nobody said, because NULL is a value', () => {
+    const { container } = render(<Harness expenses={LABELLED} showWho />);
+
+    expect(whoCell(container, 'Bus ticket')).toHaveTextContent('—');
+  });
+
+  it('offers no sort on it: the filter above the table is how one person is read', () => {
+    render(<Harness expenses={LABELLED} showWho />);
+
+    const header = screen.getByRole('columnheader', { name: 'Who' });
+    expect(within(header).queryByRole('button')).not.toBeInTheDocument();
   });
 });

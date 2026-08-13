@@ -23,6 +23,9 @@ const EXPENSE: Expense = {
   currency: 'USD',
 };
 
+/** The names the ledger already holds — completions for the Who field. */
+const PEOPLE = ['Ania', 'Alex'];
+
 beforeAll(() => {
   // jsdom does no layout, so `offsetParent` is always null and the component's
   // visibility filter would consider every control hidden. Report the parent so
@@ -40,7 +43,7 @@ beforeEach(() => {
 });
 
 const renderModal = (expense: Expense | null, onSave = vi.fn(), onClose = vi.fn()) => {
-  const view = render(<EditExpenseModal expense={expense} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} onSave={onSave} onClose={onClose} />);
+  const view = render(<EditExpenseModal expense={expense} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} people={PEOPLE} onSave={onSave} onClose={onClose} />);
   return { ...view, onSave, onClose };
 };
 
@@ -91,7 +94,7 @@ describe('EditExpenseModal', () => {
     const harness = (expense: Expense | null) => (
       <>
         <button type="button">Edit expense</button>
-        <EditExpenseModal expense={expense} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} onSave={onSave} onClose={onClose} />
+        <EditExpenseModal expense={expense} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} people={PEOPLE} onSave={onSave} onClose={onClose} />
       </>
     );
 
@@ -132,5 +135,63 @@ describe('EditExpenseModal', () => {
 
     fireEvent.click(dialog.parentElement as HTMLElement);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The "who added it" label, editable here (docs/who-label-spec.md).
+ *
+ * The deliberate opposite of `merchant`, which no edit can reach because it is
+ * what the receipt said. `who` has no external source, so a typo has to be
+ * fixable — and a row nobody labelled is still a complete row.
+ */
+describe('EditExpenseModal — who added it', () => {
+  const labelled = { ...EXPENSE, who: 'Ania' };
+  const field = () => screen.getByLabelText(/who added it/i) as HTMLInputElement;
+
+  it('opens on the label the row carries', () => {
+    renderModal(labelled);
+    expect(field().value).toBe('Ania');
+  });
+
+  it('opens empty on a row created before the column existed', () => {
+    // NULL is a value, not a missing field: the row edits like any other.
+    renderModal(EXPENSE);
+    expect(field().value).toBe('');
+  });
+
+  it('sends only the corrected label when only the label changed', async () => {
+    const { onSave } = renderModal(labelled);
+
+    fireEvent.change(field(), { target: { value: 'Ania K' } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(7, { who: 'Ania K' }));
+  });
+
+  it('clears the label with null rather than with an empty string', async () => {
+    const { onSave } = renderModal(labelled);
+
+    fireEvent.change(field(), { target: { value: '  ' } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(7, { who: null }));
+  });
+
+  it('does not report a change when only the whitespace around it moved', async () => {
+    const { onSave } = renderModal(labelled);
+
+    fireEvent.change(field(), { target: { value: '  Ania  ' } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(7, {}));
+  });
+
+  it('offers the names the ledger already holds as completions', () => {
+    const { container } = renderModal(labelled);
+
+    expect(field()).toHaveAttribute('list', 'edit-who-people');
+    const options = Array.from(container.querySelectorAll('#edit-who-people option'));
+    expect(options.map(option => option.getAttribute('value'))).toEqual(PEOPLE);
   });
 });

@@ -1177,6 +1177,25 @@ td.amount { font-weight: 700; text-align: right; }
   color: var(--accent);
 }
 
+/* ---------- "Who is adding this?" ---------- */
+/* Asked once, above the form rather than in front of it: saving without an
+   answer is allowed and lands an unlabelled row. Styled as a note rather than as
+   a dialog for exactly that reason — it must not read as a gate. */
+.who-prompt {
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.who-prompt-question { font-weight: 600; margin-bottom: 4px; }
+.who-prompt .field-hint { margin-top: 0; margin-bottom: 10px; }
+.who-prompt-people { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.who-prompt-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* The free field takes the room left over; the two controls beside it keep
+   their own width, so a long name never pushes "Not now" onto its own line. */
+.who-prompt-entry input { flex: 1 1 140px; min-width: 0; }
+
 @media (max-width: 680px) {
   .add-sheet-backdrop { align-items: flex-end; padding: 0; }
   .add-sheet {
@@ -1590,6 +1609,25 @@ td.amount { font-weight: 700; text-align: right; }
 .settings-section h3 { margin-bottom: 4px; }
 
 .settings-device-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* "This device is…" — the standing control for the row label. Sits above the
+   theme and sign-out buttons because it is the only one of the three that
+   changes what gets written rather than how it looks. */
+.who-setting { margin-bottom: 18px; }
+.who-setting-row { display: flex; align-items: center; gap: 8px; }
+.who-setting-row input { flex: 1 1 auto; min-width: 0; }
+.who-setting-people { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+/* The same "chosen from a set" language the chips and the sheet's tabs use. */
+.who-setting-people button.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The ledger's Who column: a name, or an em dash where nobody said. Narrow,
+   because it holds a first name and sits between two columns that carry the
+   figures people came to read. */
+.who-cell { white-space: nowrap; }
 
 /* The only irreversible action in the app, and the reason it is down here rather
    than in the sidebar (F15): red that is always on screen trains the eye to

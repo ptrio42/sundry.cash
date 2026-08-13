@@ -16,6 +16,7 @@ import { createExpense, suggestCategory } from '../services/api';
 import { ExpenseFormProps, ExpenseCategory, Currency } from '../types/expense.types';
 import { SATS_PER_BTC } from '../utils/format';
 import { offeredCurrencies } from '../utils/currencies';
+import { readWho } from '../utils/who';
 
 export default function ExpenseForm({ onExpenseAdded, settings, categories, currencies }: ExpenseFormProps) {
   const [amount, setAmount] = useState<string>('');
@@ -158,7 +159,12 @@ export default function ExpenseForm({ onExpenseAdded, settings, categories, curr
         date,
         description: description.trim(),
         category,
-        currency
+        currency,
+        // Read at save time rather than held in state: the sheet's prompt can
+        // write it a moment before this runs, and it is a fact about the
+        // browser rather than application state. `null` when this device has
+        // never been named — a label, not a login (utils/who.ts).
+        who: readWho()
       });
 
       // Notify parent component

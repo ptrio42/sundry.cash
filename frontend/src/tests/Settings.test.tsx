@@ -62,6 +62,8 @@ interface Overrides {
   /** Defaults to an empty ledger, so the ~20 cases predating wave 4 are unmoved. */
   expenses?: Expense[];
   rates?: FxRates;
+  /** The names the ledger holds — what "This device is…" offers as buttons. */
+  people?: string[];
   theme?: 'dark' | 'light';
   authRequired?: boolean;
   onCategoriesChanged?: ReturnType<typeof vi.fn>;
@@ -75,6 +77,7 @@ const renderSettings = ({
   currencies = TEST_CURRENCIES,
   expenses = [],
   rates = RATES,
+  people = [],
   theme = 'dark',
   authRequired = false,
   onCategoriesChanged = vi.fn(),
@@ -92,6 +95,7 @@ const renderSettings = ({
     currencies,
     expenses,
     rates,
+    people,
     theme,
     authRequired,
     onSaved,
@@ -514,6 +518,63 @@ describe('Settings — this device', () => {
     const { onLogout } = renderSettings({ authRequired: true });
     fireEvent.click(screen.getByRole('button', { name: /sign out/i }));
     expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * "This device is…" — the standing control for the row label
+   * (docs/who-label-spec.md). The Add sheet asks once; this is the only place
+   * either answer can be changed, including a "Not now" that became a yes.
+   */
+  describe('the who label', () => {
+    const field = () => screen.getByLabelText(/this device is/i) as HTMLInputElement;
+
+    beforeEach(() => localStorage.removeItem('sundry-who'));
+
+    it('opens empty on a device that has never been named', () => {
+      renderSettings();
+      expect(field().value).toBe('');
+    });
+
+    it('shows the name this device already answers to', () => {
+      localStorage.setItem('sundry-who', 'Ania');
+      renderSettings();
+
+      expect(field().value).toBe('Ania');
+    });
+
+    it('saves a typed name, normalised, when the field is left', () => {
+      renderSettings();
+
+      fireEvent.change(field(), { target: { value: '  Kasia   B ' } });
+      fireEvent.blur(field());
+
+      expect(localStorage.getItem('sundry-who')).toBe('Kasia B');
+    });
+
+    it('offers the names the ledger already holds, so a household agrees on one spelling', () => {
+      renderSettings({ people: ['Ania', 'Alex'] });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Alex' }));
+
+      expect(localStorage.getItem('sundry-who')).toBe('Alex');
+      expect(field().value).toBe('Alex');
+      expect(screen.getByRole('button', { name: 'Alex' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('clears to the skip sentinel rather than to nothing, so the prompt stays away', () => {
+      localStorage.setItem('sundry-who', 'Ania');
+      renderSettings();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+
+      expect(field().value).toBe('');
+      expect(localStorage.getItem('sundry-who')).toBe('');
+    });
+
+    it('says what the label is not, since a name beside a row is the shape of a login', () => {
+      renderSettings();
+      expect(screen.getByText(/it is not a login/i)).toBeInTheDocument();
+    });
   });
 });
 

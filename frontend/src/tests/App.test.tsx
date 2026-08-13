@@ -55,6 +55,8 @@ vi.mock('../services/api', () => ({
   getCategories: vi.fn(),
   getCurrencies: vi.fn(),
   getFxRates: vi.fn(),
+  // Loaded with the ledger, for the Add sheet's "who is adding this?" buttons.
+  getPeople: vi.fn(async () => [] as string[]),
   getBudgets: vi.fn(),
   setBudget: vi.fn(),
   deleteBudget: vi.fn(),
@@ -114,6 +116,12 @@ beforeEach(() => {
   // Same reason, for the same shared localStorage: the sidebar remembers whether
   // it is a rail, so a case that collapses it would hand the next one a rail.
   localStorage.removeItem('sundry-sidebar');
+  // And the third key the sheet reads: "who is adding this?" is asked until it
+  // is answered, so an unset one puts the prompt inside every sheet these cases
+  // open. Answered with the skip sentinel rather than cleared — the prompt is
+  // the sheet's own and is tested in AddSheet.test.tsx; here it is furniture in
+  // front of the shell behaviour under test.
+  localStorage.setItem('sundry-who', '');
 });
 
 /** Render and wait for the shell — the nav appears once the config call settles. */
@@ -439,6 +447,14 @@ describe('App — the Add sheet', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/home/add'));
   });
 
+  /**
+   * The heaviest case in the file: four destinations rendered in full, each with
+   * a dialog opened and closed over it. Every role query here computes an
+   * accessible name for every control on the screen underneath, so the cost
+   * tracks the size of the four screens — and the who label added a field to
+   * Settings and a column to Expenses. Given its own timeout rather than left
+   * to inherit 5s, which it now sits close enough to for machine load to decide.
+   */
   it('opens over every one of them, not over one chosen for you', async () => {
     await renderApp();
 
@@ -457,7 +473,7 @@ describe('App — the Add sheet', () => {
       // the next destination race the pop and lose.
       await waitFor(() => expect(window.location.hash).toBe(`#/${label.toLowerCase()}`));
     }
-  });
+  }, 20_000);
 
   it('closes on save, leaves you where you were, and says what was saved', async () => {
     // F7: this used to `navigate('expenses')` and say nothing at all, so the

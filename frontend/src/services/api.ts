@@ -197,6 +197,19 @@ export async function deleteExpense(id: number): Promise<void> {
 }
 
 /**
+ * The names already in the ledger, most-used first.
+ *
+ * What makes the second phone pick "Ania" from a button instead of typing it and
+ * inventing "ania". The set is whatever has been recorded — nobody configures a
+ * list of people, because there are no accounts to configure.
+ */
+export async function getPeople(): Promise<string[]> {
+  const response = await apiFetch('/expenses/people');
+  const data = await handleResponse<{ people: string[] }>(response);
+  return data.people;
+}
+
+/**
  * Get statistics grouped by category
  */
 export async function getStatsByCategory(): Promise<CategoryStats[]> {
@@ -377,6 +390,12 @@ export async function confirmImport(
     descriptionColumn: string;
     categoryColumn?: string;
     currency: string;
+    /**
+     * What this device calls itself, stamped on every imported row. An import
+     * that landed unlabelled while everything else was labelled would make the
+     * ledger's person filter useless.
+     */
+    who?: string | null;
   }
 ): Promise<{
   message: string;
@@ -397,6 +416,9 @@ export async function confirmImport(
     formData.append('categoryColumn', mapping.categoryColumn);
   }
   formData.append('currency', mapping.currency);
+  if (mapping.who) {
+    formData.append('who', mapping.who);
+  }
 
   const response = await apiFetch('/import/confirm', {
     method: 'POST',
@@ -458,6 +480,8 @@ export async function createReceiptExpense(
      * so insights can still group the row by shop.
      */
     merchant?: string | null;
+    /** What this device calls itself — a label, not a login. See utils/who.ts. */
+    who?: string | null;
   },
   file?: File | null
 ): Promise<Expense> {
@@ -471,6 +495,9 @@ export async function createReceiptExpense(
   // Omitted rather than sent empty when OCR found no merchant: the column is
   // nullable and the backend falls back to the description.
   if (fields.merchant) formData.append('merchant', fields.merchant);
+  // Same shape for the device label: a device that has not been named sends
+  // nothing, and the row lands with who = NULL.
+  if (fields.who) formData.append('who', fields.who);
 
   const response = await apiFetch('/receipts', {
     method: 'POST',

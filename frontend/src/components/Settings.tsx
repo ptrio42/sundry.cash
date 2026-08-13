@@ -13,7 +13,11 @@
  * - **This device** — theme, and signing out where there is a session. The
  *   desktop sidebar still offers both as shortcuts; on a phone this is the only
  *   route to either, and deleting the sheet without rehoming them would have
- *   removed a working control rather than a redundant one.
+ *   removed a working control rather than a redundant one. It also carries
+ *   *"This device is…"*, the standing control for the label every row this
+ *   browser adds is stamped with — **a label, not a login**: the household
+ *   shares one password, so anyone can add an expense under any name. The Add
+ *   sheet asks the question once; this is the only place either answer changes.
  * - **Danger zone** — Wipe Database, out of primary navigation (F15, change 15).
  *   Red meant three things in this product — "irreversible", "over budget",
  *   "spending rose"; taking the permanent one out of the sidebar is what lets
@@ -47,6 +51,7 @@ import {
   setFxRate,
 } from '../services/api';
 import { offeredCurrencies, relevantCurrencies } from '../utils/currencies';
+import { MAX_WHO_LENGTH, readWho, setWho, skipWho } from '../utils/who';
 const BTC_UNITS: BtcUnit[] = ['BTC', 'sats'];
 
 // Slugs are what every expense row stores, so the field is derived from the
@@ -76,6 +81,8 @@ interface SettingsProps {
   expenses: Expense[];
   /** Owned by App, like `settings` and `categories`. */
   rates: FxRates;
+  /** The names already in the ledger — what "This device is…" offers as buttons. */
+  people: string[];
   /** For the theme control below — the shell owns the state and persists it. */
   theme: 'dark' | 'light';
   /** Whether this instance has a password, i.e. whether there is a session to end. */
@@ -101,6 +108,7 @@ export default function Settings({
   currencies,
   expenses,
   rates,
+  people,
   theme,
   authRequired,
   onSaved,
@@ -119,6 +127,16 @@ export default function Settings({
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [saved, setSaved] = useState<boolean>(false);
+
+  // --- This device ---------------------------------------------------------
+  /**
+   * What this device calls itself on the rows it adds — the standing control the
+   * Add sheet's one-time prompt points at.
+   *
+   * Held in state as well as in `localStorage` so the section re-renders when it
+   * changes; `readWho` is the source of truth and is read once, at mount.
+   */
+  const [who, setWhoName] = useState<string>(() => readWho() ?? '');
 
   // --- Category management -------------------------------------------------
   const [newLabel, setNewLabel] = useState<string>('');
@@ -566,6 +584,60 @@ export default function Settings({
           Kept in this browser rather than on the server, so it does not follow you to
           another device.
         </p>
+
+        {/* The permanent home of the "who added it" label. The Add sheet asks
+            once; this is where either answer is changed, including a "Not now"
+            that has since become a yes.
+
+            The help text says what it is not, because a name beside a row is
+            exactly the shape of a login and this is not one — everyone on the
+            instance shares one password. */}
+        <div className="form-group who-setting">
+          <label htmlFor="device-who">This device is…</label>
+          <div className="who-setting-row">
+            <input
+              type="text"
+              id="device-who"
+              value={who}
+              maxLength={MAX_WHO_LENGTH}
+              placeholder="nobody in particular"
+              onChange={(e) => setWhoName(e.target.value)}
+              onBlur={() => setWho(who)}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+            />
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={who.trim().length === 0}
+              onClick={() => { setWhoName(''); skipWho(); }}
+            >
+              Clear
+            </button>
+          </div>
+          {/* Only names the ledger already holds, so a household picks the
+              spelling that is in use rather than inventing a second one. */}
+          {people.length > 0 && (
+            <div className="who-setting-people" role="group" aria-label="People already in the ledger">
+              {people.map((person) => (
+                <button
+                  key={person}
+                  type="button"
+                  className={person === who ? 'btn-secondary active' : 'btn-secondary'}
+                  aria-pressed={person === who}
+                  onClick={() => { setWhoName(person); setWho(person); }}
+                >
+                  {person}
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="field-hint">
+            Labels what you add from this browser, so a household sharing one instance can
+            tell whose expense is whose. It is not a login: everyone here shares one
+            password, and anyone can add an expense under any name. Leave it empty and your
+            rows are simply unlabelled.
+          </p>
+        </div>
 
         <div className="settings-device-actions">
           <button type="button" className="btn-secondary" onClick={onToggleTheme}>

@@ -132,6 +132,55 @@ describe('ReceiptScan', () => {
     expect((createReceiptExpense as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].merchant).toBeNull();
   });
 
+  /**
+   * The scanned path is one of the three that must stamp the device label. The
+   * two fields ride together and mean different things: `merchant` is the shop
+   * the app read off the paper, `who` is the person who took the photograph.
+   */
+  it('sends the scanning device’s label beside the shop the receipt named', async () => {
+    localStorage.setItem('sundry-who', 'Ola');
+    (scanReceipt as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      amount: 5, date: '2024-01-15', merchant: 'Żabka', currency: 'PLN',
+      category: 'other', rawText: '', confidence: 0.9, warnings: [],
+    });
+    (createReceiptExpense as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 3, amount: 5, date: '2024-01-15', description: 'Żabka', category: 'other', currency: 'PLN', who: 'Ola',
+    });
+
+    render(<ReceiptScan onExpenseAdded={vi.fn()} settings={TEST_SETTINGS} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} />);
+    selectFile();
+    fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /save expense/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /save expense/i }));
+
+    await waitFor(() => expect(createReceiptExpense).toHaveBeenCalled());
+    expect((createReceiptExpense as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({
+      merchant: 'Żabka',
+      who: 'Ola',
+    });
+    localStorage.removeItem('sundry-who');
+  });
+
+  it('sends no label from a device that has never been named', async () => {
+    localStorage.removeItem('sundry-who');
+    (scanReceipt as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      amount: 5, date: '2024-01-15', merchant: 'Żabka', currency: 'PLN',
+      category: 'other', rawText: '', confidence: 0.9, warnings: [],
+    });
+    (createReceiptExpense as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 4, amount: 5, date: '2024-01-15', description: 'Żabka', category: 'other', currency: 'PLN',
+    });
+
+    render(<ReceiptScan onExpenseAdded={vi.fn()} settings={TEST_SETTINGS} categories={TEST_CATEGORIES} currencies={TEST_CURRENCIES} />);
+    selectFile();
+    fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /save expense/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /save expense/i }));
+
+    await waitFor(() => expect(createReceiptExpense).toHaveBeenCalled());
+    expect((createReceiptExpense as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].who).toBeNull();
+  });
+
   it('surfaces warnings from the OCR result', async () => {
     (scanReceipt as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       amount: null,

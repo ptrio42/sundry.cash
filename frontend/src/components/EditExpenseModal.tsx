@@ -9,16 +9,19 @@ import { Category, CurrencyInfo, Expense, ExpenseCategory, Currency } from '../t
 import { SATS_PER_BTC } from '../utils/format';
 import { categoryLabel } from '../utils/categories';
 import { offeredCurrencies } from '../utils/currencies';
+import { MAX_WHO_LENGTH, normaliseWho } from '../utils/who';
 
 interface EditExpenseModalProps {
   expense: Expense | null;
   categories: Category[];
   currencies: CurrencyInfo[];
+  /** The names already in the ledger, offered as completions for the Who field. */
+  people: string[];
   onSave: (id: number, updates: Partial<Expense>) => Promise<void>;
   onClose: () => void;
 }
 
-export default function EditExpenseModal({ expense, categories, currencies, onSave, onClose }: EditExpenseModalProps) {
+export default function EditExpenseModal({ expense, categories, currencies, people, onSave, onClose }: EditExpenseModalProps) {
   const [amount, setAmount] = useState<string>('');
   const [date, setDate] = useState<string>('');
   const [description, setDescription] = useState<string>('');
@@ -30,6 +33,13 @@ export default function EditExpenseModal({ expense, categories, currencies, onSa
   const [category, setCategory] = useState<ExpenseCategory>('other');
   const [currency, setCurrency] = useState<Currency>('USD');
   const [btcUnit, setBtcUnit] = useState<'BTC' | 'sats'>('BTC');
+  /**
+   * The "who added it" label, editable — the deliberate opposite of `merchant`,
+   * which no edit can touch because it is what the receipt said. `who` has no
+   * external source to protect, so a typo has to be fixable, and an emptied
+   * field clears it.
+   */
+  const [who, setWho] = useState<string>('');
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -43,6 +53,7 @@ export default function EditExpenseModal({ expense, categories, currencies, onSa
       setDescription(expense.description);
       setCategory(expense.category);
       setCurrency(expense.currency);
+      setWho(expense.who ?? '');
       setBtcUnit('BTC'); // Reset to BTC by default
     }
   }, [expense]);
@@ -139,6 +150,12 @@ export default function EditExpenseModal({ expense, categories, currencies, onSa
       }
       if (currency !== expense.currency) {
         updates.currency = currency;
+      }
+      // Normalized here so an untouched field with stray whitespace does not
+      // read as a change, and `null` — never `''` — is what clears the column.
+      const nextWho = normaliseWho(who) || null;
+      if (nextWho !== (expense.who ?? null)) {
+        updates.who = nextWho;
       }
 
       await onSave(expense.id!, updates);
@@ -289,6 +306,26 @@ export default function EditExpenseModal({ expense, categories, currencies, onSa
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Optional, and last: a row that nobody labelled is a complete row.
+              A datalist rather than a select — the names are whatever the ledger
+              holds, and someone editing an old row may need one that is not in
+              it yet. */}
+          <div className="form-group">
+            <label htmlFor="edit-who">Who added it</label>
+            <input
+              type="text"
+              id="edit-who"
+              list="edit-who-people"
+              value={who}
+              maxLength={MAX_WHO_LENGTH}
+              placeholder="nobody said"
+              onChange={(e) => setWho(e.target.value)}
+            />
+            <datalist id="edit-who-people">
+              {people.map((person) => <option key={person} value={person} />)}
+            </datalist>
           </div>
 
           <div className="modal-actions">

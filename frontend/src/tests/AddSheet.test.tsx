@@ -66,13 +66,17 @@ const setPhone = (isPhone: boolean) => {
 const onExpenseAdded = vi.fn();
 const onClose = vi.fn();
 
-const sheet = (props: { open?: boolean; receiptsEnabled?: boolean } = {}) => (
+const sheet = (
+  props: { open?: boolean; receiptsEnabled?: boolean; people?: string[]; demoMode?: boolean } = {}
+) => (
   <AddSheet
     open={props.open ?? true}
     receiptsEnabled={props.receiptsEnabled ?? true}
     settings={TEST_SETTINGS}
     categories={TEST_CATEGORIES}
     currencies={TEST_CURRENCIES}
+    people={props.people ?? []}
+    demoMode={props.demoMode ?? false}
     onExpenseAdded={onExpenseAdded}
     onClose={onClose}
   />
@@ -239,6 +243,161 @@ describe('AddSheet — saving', () => {
     fireEvent.click(screen.getByRole('button', { name: /add expense/i }));
 
     await waitFor(() => expect(onExpenseAdded).toHaveBeenCalledWith(saved));
+  });
+});
+
+/**
+ * "Who is adding this?" — the one-time prompt (docs/who-label-spec.md).
+ *
+ * A label, not a login: it stamps rows and grants nothing, which is why nothing
+ * here blocks a save.
+ */
+describe('AddSheet — the who prompt', () => {
+  const question = () => screen.queryByText(/who is adding this\?/i);
+
+  beforeEach(() => setPhone(false));
+
+  it('asks when this device has never been named, offering the ledger names and a free field', () => {
+    render(sheet({ people: ['Ania', 'Alex'] }));
+
+    expect(question()).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ania' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Alex' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/your name/i)).toBeInTheDocument();
+  });
+
+  it('says what it is not, because a name beside a row is the shape of a login', () => {
+    render(sheet());
+    expect(screen.getByText(/not a login/i)).toBeInTheDocument();
+  });
+
+  it('does not ask a device that already has a name', () => {
+    localStorage.setItem('sundry-who', 'Ania');
+    render(sheet({ people: ['Ania'] }));
+
+    expect(question()).not.toBeInTheDocument();
+  });
+
+  /**
+   * The demo is a shop window and its seed is one fictional person's life.
+   * Asking a visitor what to call them would be asking a stranger for a name to
+   * put in a ledger that is wiped every night.
+   */
+  it('never asks on the demo, whatever the key says', () => {
+    render(sheet({ demoMode: true, people: ['Ania'] }));
+
+    expect(question()).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/your name/i)).not.toBeInTheDocument();
+  });
+
+  it('remembers a name picked from the buttons and stops asking', () => {
+    render(sheet({ people: ['Ania', 'Alex'] }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alex' }));
+
+    expect(localStorage.getItem('sundry-who')).toBe('Alex');
+    expect(question()).not.toBeInTheDocument();
+  });
+
+  it('remembers a typed name, normalised', () => {
+    render(sheet());
+
+    fireEvent.change(screen.getByLabelText(/your name/i), { target: { value: '  Kasia   B  ' } });
+    fireEvent.click(screen.getByRole('button', { name: /use this/i }));
+
+    expect(localStorage.getItem('sundry-who')).toBe('Kasia B');
+    expect(question()).not.toBeInTheDocument();
+  });
+
+  it('takes Enter as the answer rather than as a save', () => {
+    render(sheet());
+
+    const field = screen.getByLabelText(/your name/i);
+    fireEvent.change(field, { target: { value: 'Ola' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+
+    expect(localStorage.getItem('sundry-who')).toBe('Ola');
+    expect(createExpense).not.toHaveBeenCalled();
+  });
+
+  it('offers nothing to confirm until something has been typed', () => {
+    render(sheet());
+    expect(screen.getByRole('button', { name: /use this/i })).toBeDisabled();
+  });
+
+  /**
+   * Skipping is permanent. A prompt that reappears on every save is worse than
+   * no feature; Settings is where someone changes their mind.
+   */
+  it('takes "Not now" as a permanent answer', () => {
+    const first = render(sheet());
+    fireEvent.click(screen.getByRole('button', { name: /not now/i }));
+
+    expect(localStorage.getItem('sundry-who')).toBe('');
+    expect(question()).not.toBeInTheDocument();
+    first.unmount();
+
+    render(sheet());
+    expect(question()).not.toBeInTheDocument();
+  });
+
+  it('leaves focus on the form rather than on the question', () => {
+    // The prompt is a note above the panel, not a gate in front of it: the
+    // reader opened this to type an amount.
+    render(sheet());
+    expect(document.activeElement).toBe(screen.getByLabelText(/^amount$/i));
+  });
+
+  it('does not add a second heading to a dialog that already has one', () => {
+    render(sheet({ people: ['Ania'] }));
+    expect(screen.getAllByRole('heading')).toHaveLength(1);
+  });
+});
+
+describe('AddSheet — stamping the label on what is saved', () => {
+  const saved: Expense = {
+    id: 7, amount: 24.9, date: '2026-08-11', description: 'Coffee',
+    category: 'groceries', currency: 'PLN',
+  };
+
+  const save = () => {
+    fireEvent.change(screen.getByLabelText(/^amount$/i), { target: { value: '24.90' } });
+    fireEvent.change(screen.getByLabelText(/^description$/i), { target: { value: 'Coffee' } });
+    fireEvent.click(screen.getByRole('button', { name: /add expense/i }));
+  };
+
+  beforeEach(() => {
+    setPhone(false);
+    (createExpense as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(saved);
+  });
+
+  it('sends the name this device answered with', async () => {
+    render(sheet({ people: ['Ania'] }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ania' }));
+    save();
+
+    await waitFor(() => expect(createExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ who: 'Ania' })
+    ));
+  });
+
+  it('saves an unlabelled row when the question was skipped — nothing here is a gate', async () => {
+    render(sheet());
+    fireEvent.click(screen.getByRole('button', { name: /not now/i }));
+    save();
+
+    await waitFor(() => expect(createExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ who: null })
+    ));
+  });
+
+  it('saves an unlabelled row when the question was ignored altogether', async () => {
+    render(sheet());
+    save();
+
+    await waitFor(() => expect(createExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ who: null })
+    ));
   });
 });
 

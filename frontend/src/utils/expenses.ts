@@ -119,9 +119,54 @@ export interface LedgerQuery {
   /** Selected category slugs. **Empty means every category**, never none. */
   categories: string[];
   currency: Currency | 'all';
+  /**
+   * Selected "who added it" labels. **Empty means everybody**, never nobody —
+   * the same rule the categories follow, and for the same reason: a filter
+   * arrives neutral and narrows from there.
+   *
+   * Matched case-insensitively, because the column keeps whatever case was
+   * typed and "Ania" and "ania" are one person (see `utils/who.ts`).
+   */
+  people: string[];
   range: RangeKey;
   customStart: string;
   customEnd: string;
+}
+
+/**
+ * The names the ledger actually holds, in the order they should be offered.
+ *
+ * From the rows rather than from `/expenses/people`, for the same reason
+ * `presentCurrencies` is derived on the Expenses screen: a filter may only offer
+ * what the data behind it contains, or one of its buttons is a guaranteed blank
+ * table. Deduplicated case-insensitively, keeping the spelling that appears
+ * most often, and sorted by frequency so the household's busiest hand leads.
+ */
+export function ledgerPeople(expenses: Expense[]): string[] {
+  // One bucket per person, holding every spelling of their name and its count.
+  const merged = new Map<string, Map<string, number>>();
+
+  for (const expense of expenses) {
+    const name = expense.who?.trim();
+    if (!name) continue;
+
+    const key = name.toLowerCase();
+    const spellings = merged.get(key) ?? new Map<string, number>();
+    spellings.set(name, (spellings.get(name) ?? 0) + 1);
+    merged.set(key, spellings);
+  }
+
+  return Array.from(merged.values())
+    .map(spellings => {
+      const rows = Array.from(spellings.entries());
+      const total = rows.reduce((sum, [, count]) => sum + count, 0);
+      // Ties go to the lexicographically first spelling, so the answer is stable
+      // rather than dependent on which row happened to be read first.
+      const name = rows.sort(([a, ca], [b, cb]) => cb - ca || a.localeCompare(b))[0][0];
+      return { name, total };
+    })
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
+    .map(entry => entry.name);
 }
 
 /**
@@ -132,6 +177,7 @@ export const EMPTY_QUERY: LedgerQuery = {
   search: '',
   categories: [],
   currency: 'all',
+  people: [],
   range: 'all',
   customStart: '',
   customEnd: ''
@@ -142,6 +188,7 @@ export function isEmptyQuery(query: LedgerQuery): boolean {
   return query.search.trim() === ''
     && query.categories.length === 0
     && query.currency === 'all'
+    && query.people.length === 0
     && query.range === 'all';
 }
 
@@ -171,10 +218,15 @@ export function filterExpenses(
   const bounds = queryBounds(query, today);
   const search = query.search.trim().toLowerCase();
   const wanted = new Set(query.categories);
+  // Case-folded: the column keeps the case it was typed in, so "Ania" and
+  // "ania" are one person and one chip has to select both.
+  const whom = new Set(query.people.map(person => person.toLowerCase()));
 
   return expenses.filter(expense => {
     if (wanted.size > 0 && !wanted.has(expense.category)) return false;
     if (query.currency !== 'all' && expense.currency !== query.currency) return false;
+    // An unlabelled row belongs to nobody, so it is never selected by a name.
+    if (whom.size > 0 && !whom.has(expense.who?.trim().toLowerCase() ?? '')) return false;
     if (bounds.start && expense.date < bounds.start) return false;
     if (bounds.end && expense.date > bounds.end) return false;
     if (search) {

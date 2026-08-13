@@ -15,6 +15,7 @@ import { Icon } from './Icon';
 import { Currency, AppSettings, CurrencyInfo } from '../types/expense.types';
 import { offeredCurrencies } from '../utils/currencies';
 import { previewImport, confirmImport } from '../services/api';
+import { readWho } from '../utils/who';
 
 interface PreviewData {
   columns: string[];
@@ -130,6 +131,11 @@ export default function ExcelImport({ settings, currencies, onImported }: ExcelI
         descriptionColumn,
         categoryColumn: categoryColumn || undefined,
         currency,
+        // Every imported row carries this device's label, exactly as a typed or
+        // scanned one does. A spreadsheet that landed unlabelled while
+        // everything else was labelled would make the ledger's person filter
+        // useless. `null` when the device has never been named (utils/who.ts).
+        who: readWho(),
       });
       setImportResults(results.results);
       setPreviewData(null); // Clear preview after successful import

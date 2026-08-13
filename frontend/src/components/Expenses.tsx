@@ -47,6 +47,7 @@ import {
   filterExpenses,
   grainForWindow,
   isEmptyQuery,
+  ledgerPeople,
   measureWindow,
   queryBounds,
   sortExpenses,
@@ -112,6 +113,21 @@ export default function Expenses({
   );
 
   /**
+   * The people the **ledger** names, for the same reason `presentCurrencies` is
+   * derived from the rows: a filter may only offer what the data contains.
+   *
+   * One name is no choice at all — a column repeating "Ania" on every row, and a
+   * chip that selects everything, are both noise in a table that is already
+   * dense. So both the filter and the table's Who column appear only once the
+   * ledger holds more than one name, and both are computed from the **whole**
+   * ledger rather than the filtered set: narrowing to one person must not make
+   * the column you are reading, or the chip you are standing on, disappear.
+   */
+  const people = useMemo(() => ledgerPeople(expenses), [expenses]);
+  const showWho = people.length > 1;
+  const offerPeople = showWho || query.people.length > 0;
+
+  /**
    * One currency in the ledger means there is nothing to choose and nothing to
    * convert: the control is not rendered, and every figure is in that currency.
    * The combined option would otherwise convert PLN into PLN and label it
@@ -167,7 +183,7 @@ export default function Expenses({
    * the ledger does — deleting a row on page 3 must not throw you back to page 1.
    */
   const queryKey = [
-    query.search, query.categories.join(','), query.currency,
+    query.search, query.categories.join(','), query.currency, query.people.join(','),
     query.range, query.customStart, query.customEnd, sortField, sortOrder
   ].join('|');
 
@@ -220,6 +236,14 @@ export default function Expenses({
       categories: query.categories.includes(slug)
         ? query.categories.filter(selected => selected !== slug)
         : [...query.categories, slug]
+    });
+  };
+
+  const togglePerson = (name: string) => {
+    patch({
+      people: query.people.includes(name)
+        ? query.people.filter(selected => selected !== name)
+        : [...query.people, name]
     });
   };
 
@@ -363,6 +387,27 @@ export default function Expenses({
           </div>
         </div>
 
+        {/* Only once more than one person has added something — see `showWho`.
+            "Who" and not "Person": it is the label on the row, not an account. */}
+        {offerPeople && (
+          <div className="filter-group chips-group">
+            <span className="filter-legend" id="ledger-people">Who:</span>
+            <div className="category-chips" role="group" aria-labelledby="ledger-people">
+              {people.map(person => (
+                <button
+                  key={person}
+                  type="button"
+                  className={query.people.includes(person) ? 'active' : ''}
+                  aria-pressed={query.people.includes(person)}
+                  onClick={() => togglePerson(person)}
+                >
+                  {person}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="filter-group chips-group">
           <span className="filter-legend" id="ledger-range">Date range:</span>
           <div className="time-period-buttons" role="group" aria-labelledby="ledger-range">
@@ -461,6 +506,7 @@ export default function Expenses({
       <ExpenseTable
         expenses={rows}
         categories={categories}
+        showWho={showWho}
         onEdit={onEdit}
         onDelete={onDelete}
         onUpdate={onUpdate}

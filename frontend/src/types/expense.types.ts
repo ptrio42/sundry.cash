@@ -70,6 +70,20 @@ export interface Expense {
   currency: Currency;
   createdAt?: string; // ISO 8601 datetime
   receiptImage?: string | null; // filename of an attached receipt photo, if any
+  /**
+   * Which person on which device recorded this — a **label, not a login**.
+   *
+   * The household shares one password, so anyone who can reach the app can add
+   * an expense under any name. This says who typed it in and nothing else: it
+   * is not authentication, not a permission and not an audit trail. The name
+   * itself lives in `localStorage` under `sundry-who`, per device — see
+   * `utils/who.ts` and docs/who-label-spec.md.
+   *
+   * `null` is a value, not a missing field: it means nobody said, which is what
+   * every row predating the column will always mean. Mirrors
+   * backend/src/types/expense.types.ts — keep the two in sync.
+   */
+  who?: string | null;
 }
 
 // Fields extracted from a receipt photo by the backend OCR (any may be null).
@@ -318,6 +332,12 @@ export interface ExpensesProps {
 export interface ExpenseTableProps {
   expenses: Expense[];
   categories: Category[];
+  /**
+   * Whether to draw the "Who" column. Decided by the screen, from the **whole**
+   * ledger rather than these rows: a column repeating one name is noise, and a
+   * column that vanished when you filtered to one person would be worse.
+   */
+  showWho: boolean;
   onEdit: (expense: Expense) => void;
   onDelete: (id: number) => void;
   onUpdate: (id: number, updates: Partial<Expense>) => Promise<void>;

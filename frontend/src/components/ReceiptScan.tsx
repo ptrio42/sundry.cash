@@ -15,6 +15,7 @@ import { Icon } from './Icon';
 import { scanReceipt, createReceiptExpense } from '../services/api';
 import { ExpenseFormProps, ExpenseCategory, Currency, ReceiptExtraction } from '../types/expense.types';
 import { offeredCurrencies } from '../utils/currencies';
+import { readWho } from '../utils/who';
 
 type Phase = 'capture' | 'review';
 
@@ -127,7 +128,11 @@ export default function ReceiptScan({ onExpenseAdded, settings, categories, curr
           description: description.trim(),
           category,
           currency,
-          merchant: extraction?.merchant ?? null
+          merchant: extraction?.merchant ?? null,
+          // The scanning device's own label, alongside the shop the receipt
+          // named. One is what the app observed, the other is who was holding
+          // the phone — see utils/who.ts.
+          who: readWho()
         },
         file
       );

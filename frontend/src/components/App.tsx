@@ -29,7 +29,7 @@ import Budgets from './Budgets';
 import Settings from './Settings';
 import EditExpenseModal from './EditExpenseModal';
 import Login from './Login';
-import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getInstanceConfig, getToken, logout, getSettings, getFxRates, getCategories, getCurrencies } from '../services/api';
+import { getExpenses, deleteExpense, updateExpense, deleteAllExpenses, getAuthStatus, getInstanceConfig, getToken, logout, getSettings, getFxRates, getCategories, getCurrencies, getPeople } from '../services/api';
 import { Expense, AppSettings, Category, CurrencyInfo, FxRates, InstanceConfig } from '../types/expense.types';
 import { setCurrencyRegistry } from '../utils/format';
 import { Destination, useRoute } from '../utils/route';
@@ -181,6 +181,16 @@ export default function App() {
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [currencies, setCurrencies] = useState<CurrencyInfo[]>(DEFAULT_CURRENCIES);
   const [fxRates, setFxRates] = useState<FxRates>(DEFAULT_FX_RATES);
+  /**
+   * The names already in the ledger, most-used first — fetched once and
+   * prop-drilled like `categories` and `currencies`, for the same reason.
+   *
+   * Only the *suggestion* surfaces use it: the Add sheet's prompt, the Settings
+   * control and the edit modal. The Expenses filter derives its own list from
+   * the ledger it is holding, because a filter may only offer what the rows
+   * actually contain.
+   */
+  const [people, setPeople] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const { destination, addOpen, navigate, openAdd, closeAdd } = useRoute(BOOT_DESTINATION);
@@ -290,18 +300,22 @@ export default function App() {
       // Expenses are required; settings, categories and FX rates are non-fatal
       // (fall back). Loaded here rather than per component so the whole app
       // agrees on one list, the same way settings and rates already do.
-      const [data, loadedSettings, loadedCategories, loadedCurrencies, fx] = await Promise.all([
+      const [data, loadedSettings, loadedCategories, loadedCurrencies, fx, loadedPeople] = await Promise.all([
         getExpenses(),
         getSettings().catch(() => settings),
         getCategories().catch(() => categories),
         getCurrencies().catch(() => currencies),
         getFxRates().then(f => f.rates as FxRates).catch(() => fxRates),
+        // Non-fatal like the rest: an empty list costs the prompt its buttons
+        // and nothing else, since the free field is always there.
+        getPeople().catch(() => [] as string[]),
       ]);
       setExpenses(data);
       setSettings(loadedSettings);
       setCategories(loadedCategories);
       applyCurrencies(loadedCurrencies);
       setFxRates(fx);
+      setPeople(loadedPeople);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load expenses');
     } finally {
@@ -321,6 +335,21 @@ export default function App() {
     setExpenses(prev => [newExpense, ...prev]);
     closeAdd();
     setLastAdded(newExpense);
+    rememberPerson(newExpense.who);
+  };
+
+  /**
+   * Keep a name the ledger has just gained, without a round trip.
+   *
+   * `/expenses/people` answers from the rows, so the first expense a newly named
+   * device saves is exactly what makes that name offerable — and re-fetching the
+   * list to learn something we are holding would be a request for nothing.
+   * Appended rather than inserted: the ordering is by frequency, and one row is
+   * the least frequent thing there is.
+   */
+  const rememberPerson = (name: string | null | undefined) => {
+    if (!name) return;
+    setPeople(prev => (prev.some(person => person.toLowerCase() === name.toLowerCase()) ? prev : [...prev, name]));
   };
 
   /** Open the sheet. The previous confirmation goes: it is about to be replaced. */
@@ -676,6 +705,7 @@ export default function App() {
                   currencies={currencies}
                   expenses={expenses}
                   rates={fxRates}
+                  people={people}
                   theme={theme}
                   authRequired={authRequired}
                   onSaved={handleSettingsSaved}
@@ -742,6 +772,8 @@ export default function App() {
         settings={settings}
         categories={categories}
         currencies={currencies}
+        people={people}
+        demoMode={instance.demoMode}
         onExpenseAdded={handleExpenseAdded}
         onClose={closeAdd}
       />
@@ -750,6 +782,7 @@ export default function App() {
         expense={editingExpense}
         categories={categories}
         currencies={currencies}
+        people={people}
         onSave={handleUpdateExpense}
         onClose={handleCloseEditModal}
       />

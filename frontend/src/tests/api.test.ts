@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getExpenses,
   getExpense,
+  getPeople,
   createExpense,
   deleteExpense,
   login,
@@ -242,6 +243,19 @@ describe('happy paths', () => {
 
     await expect(login('wrong')).rejects.toThrow('Invalid password');
     expect(getToken()).toBeNull();
+  });
+
+  /**
+   * The names in the ledger, for the "who is adding this?" buttons. Unwrapped
+   * from its envelope here so no caller has to know the shape — and behind the
+   * same bearer as everything else, because a public list of a household's
+   * names is a small, needless leak.
+   */
+  it('returns the people list out of its envelope', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ people: ['Ania', 'Alex'] }));
+
+    await expect(getPeople()).resolves.toEqual(['Ania', 'Alex']);
+    expect(requestedUrl()).toBe('/api/expenses/people');
   });
 });
 

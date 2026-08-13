@@ -165,6 +165,9 @@ describe('ExcelImport', () => {
       descriptionColumn: '4',
       categoryColumn: undefined,
       currency: 'PLN',
+      // This device has never been named, so every imported row lands
+      // unlabelled — which is a value, not a gap.
+      who: null,
     });
 
     // The preview gives way to the summary.
@@ -256,5 +259,39 @@ describe('ExcelImport', () => {
     expect(await screen.findByText('Import failed: column out of range')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /import results/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /import expenses/i })).toBeInTheDocument();
+  });
+});
+
+/**
+ * The importing device's own label, on every row it lands
+ * (docs/who-label-spec.md). An import that arrived unlabelled while everything
+ * else was labelled would make the ledger's person filter useless.
+ */
+describe('ExcelImport — who added it', () => {
+  it('stamps the device label on the import', async () => {
+    localStorage.setItem('sundry-who', 'Kasia');
+    try {
+      render(<ExcelImport settings={settings} currencies={TEST_CURRENCIES} />);
+      await previewFile();
+      fireEvent.click(screen.getByRole('button', { name: /import expenses/i }));
+
+      await waitFor(() => expect(mockConfirmImport).toHaveBeenCalledTimes(1));
+      expect(mockConfirmImport.mock.calls[0][1]).toMatchObject({ who: 'Kasia' });
+    } finally {
+      localStorage.removeItem('sundry-who');
+    }
+  });
+
+  it('asks nothing of a device that has never been named', async () => {
+    render(<ExcelImport settings={settings} currencies={TEST_CURRENCIES} />);
+    await previewFile();
+
+    // No prompt here: the question belongs to the Add sheet, and importing a
+    // spreadsheet is not the moment to ask it.
+    expect(screen.queryByText(/who is adding this\?/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /import expenses/i }));
+    await waitFor(() => expect(mockConfirmImport).toHaveBeenCalledTimes(1));
+    expect(mockConfirmImport.mock.calls[0][1]).toMatchObject({ who: null });
   });
 });
