@@ -5,12 +5,31 @@
 
 import request from 'supertest';
 import app from '../server';
+import * as RateLimitModel from '../models/rateLimit';
 
 const ORIGINAL = process.env.APP_PASSWORD;
 
 afterAll(() => {
   if (ORIGINAL === undefined) delete process.env.APP_PASSWORD;
   else process.env.APP_PASSWORD = ORIGINAL;
+
+  /**
+   * Put back the throttle this file deliberately trips.
+   *
+   * The last case below exhausts the login limiter on purpose, which also
+   * drives the per-instance backstop past its free attempts and leaves a block
+   * in force for about a second. Both counters live in the **shared** SQLite
+   * file every suite in the run uses, and nothing sweeps them between files —
+   * so the next file to assert on `POST /api/auth/login` gets a 429 from
+   * `loginBackstop` before its own expectation is ever reached.
+   *
+   * That is not hypothetical: it made `auth-required.test.ts` fail its
+   * "refuses to mint a token" case (which asserts 503) whenever Jest's
+   * sequencer happened to run this file shortly before it. The order comes from
+   * the timing cache, so it changed run to run and the failure looked random.
+   */
+  RateLimitModel.resetAll();
+  RateLimitModel.clearFailures();
 });
 
 describe('Auth gate', () => {

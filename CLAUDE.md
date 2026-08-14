@@ -303,6 +303,25 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   `setupFile` that repoints `DB_PATH` at `$TMPDIR/sundry-test-data/` before any app module loads —
   `receiptsDir()` derives from `DB_PATH`, so uploaded images are isolated too. Never remove this:
   without it the suite writes fixtures straight into `backend/data/expenses.db`.
+- **All 18 backend suites share that one database, and `--runInBand` is the only thing sequencing
+  them.** `globalSetup` wipes it once per run, not once per file, so every file inherits what the
+  previous ones wrote. Two consequences, both of which have already shipped as "random" failures:
+  **(1)** a fixture must not reuse a date another suite reads *by* date — `import.test.ts` builds
+  `Object.fromEntries` keyed on date, so a second row of the same currency on one of its dates
+  silently overwrites the asserted entry, and which row wins is a `created_at` tie at one-second
+  resolution. Pick dates nothing else uses. **(2)** a suite that trips a *persistent global control*
+  must put it back: `auth.test.ts` exhausts the login throttle on purpose, and because
+  `POST /api/auth/login` runs `loginBackstop` before its handler, the next file to assert on that
+  route got 429 instead of its own expectation. Both counters are cleared with
+  `RateLimitModel.resetAll()` + `clearFailures()`.
+  **The file order is not stable** — Jest's default sequencer orders by each file's *previous*
+  runtime, cached in the OS temp dir, so adding cases anywhere can reshuffle it and expose a coupling
+  that was dormant for months. Never debug an intermittent backend failure by re-running until it
+  passes; force the order with `--testSequencer` instead.
+- **Never run two backend suites at once.** They would open the same database file, and each run's
+  `globalSetup` deletes it — so a second run wipes the first one's fixtures mid-flight and produces
+  a spray of unrelated failures across `seed`, `insights` and `expenses`. Running the *frontend*
+  suite alongside is fine: Vitest touches none of this.
 - **Reset the local DB** by deleting `backend/data/expenses.db` — it is recreated on next backend start.
 - **`config/database.ts` swallows migration errors on purpose** ("Continue even if migration fails"), so a
   failed migration is silent. Anything that depends on a table existing must check for itself and treat
