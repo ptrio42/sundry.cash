@@ -15,21 +15,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import App from '../components/App';
 
-/**
- * Longer than the 5s default, for this file only.
- *
- * These 53 cases each render the entire shell, and several of them render all
- * four destinations in a loop. Every `getByRole` with a name then computes an
- * accessible name for every control on the screen, so the cost of a case tracks
- * the size of the screens rather than the number of assertions in it — and the
- * screens keep growing (the who label alone put a field in Settings and a column
- * in Expenses). The heaviest cases were finishing in about 3s against a 5s
- * ceiling, which makes machine load, not correctness, decide whether the suite
- * is green. Nothing here waits on a timer, so a generous ceiling costs nothing
- * when the code is right and only changes how long a genuine hang takes to
- * report.
- */
-vi.setConfig({ testTimeout: 30_000 });
+// The ceiling these cases need is set once for the whole suite, in
+// `vite.config.ts` — this file is the heaviest but it is not the only one close
+// to it. See the comment on `testTimeout` there for the measurement.
 import { TEST_CATEGORIES } from './categories.fixture';
 import { TEST_CURRENCIES } from './currencies.fixture';
 import { currentMonthKey, monthLabel } from '../utils/format';

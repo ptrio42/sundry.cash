@@ -32,6 +32,27 @@ export default defineConfig({
     // `import '../App.css'` would start feeding real rules to every component
     // suite, where `display: none` on the mobile bar would suddenly hide
     // controls that jsdom currently reports as visible.
-    css: { include: [/App\.css\?raw$/] }
+    css: { include: [/App\.css\?raw$/] },
+    /**
+     * Longer than the 5s default, for every suite.
+     *
+     * The heavy suites render a whole screen — App mounts the entire shell 53
+     * times, Home mounts six sections over six mocked endpoints — and every
+     * `getByRole` with a name then computes an accessible name for every control
+     * on that screen. So a case costs what the screen costs, and the screens
+     * keep growing. Several were finishing around 3s against a 5s ceiling, which
+     * makes machine load rather than correctness decide whether a run is green.
+     *
+     * Measured, running the full suite five times with six CPU loops starving
+     * the worker threads: on `main` one case timed out in 3 runs of 5, always
+     * `App — the Add sheet > opens over every one of them`; the failures are
+     * `Test timed out in 5000ms`, never a wrong assertion. Raising the ceiling
+     * here rather than per file keeps it one decision instead of a growing pile
+     * of `vi.setConfig` calls.
+     *
+     * Nothing in the suite waits on a real timer, so this costs nothing when the
+     * code is right — it only changes how long a genuine hang takes to report.
+     */
+    testTimeout: 20_000
   }
 });
