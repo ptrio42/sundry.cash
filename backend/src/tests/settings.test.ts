@@ -1,7 +1,10 @@
 /**
  * Tests for the settings endpoints.
- * Runs against the shared dev DB, so the original settings are captured and
- * restored to avoid leaking test state.
+ *
+ * The settings row is a singleton, so the original is captured and restored
+ * around the cases that overwrite it — this file's database is its own
+ * (`src/tests/db-per-file.ts`), which makes that housekeeping within one suite
+ * rather than a debt owed to the next.
  */
 
 import request from 'supertest';

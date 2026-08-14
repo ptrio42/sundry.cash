@@ -13,7 +13,6 @@
 import request from 'supertest';
 import app from '../server';
 import { authConfigurationProblems, isAuthMisconfigured, secretSource } from '../config/auth';
-import * as RateLimitModel from '../models/rateLimit';
 
 const ORIGINAL = {
   password: process.env.APP_PASSWORD,
@@ -25,22 +24,6 @@ function restore(key: 'APP_PASSWORD' | 'AUTH_SECRET' | 'AUTH_REQUIRED', value: s
   if (value === undefined) delete process.env[key];
   else process.env[key] = value;
 }
-
-/**
- * Start every case from an unthrottled instance.
- *
- * `POST /api/auth/login` is fronted by `loginBackstop`, which answers 429
- * *before* the handler that decides between 503, 401 and a token — and its
- * counters live in the database the whole run shares, with no sweep between
- * files. So a case here that asserts a status from that route is asserting
- * about whatever the previous file left behind unless it says otherwise. The
- * file that trips it also cleans up now, but this is what makes these cases
- * independent of the order Jest happens to pick.
- */
-beforeEach(() => {
-  RateLimitModel.resetAll();
-  RateLimitModel.clearFailures();
-});
 
 afterEach(() => {
   restore('APP_PASSWORD', ORIGINAL.password);
