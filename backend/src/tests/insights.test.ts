@@ -6,8 +6,9 @@
  * next month. `likelyCancelled` is the one verdict that needs "now", so those
  * cases call the model with an injected `today` instead of going over HTTP.
  *
- * The suite shares one temp database with the other test files (see
- * src/tests/env.ts), so each block starts by clearing the expenses table.
+ * The database belongs to this file alone (see src/tests/db-per-file.ts), but
+ * the blocks below share it with each other and each plants a different ledger —
+ * so every one of them starts by clearing the expenses table.
  */
 
 import request from 'supertest';

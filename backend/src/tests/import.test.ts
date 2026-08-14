@@ -95,11 +95,12 @@ describe('Import API Endpoints', () => {
      * ledger's person filter useless — docs/who-label-spec.md.
      */
     it('stamps the who label on every imported row', async () => {
-      // 2028: dates no other case in the suite uses. The whole run shares one
-      // database, and "should take numeric cells at face value" below reads
-      // *by date* — two USD rows on one of its dates and its lookup keeps
-      // whichever the sort put last, which is a coin flip when `created_at`
-      // has one-second resolution.
+      // 2028: dates no other case in *this file* uses. "should take numeric
+      // cells at face value" below reads its rows *by date*, so two USD rows on
+      // one of its dates leave its lookup keeping whichever the sort put last —
+      // a coin flip, because `created_at` has one-second resolution. Other
+      // files can no longer collide here (src/tests/db-per-file.ts), but the
+      // cases within this one still can.
       const testData = [
         ['Date', 'Amount', 'Description'],
         ['2028-03-01', 11.0, 'Imported one'],

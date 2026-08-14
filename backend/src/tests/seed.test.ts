@@ -11,9 +11,11 @@
  *     say something. If a scoring threshold moves and the demo goes silent,
  *     this file should fail rather than the launch.
  *
- * Everything runs against the throwaway test DB (see src/tests/env.ts), which
- * is shared with every other suite — hence the snapshot/restore of settings,
- * rates, categories and budgets around the seeding block.
+ * Everything runs against a throwaway database belonging to this file alone
+ * (see src/tests/db-per-file.ts). The snapshot/restore of settings, rates,
+ * categories and budgets around the seeding block therefore owes nothing to the
+ * next suite; it stays because `runSeed` rewrites all four, and a case added
+ * after that block should not have to know what the demo left behind.
  */
 
 import path from 'path';

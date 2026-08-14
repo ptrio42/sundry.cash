@@ -266,8 +266,8 @@ describe('Expense API', () => {
    * about it is.
    *
    * The names carry a `-QA` suffix so the `/people` assertions below stay true
-   * whatever else the run has written — the whole suite shares one temp database
-   * (see `src/tests/env.ts`), so these are the only rows that can be relied on.
+   * whatever else *this file* has written. No other suite can reach this
+   * database (see `src/tests/db-per-file.ts`), but the cases above it share one.
    */
   describe('who', () => {
     const labelled = (who: unknown, overrides: Record<string, unknown> = {}) => ({

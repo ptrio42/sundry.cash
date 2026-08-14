@@ -4,16 +4,15 @@
  * Under NODE_ENV=test the OCR provider resolves to the offline "stub" extractor,
  * which decodes the uploaded bytes as text and runs the real parser — so we can
  * "upload" receipt text as a fake image and exercise the full flow without
- * Tesseract. Receipt images are written to a throwaway temp directory.
+ * Tesseract.
+ *
+ * Stored images need no arrangement here: `receiptsDir()` derives from DB_PATH,
+ * and `src/tests/db-per-file.ts` has already pointed that at a directory
+ * belonging to this file alone, which `globalTeardown` deletes. This suite used
+ * to set RECEIPTS_DIR itself, which was worse than redundant — `process.env`
+ * outlives the file boundary, so the variable stayed set and handed this file's
+ * directory to every suite that ran after it.
  */
-
-import os from 'os';
-import path from 'path';
-import fs from 'fs';
-
-// Isolate stored images from the dev data dir before anything imports storage.
-const TEST_RECEIPTS_DIR = path.join(os.tmpdir(), `receipt-test-${process.pid}`);
-process.env.RECEIPTS_DIR = TEST_RECEIPTS_DIR;
 
 import request from 'supertest';
 import app from '../server';
@@ -29,14 +28,19 @@ SUMA PLN   11,18
 GOTOWKA    20,00
 RESZTA      8,82`;
 
-// Track created expenses so we can clean up the shared dev DB afterwards.
+/**
+ * Track created expenses so the ledger this file leaves behind is its own doing.
+ *
+ * Nothing outside the file can see these rows any more, so this is housekeeping
+ * within one suite rather than the cross-file cleanup it used to be — it keeps a
+ * case added below from inheriting the rows of the cases above it.
+ */
 const createdIds: number[] = [];
 
 afterAll(async () => {
   for (const id of createdIds) {
     await request(app).delete(`/api/expenses/${id}`);
   }
-  fs.rmSync(TEST_RECEIPTS_DIR, { recursive: true, force: true });
 });
 
 describe('POST /api/receipts/scan', () => {
@@ -112,9 +116,9 @@ describe('POST /api/receipts (save with image)', () => {
     const res = await request(app)
       .post('/api/receipts')
       .field('amount', '4.50')
-      // 2028: a date no other case uses. The run shares one database, and
-      // import.test.ts reads its own PLN rows *by date* — a second PLN row on
-      // one of its dates makes its lookup a coin flip.
+      // 2028: a date no other case here uses, kept from when this file shared a
+      // database with import.test.ts, which reads its own PLN rows *by date*.
+      // That collision is gone; a distinct date is still the cheaper habit.
       .field('date', '2028-02-03')
       .field('description', 'Kawa')
       .field('category', 'other')

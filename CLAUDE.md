@@ -67,8 +67,8 @@ In-session preview: `.claude/launch.json` config **app** runs the root `npm run 
 - `src/middleware/` — `auth` (`requireAuth`), `rateLimit` (the SQLite store for the per-IP login
   limiter plus the per-instance backstop), `validation`.
 - `src/services/` — `categorize.ts` (keyword auto-categorization, EN + PL); `receipt/` (OCR factory — see gotchas).
-- `src/tests/` — Jest + supertest, 339 cases across 18 files (plus `env.ts` / `paths.ts` /
-  `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
+- `src/tests/` — Jest + supertest, 339 cases across 18 files (plus `env.ts` / `db-per-file.ts` /
+  `paths.ts` / `globalSetup.ts` / `globalTeardown.ts`, which are harness, not tests).
 
 **frontend/** — React 18 + Vite, single-page UI (no state library — plain hooks). Four destinations
 (Home / Expenses / Budgets / Settings) plus a persistent Add, addressed by `utils/route.ts`: a hash
@@ -299,29 +299,42 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
   matters should depend on it. `langPath` names one directory and one filename form for all languages
   at once and does not fall back per language — which is why the bundle is only used when it covers
   every entry in `RECEIPT_OCR_LANGS`.
-- **Tests run against a temp DB, never the real one.** `jest.config.js` wires `src/tests/env.ts` as a
-  `setupFile` that repoints `DB_PATH` at `$TMPDIR/sundry-test-data/` before any app module loads —
-  `receiptsDir()` derives from `DB_PATH`, so uploaded images are isolated too. Never remove this:
-  without it the suite writes fixtures straight into `backend/data/expenses.db`.
-- **All 18 backend suites share that one database, and `--runInBand` is the only thing sequencing
-  them.** `globalSetup` wipes it once per run, not once per file, so every file inherits what the
-  previous ones wrote. Two consequences, both of which have already shipped as "random" failures:
-  **(1)** a fixture must not reuse a date another suite reads *by* date — `import.test.ts` builds
-  `Object.fromEntries` keyed on date, so a second row of the same currency on one of its dates
-  silently overwrites the asserted entry, and which row wins is a `created_at` tie at one-second
-  resolution. Pick dates nothing else uses. **(2)** a suite that trips a *persistent global control*
-  must put it back: `auth.test.ts` exhausts the login throttle on purpose, and because
-  `POST /api/auth/login` runs `loginBackstop` before its handler, the next file to assert on that
-  route got 429 instead of its own expectation. Both counters are cleared with
-  `RateLimitModel.resetAll()` + `clearFailures()`.
-  **The file order is not stable** — Jest's default sequencer orders by each file's *previous*
-  runtime, cached in the OS temp dir, so adding cases anywhere can reshuffle it and expose a coupling
-  that was dormant for months. Never debug an intermittent backend failure by re-running until it
-  passes; force the order with `--testSequencer` instead.
-- **Never run two backend suites at once.** They would open the same database file, and each run's
-  `globalSetup` deletes it — so a second run wipes the first one's fixtures mid-flight and produces
-  a spray of unrelated failures across `seed`, `insights` and `expenses`. Running the *frontend*
-  suite alongside is fine: Vitest touches none of this.
+- **Tests run against a temp DB, never the real one, and every suite gets its own.** Two hooks in
+  `jest.config.js`, in this order. `src/tests/env.ts` (`setupFiles`) sets the floor: `DB_PATH` lands
+  under `$TMPDIR/sundry-test-data/` before any app module loads, so the suite can never write into
+  `backend/data/expenses.db`. `src/tests/db-per-file.ts` (`setupFilesAfterEnv`) then narrows it to a
+  directory named after the test file. That hook has to be `setupFilesAfterEnv` and not `setupFiles`:
+  the earlier hook runs before `expect` exists, so it cannot ask which file is about to run, while
+  the later one is still evaluated *before* the test file's own imports — and `config/database.ts`
+  reads `DB_PATH` at module load, which is triggered by that file importing `../server`. Jest resets
+  the module registry per file, so each really does open its own connection. `receiptsDir()` derives
+  from `DB_PATH`, so images follow without being told; the hook also **clears `RECEIPTS_DIR`**,
+  because `process.env` outlives the file boundary and a suite that sets it would hand its own
+  directory to every file after it. Never remove either hook.
+- **What that retired, and what it did not.** Suites can no longer see each other's rows, which
+  ended two failures that had already shipped as "random": `import.test.ts` builds
+  `Object.fromEntries` keyed on *date*, so a row of the same currency written by another suite on one
+  of its dates silently replaced the asserted entry (a `created_at` tie at one-second resolution
+  decided which won); and `auth.test.ts` exhausts the login throttle on purpose, which — because
+  `POST /api/auth/login` runs `loginBackstop` before its handler — left the next file to assert on
+  that route getting 429 instead of its own expectation. Both were fixed per-suite first; the
+  per-file database replaced those band-aids, and they are gone. **Still shared, because
+  `--runInBand` means one process:** `process.env`. A suite that sets `APP_PASSWORD`, `AUTH_REQUIRED`,
+  `TRUST_PROXY`, `RECEIPTS_ENABLED` or similar must still restore it in `afterAll` — see the header of
+  `config.test.ts`. Within one file the old rules also still apply: `import.test.ts`'s date-keyed
+  lookup can be broken by another *case* in the same file.
+- **The file order is not stable, so never debug an intermittent failure by re-running.** Jest's
+  default sequencer orders by each file's *previous* runtime, cached in the OS temp dir, so adding
+  cases anywhere reshuffles it. Force the order instead: `jest.sequencer.js` is wired up permanently
+  and is a no-op until `JEST_FORCE_ORDER` names comma-separated path substrings, which then run first
+  in that order (a pattern matching nothing throws, so a typo cannot look like a pass):
+  `JEST_FORCE_ORDER=auth.test.ts,auth-required.test.ts npm test --prefix backend`.
+- **Never run two backend suites at once** — per-file databases did not fix this. The per-file
+  directories all live under one root, and each run's `globalSetup` deletes that root whole, so a
+  second run still wipes the first one's fixtures mid-flight and produces a spray of unrelated
+  failures across `seed`, `insights` and `expenses`. The root is deliberately deterministic rather
+  than PID-keyed, because `globalTeardown` runs in a different process context and has to be able to
+  compute it. Running the *frontend* suite alongside is fine: Vitest touches none of this.
 - **Reset the local DB** by deleting `backend/data/expenses.db` — it is recreated on next backend start.
 - **`config/database.ts` swallows migration errors on purpose** ("Continue even if migration fails"), so a
   failed migration is silent. Anything that depends on a table existing must check for itself and treat

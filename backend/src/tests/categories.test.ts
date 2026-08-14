@@ -3,8 +3,10 @@
  * that replaced the CHECK constraint, and the rules that keep the ledger from
  * pointing at a category that no longer exists.
  *
- * Everything runs against the throwaway test DB (see src/tests/env.ts), so the
- * custom categories created here never reach the developer's real database.
+ * Everything runs against a throwaway database belonging to this file alone (see
+ * src/tests/db-per-file.ts), so the custom categories created here — and the
+ * schema surgery some cases perform to test the migrations — reach neither the
+ * developer's real database nor another suite.
  */
 
 import request from 'supertest';
