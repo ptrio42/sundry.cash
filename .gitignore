@@ -53,3 +53,6 @@ docs/landing-spec.md
 docs/landing-content-spec.md
 docs/demo-and-hosting-spec.md
 docs/seed-spec.md
+# Machine-local agent scratch
+.claude/worktrees/
+.claude/scheduled_tasks.lock
