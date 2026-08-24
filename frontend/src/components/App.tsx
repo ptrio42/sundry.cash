@@ -120,8 +120,11 @@ const BOOT_DESTINATION: Destination = 'home';
  */
 const DEFAULT_INSTANCE: InstanceConfig = { demoMode: false, receiptsEnabled: true };
 
-/** Where a visitor goes to see what this is. The banner's only link. */
+/** Where a visitor goes to see what this is. */
 const PRODUCT_URL = 'https://sundry.cash';
+
+/** The source, once the repository is public — see the demo banner below. */
+const REPO_URL = 'https://github.com/ptrio42/sundry.cash';
 
 /**
  * Where the device's theme choice lives. Namespaced like `sundry-token` and
@@ -549,6 +552,9 @@ export default function App() {
               so. `external-link` ships a 14px optical cut, which is why 14. */}
           <a href={PRODUCT_URL} target="_blank" rel="noopener noreferrer">
             What Sundry is <Icon name="external-link" size={14} />
+          </a>
+          <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
+            The source <Icon name="external-link" size={14} />
           </a>
         </div>
       )}

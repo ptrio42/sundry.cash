@@ -26,9 +26,10 @@ Useful things to include: the version or commit, which deployment model you were
 enough detail to reproduce. If you found it against a hosted instance that is not yours, please stop
 before touching anyone's data and tell me instead.
 
-When the repository is public, GitHub's private security advisory flow becomes a second route. Until
-then, email is the only one — an earlier version of this file pointed at a GitHub issue tracker that
-does not exist yet.
+The repository is public at [github.com/ptrio42/sundry.cash](https://github.com/ptrio42/sundry.cash),
+but email is still the only reporting route — an earlier version of this file pointed at a GitHub
+issue tracker that did not exist yet, and a public issue tracker is the wrong place for a
+vulnerability report regardless.
 
 **Supported version:** whatever is on `main`. There are no maintained release branches.
 

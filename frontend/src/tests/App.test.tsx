@@ -399,6 +399,14 @@ describe('App — demo banner', () => {
     // A new tab from an untrusted page needs both, or the opener is reachable.
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
+
+  it('links out to the source from the banner', async () => {
+    await renderApp({ demoMode: true });
+
+    const link = screen.getByRole('link', { name: /the source/i });
+    expect(link).toHaveAttribute('href', 'https://github.com/ptrio42/sundry.cash');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
 });
 
 describe('App — when /api/config cannot be reached', () => {

@@ -374,7 +374,7 @@ server does, so `/expenses` would 404 on reload. Add is not one of them: `#/expe
 ## Definition of done
 
 1. `npm run lint` reports zero errors, and `npm run build` passes (strict) for the touched package(s).
-2. `npm run test` passes; add/extend tests for behavior changes (339 backend + 722 frontend cases;
+2. `npm run test` passes; add/extend tests for behavior changes (339 backend + 723 frontend cases;
    every frontend component has a suite, so a regression should be caught rather than shipped).
 3. Command output shown as evidence.
 4. Nothing sensitive staged (see hard rules).
