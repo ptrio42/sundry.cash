@@ -47,3 +47,9 @@ backend/tessdata/
 logs/
 *.log
 
+
+# Business/strategy notes and the seed plan: kept on disk, out of the public repo.
+docs/landing-spec.md
+docs/landing-content-spec.md
+docs/demo-and-hosting-spec.md
+docs/seed-spec.md

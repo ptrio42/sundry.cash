@@ -10,8 +10,8 @@ Every number here has a source. Where there is no source, it says so and names t
 ours. That distinction is the point of the document: a plausible-sounding parameter with no
 provenance is exactly the failure mode this file exists to prevent.
 
-Most of this is not built yet — the server-side subset that is, is listed in §3.1.
-`docs/demo-and-hosting-spec.md` covers the instance mechanics; this covers what has to be true
+Most of this is not built yet — the server-side subset that is, is listed in §3.1. The instance
+mechanics live in a separate note kept outside this repository; this covers what has to be true
 before a stranger pays and types real numbers in.
 
 ---

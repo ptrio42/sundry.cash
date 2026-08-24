@@ -14,9 +14,8 @@ The three others are directories with an `index.html` inside, so a static file s
 `/terms/` through its own index handling. `terms.html` at the root would need the server to add the
 extension, and `file_server` does not.
 
-Written to `docs/landing-content-spec.md`, which replaced everything the page *says*
-(`docs/landing-spec.md` is the first version, and is history). What follows is what the spec left to
-the implementation.
+The content plan the page was written to is kept out of this repository, along with the rest of the
+product-strategy notes. What follows is what that plan left to the implementation.
 
 ## The rule the page has to keep
 
@@ -84,8 +83,8 @@ them the easiest thing here to get quietly wrong. Two traps, both hit once alrea
 - **The seed re-anchors on the day it runs**, so a `demo.db` left on disk from an earlier day
   answers with different figures than the gallery screenshots were shot against. Quoting the two
   next to each other is a contradiction a reader can find in one click.
-- **The numbers in `docs/landing-spec.md` and `docs/ux-review-findings.md` are older still.** They
-  are illustrations of the *shape*, not output to copy.
+- **The numbers in `docs/ux-review-findings.md` are older still.** They are illustrations of the
+  *shape*, not output to copy.
 
 So regenerate them, against the same anchor the screenshots use, and never transcribe:
 
@@ -129,8 +128,9 @@ under 3:1 is the decorative rail on the privacy list, and `styles.css` says so w
 
 The page used to sell a paid hosted instance: €5/mo or €49/yr, a 30-day card trial, a Stripe
 Checkout link. None of that ships yet — there is no billing, no claim-link auth, no pool of
-instances to hand out. `docs/landing-content-spec.md` still describes that version; it comes back
-when billing does. What publishes now sells self-hosting instead: the `#hosting` section points at
+instances to hand out. The sales version is described in the strategy notes kept outside this
+repository; it comes back when billing does. What publishes now sells self-hosting instead: the
+`#hosting` section points at
 *Run it yourself* and gives one mailto for anyone who wants a hosted instance before it exists.
 
 ## The gates
