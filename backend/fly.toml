@@ -19,7 +19,7 @@
 #   fly ips allocate-v6 --private -a sundry-demo-api
 
 app = "sundry-demo-api"
-primary_region = "waw"
+primary_region = "fra"
 
 [build]
   dockerfile = "Dockerfile"

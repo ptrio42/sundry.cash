@@ -15,7 +15,7 @@
 # Cloudflare's proxy in front of it fights that.
 
 app = "sundry-demo"
-primary_region = "waw"
+primary_region = "fra"
 
 [build]
   dockerfile = "Dockerfile"
