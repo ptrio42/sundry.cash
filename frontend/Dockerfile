@@ -32,6 +32,21 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY security-headers.conf /etc/nginx/snippets/security-headers.conf
 
+# Where nginx sends /api. The default is the Compose service name, so
+# `docker compose up --build` is unaffected and nginx.conf stays readable with a
+# real host in it rather than a placeholder.
+#
+# It is a build arg rather than an env var because nginx resolves a literal
+# proxy_pass upstream once, at config load, and substituting at build time keeps
+# that property. Platforms that do not put the backend on a host called
+# `backend` override it: the Fly demo passes its private Flycast name, which is
+# what lets the API Machine autostop and be woken by the next request — an
+# `.internal` address would not be, since it bypasses the Fly proxy.
+ARG API_UPSTREAM=backend:5000
+RUN sed -i "s|proxy_pass http://backend:5000;|proxy_pass http://${API_UPSTREAM};|" \
+      /etc/nginx/conf.d/default.conf \
+ && grep -q "proxy_pass http://${API_UPSTREAM};" /etc/nginx/conf.d/default.conf
+
 # Expose port
 EXPOSE 80
 
