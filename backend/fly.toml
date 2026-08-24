@@ -1,0 +1,63 @@
+# The public demo's API, on Fly.
+#
+#   fly deploy -c backend/fly.toml
+#
+# This Machine is PRIVATE. It gets no public IP; the only way in is the
+# frontend app proxying to `sundry-demo-api.flycast:5000` over the Fly
+# private network. Flycast rather than `.internal` is load-bearing: only
+# traffic through the Fly proxy can start a stopped Machine, and both
+# Machines stopping when idle is what keeps the demo inside Fly's
+# sub-$5 invoice threshold.
+#
+# Order matters on a first deploy. Deploy this app and give it a private
+# address BEFORE the frontend, because nginx resolves its proxy_pass
+# upstream once, at config load — with no Flycast address allocated, the
+# frontend container exits with "host not found in upstream".
+#
+#   fly deploy -c backend/fly.toml
+#   fly ips list -a sundry-demo-api            # release any public ones
+#   fly ips allocate-v6 --private -a sundry-demo-api
+
+app = "sundry-demo-api"
+primary_region = "waw"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# No APP_PASSWORD, no AUTH_REQUIRED. The demo is deliberately open: the
+# ledger is fictional and re-seeded, and a password on it would only stop
+# people from looking. Every other instance sets all three — see
+# docs/DEPLOYMENT.md.
+[env]
+  NODE_ENV = "production"
+  PORT = "5000"
+  DB_PATH = "/app/data/expenses.db"
+  DEMO_MODE = "true"
+  # Tesseract on a 256 MB shared CPU, exposed to strangers with no password,
+  # is a free compute service for whoever finds it.
+  RECEIPTS_ENABLED = "false"
+
+# The SQLite file, and the receipts directory that derives from DB_PATH.
+# One volume, one Machine: a Fly volume attaches to a single Machine, which
+# suits an app whose whole data layer is one file.
+[mounts]
+  source = "sundry_demo_data"
+  destination = "/app/data"
+
+[http_service]
+  internal_port = 5000
+  force_https = false
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "GET"
+  path = "/api/health"
+  timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

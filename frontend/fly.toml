@@ -1,0 +1,45 @@
+# The public demo's web tier, on Fly: the same nginx image a self-hoster runs.
+#
+#   fly deploy -c frontend/fly.toml
+#
+# This is the only public half. It serves the built SPA and proxies /api to
+# the API app over Flycast — see API_UPSTREAM below and backend/fly.toml for
+# why Flycast and why the API deploys first.
+#
+# Certificate, after the first deploy:
+#
+#   fly certs add demo.sundry.cash -a sundry-demo
+#
+# Then point demo.sundry.cash at this app in Cloudflare DNS, as a
+# DNS-only record (grey cloud). Fly issues and renews its own certificate;
+# Cloudflare's proxy in front of it fights that.
+
+app = "sundry-demo"
+primary_region = "waw"
+
+[build]
+  dockerfile = "Dockerfile"
+  [build.args]
+    # Overrides the Dockerfile default of `backend:5000`, which is the Compose
+    # service name and means nothing here.
+    API_UPSTREAM = "sundry-demo-api.flycast:5000"
+
+[http_service]
+  internal_port = 80
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+# nginx serves this without touching the backend, so a passing check says the
+# web tier is healthy without waking the API Machine.
+[[http_service.checks]]
+  grace_period = "5s"
+  interval = "30s"
+  method = "GET"
+  path = "/"
+  timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
