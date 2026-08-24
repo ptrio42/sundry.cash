@@ -25,6 +25,8 @@ deploy/*.env
 .idea/
 # Machine-local Claude Code permissions; .claude/launch.json is intentionally tracked.
 .claude/settings.local.json
+# Personal / sandbox-only notes — CLAUDE.md points here precisely because it is untracked.
+CLAUDE.local.md
 *.swp
 *.swo
 *~
