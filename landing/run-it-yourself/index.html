@@ -102,13 +102,14 @@
           <code>docs/DEPLOYMENT.md</code>.
         </p>
 
-        <h2>One outbound request</h2>
+        <h2>No outbound requests</h2>
 
         <p>
-          The first receipt scan downloads its OCR language data from a public CDN, onto your server.
-          Point <code>TESSERACT_LANG_PATH</code> at a folder of local language files and the app makes
-          no outbound request at all. The photograph never leaves the machine either way — the text is
-          read there.
+          Polish and English language data ships inside the image, so a receipt scan reads the text on
+          your own machine and calls nobody. Set <code>RECEIPT_OCR_LANGS</code> to a language the image
+          does not carry and it fetches the whole set from a public CDN instead — point
+          <code>TESSERACT_LANG_PATH</code> at your own folder of <code>.traineddata</code> files to
+          keep it offline. The photograph never leaves the machine either way.
         </p>
 
         <h2>The source</h2>
