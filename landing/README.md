@@ -125,23 +125,23 @@ Contrast was recomputed from the tokens for every foreground/surface pair the pa
 in both themes: the lowest text pair is 5.55:1 (`--accent` links on `--bg`, light). The one element
 under 3:1 is the decorative rail on the privacy list, and `styles.css` says so where it is set.
 
+## The sales page is on hold
+
+The page used to sell a paid hosted instance: €5/mo or €49/yr, a 30-day card trial, a Stripe
+Checkout link. None of that ships yet — there is no billing, no claim-link auth, no pool of
+instances to hand out. `docs/landing-content-spec.md` still describes that version; it comes back
+when billing does. What publishes now sells self-hosting instead: the `#hosting` section points at
+*Run it yourself* and gives one mailto for anyone who wants a hosted instance before it exists.
+
 ## The gates
 
-Three things on the page are dead ends today, and each one blocks publishing:
+One thing blocks publishing:
 
 1. **`https://demo.sundry.cash` does not resolve** until the demo instance is deployed. The page
    links it in three places. Deploy first, or the strongest asset on the page is a dead link.
-2. **The Stripe Checkout link does not exist.** The pricing button carries
-   `https://buy.stripe.com/REPLACE_ME` so it cannot be mistaken for a working one; swap in the real
-   payment link, with the 30-day trial and the €5 / €49 prices configured.
-3. **The terms and the privacy policy carry real content.** Both are placeholders saying so. The
-   pricing block links the terms for the 14-day withdrawal right, the model withdrawal form and the
-   trader's identity — consumer law requires those before a buyer is bound, and a placeholder
-   supplies none of them.
 
-One more thing that is true but temporary: **the repository is not public yet**, so *Run it
-yourself* says the source is available on request. The moment it is public, that sentence becomes a
-link.
+The terms and privacy pages stay placeholders. Nothing on the page currently requires their
+content, since nothing is sold — they get written before billing returns.
 
 **No `/.well-known/security.txt`.** RFC 9116 makes `Contact` mandatory, no role address has been
 chosen, and a file naming an invented one is worse than no file at all.
