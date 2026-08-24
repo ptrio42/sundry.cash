@@ -396,3 +396,43 @@ date the first time the backend starts.
 
 There is no scheduled-backup mechanism built in; wire the command above into
 cron or your NAS's own backup tooling.
+
+
+## Publishing images (maintainers)
+
+Self-hosting builds from source — `docker compose up --build` — and that is the
+supported path. Published images exist for consumers that cannot build, notably an
+app-store entry that pins `image: ghcr.io/<owner>/sundry-backend@sha256:...`.
+
+`.github/workflows/release.yml` does the work. Push a `v*` tag and it verifies both
+packages (lint, build, test), builds `linux/amd64` + `linux/arm64` with buildx,
+pushes to GHCR, and prints the two digests to the job summary. `workflow_dispatch`
+publishes the same images under a moving `edge` tag instead, for testing.
+
+A release is:
+
+```bash
+git tag v1.1.0 && git push origin v1.1.0
+```
+
+Four things the workflow deliberately does not do for you:
+
+- **Bump the version first.** All three `package.json` files and the tag should
+  agree; nothing enforces it.
+- **Bump `CACHE` in `frontend/public/sw.js`** when the precache set changed. The
+  service worker purges every cache whose key is not the current one, so a
+  forgotten bump serves the old shell to returning visitors.
+- **Make the GHCR packages public.** A package created by a workflow is private,
+  and its visibility is a property of the package, not of the repository — a public
+  repo does not make it pullable. **The first release of each image therefore ends
+  red on purpose**, at the "Verify the digest is anonymously pullable" step: the
+  package does not exist until the push succeeds, so it cannot be flipped in
+  advance. Set both packages to Public in their GHCR settings and re-run the job.
+  The images are already pushed and their digests do not change.
+- **Move a tag.** Re-tagging republishes under the same name but produces a *new*
+  digest, so anything that pinned the old one keeps running the old one. That is
+  the point of pinning; it is not a bug to fix.
+
+`latest` follows the tag only for real releases — `docker/metadata-action`'s
+default flavour skips it for a prerelease like `v2.0.0-rc.1`, which is why the
+workflow does not list `latest` explicitly.

@@ -1,0 +1,262 @@
+name: Release
+
+# Publishes the two runtime images to GHCR, multi-arch, on a version tag.
+#
+# Why this is a second workflow rather than a job in ci.yml: ci.yml runs on every
+# push and pull request and must stay fast, while this one emulates arm64 and pushes
+# to a registry. Keeping them apart means a release is never gated on a PR check and
+# a PR is never slowed down by a registry login.
+#
+# The output that matters is the DIGEST of each image, printed to the job summary.
+# Consumers that pin — the Umbrel app store entry — reference `@sha256:...`, never a
+# tag, so a moved tag can never change what someone already installed.
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish alongside the digest (no semver tags are derived on a branch)'
+        required: false
+        default: edge
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # A tag push does not trigger ci.yml — it fires on branches and pull requests only.
+  # Without this job a `git tag v1.0.0 && git push --tags` on a commit that never
+  # reached main would publish images nothing had linted, typechecked or tested.
+  verify:
+    name: Verify ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [backend, frontend]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.package }}/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      # `npm run build` is the typecheck: backend runs tsc, frontend runs tsc && vite build.
+      - run: npm run build
+      - run: npm test
+
+  publish:
+    name: Publish ${{ matrix.image }} image
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      # Fail one image and the other still publishes: they are independent artifacts,
+      # and a half-published release is easier to finish than to redo.
+      fail-fast: false
+      matrix:
+        include:
+          - image: sundry-backend
+            context: backend
+            dockerfile: backend/Dockerfile
+            cacheScope: ci-backend
+          - image: sundry-frontend
+            context: frontend
+            dockerfile: frontend/Dockerfile
+            cacheScope: ci-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      # GHCR rejects an uppercase path component and a GitHub account name may contain
+      # uppercase. Lowercase it once here rather than at every use site.
+      - name: Resolve registry namespace
+        id: ns
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      # Registers the binfmt handlers that let an amd64 runner execute arm64 binaries.
+      # Without this the arm64 leg fails the moment it runs `npm ci`.
+      - uses: docker/setup-qemu-action@v3
+
+      # The default `docker` driver cannot produce a manifest list. The docker-container
+      # driver can, and is what makes the `platforms:` inputs below legal.
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.ns.outputs.owner }}/${{ matrix.image }}
+          # `latest` is NOT listed here on purpose. The action's default flavor
+          # (latest=auto) already adds it for a non-prerelease semver tag and skips it
+          # for one like v2.0.0-rc.1 — a raw `latest` would defeat that and let a
+          # release candidate become the default pull for everyone.
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ inputs.tag || 'edge' }},enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      # Build arm64 alone and load it, so the image can be INSPECTED before anything is
+      # published. The multi-arch push below then reuses this builder's cache, so the
+      # second build is not a second compile. Verifying after `push: true` would be
+      # theatre: nothing here can unpublish a tag.
+      - name: Build arm64 for inspection
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          load: true
+          tags: ${{ matrix.image }}:arm64-inspect
+          # Read-only against the cache ci.yml writes on pushes to main. No `cache-to`:
+          # an Actions cache written from a tag ref is restorable only by that same tag,
+          # so it could never be read again while still counting against the 10 GB budget
+          # and evicting entries main's builds do use.
+          cache-from: type=gha,scope=${{ matrix.cacheScope }}
+          provenance: false
+          sbom: false
+
+      # Read the IMAGE, not the build log. `npm ci` hides install-script output, so a
+      # clean log is equally consistent with a downloaded prebuild and a node-gyp
+      # compile — CLAUDE.md's rule. A downloaded better-sqlite3 prebuild leaves `build/`
+      # holding only `Release`, and `build/Release` holding only `better_sqlite3.node`;
+      # node-gyp additionally leaves `build/Makefile` and `build/Release/obj.target/`.
+      # Both directories are listed because the two artefacts sit at different levels.
+      #
+      # Measured on linux/arm64 node:24-alpine with better-sqlite3 12.11.1: `build` ->
+      # `Release`, `build/Release` -> `better_sqlite3.node`, and the module loads.
+      - name: Verify the arm64 backend runs on a prebuilt binary
+        if: matrix.image == 'sundry-backend'
+        run: |
+          set -euo pipefail
+          BUILD_DIR=$(docker run --rm --platform linux/arm64 --entrypoint sh '${{ matrix.image }}:arm64-inspect' \
+                        -c 'ls -A node_modules/better-sqlite3/build')
+          RELEASE_DIR=$(docker run --rm --platform linux/arm64 --entrypoint sh '${{ matrix.image }}:arm64-inspect' \
+                        -c 'ls -A node_modules/better-sqlite3/build/Release')
+          echo "build/         -> $BUILD_DIR"
+          echo "build/Release/ -> $RELEASE_DIR"
+          [ "$BUILD_DIR" = 'Release' ] || {
+            echo "::error::node-gyp artefacts in build/ — the arm64 leg compiled instead of downloading a prebuild"; exit 1; }
+          [ "$RELEASE_DIR" = 'better_sqlite3.node' ] || {
+            echo "::error::unexpected contents of build/Release — expected the prebuilt binary alone"; exit 1; }
+          # Existing is not the same as loading: a mismatched libc or ABI only shows up
+          # on require(), and would otherwise surface as a crash on someone's Pi.
+          docker run --rm --platform linux/arm64 --entrypoint node '${{ matrix.image }}:arm64-inspect' \
+            -e 'const D=require("better-sqlite3"); const d=new D(":memory:"); d.exec("create table t(a)"); d.prepare("insert into t values (?)").run(1); if (d.prepare("select a from t").get().a !== 1) process.exit(1); console.log("better-sqlite3 loads and queries on arm64")'
+
+      # The frontend has no native code, but `docker build` succeeding says nothing about
+      # whether nginx accepts the config it was handed: nginx.conf includes
+      # snippets/security-headers.conf from three locations, and a missing or malformed
+      # snippet only surfaces when nginx parses it at container start.
+      #
+      # `--add-host backend:127.0.0.1` is load-bearing, not decoration. nginx resolves
+      # every `proxy_pass` upstream once, at config load, and nginx.conf:33 names the
+      # compose service `backend`. Outside a compose network that name does not exist,
+      # so a bare `nginx -t` fails with `host not found in upstream "backend"` on a
+      # perfectly good image — verified by running it. The mapping satisfies the lookup
+      # without starting anything; nothing here ever sends a request.
+      - name: Verify the arm64 frontend image serves something nginx accepts
+        if: matrix.image == 'sundry-frontend'
+        run: |
+          set -euo pipefail
+          docker run --rm --platform linux/arm64 --add-host backend:127.0.0.1 \
+            --entrypoint sh '${{ matrix.image }}:arm64-inspect' \
+            -c 'test -s /usr/share/nginx/html/index.html && nginx -t'
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.cacheScope }}
+          # Attestations are off deliberately. With provenance/sbom enabled buildx adds
+          # attestation manifests to the image index, which then reports
+          # `unknown/unknown` platform entries. The Umbrel app store pins and lints that
+          # index, and the entries buy nothing here — the source is public and the build
+          # is reproducible from this file.
+          provenance: false
+          sbom: false
+
+      - name: Verify both platforms are in the manifest
+        run: |
+          set -euo pipefail
+          REF='ghcr.io/${{ steps.ns.outputs.owner }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}'
+          PLATFORMS=$(docker buildx imagetools inspect --format '{{range .Manifest.Manifests}}{{.Platform.OS}}/{{.Platform.Architecture}} {{end}}' "$REF")
+          echo "Platforms: $PLATFORMS"
+          for want in linux/amd64 linux/arm64; do
+            case "$PLATFORMS" in
+              *"$want"*) ;;
+              *) echo "::error::$want missing from the manifest list"; exit 1 ;;
+            esac
+          done
+          case "$PLATFORMS" in
+            *unknown*) echo "::error::attestation manifests leaked into the index — provenance/sbom should be off"; exit 1 ;;
+          esac
+
+      # The job summary is the deliverable: this is the line pasted into the Umbrel app
+      # store entry. Deliberately not a job `outputs:` — a matrix job's outputs are
+      # last-writer-wins across legs, so one image's digest would overwrite the other's.
+      # It runs before the anonymity check so the first, expected-red release still
+      # leaves the digest behind.
+      - name: Record the digest
+        run: |
+          {
+            echo "### ${{ matrix.image }}"
+            echo
+            echo '```yaml'
+            echo "image: ghcr.io/${{ steps.ns.outputs.owner }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}"
+            echo '```'
+            echo
+            echo "Tags: ${{ steps.meta.outputs.tags }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Everything above reads the registry through the credentials login-action wrote,
+      # i.e. with packages:write. Umbrel pulls with none, and a GHCR package is PRIVATE
+      # on first publish — visibility is a property of the package, not of the
+      # repository, so a public repo does not make it pullable. Without this the job
+      # goes green on an image no stranger can fetch, and the install failure downstream
+      # is indistinguishable from a typo in the image name.
+      #
+      # No `curl -f` and no `set -e`: GHCR refuses a non-public package at the TOKEN
+      # endpoint with 403 rather than handing out a scopeless token the way Docker Hub
+      # does, so -f plus errexit would abort before the annotation below could print —
+      # which is the one thing this step exists to say.
+      - name: Verify the digest is anonymously pullable
+        run: |
+          set -uo pipefail
+          REPO='${{ steps.ns.outputs.owner }}/${{ matrix.image }}'
+          DIGEST='${{ steps.build.outputs.digest }}'
+          fail() {
+            echo "::error::ghcr.io/$REPO@$DIGEST is not anonymously pullable ($1). Open the package's GHCR settings and change its visibility to Public, then re-run this job — the image is already pushed and its digest does not change. Expect this on the very first release of an image: the package does not exist until the push above succeeds."
+            exit 1
+          }
+          BODY=$(curl -sSL -o "$RUNNER_TEMP/ghcr-token.json" -w '%{http_code}' \
+            "https://ghcr.io/token?service=ghcr.io&scope=repository:$REPO:pull") || fail "the token request could not be made"
+          [ "$BODY" = 200 ] || fail "the anonymous token endpoint returned HTTP $BODY"
+          TOKEN=$(jq -r '.token // empty' "$RUNNER_TEMP/ghcr-token.json")
+          [ -n "$TOKEN" ] || fail "the token response carried no token"
+          CODE=$(curl -sSL -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $TOKEN" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json' \
+            "https://ghcr.io/v2/$REPO/manifests/$DIGEST") || fail "the manifest request could not be made"
+          [ "$CODE" = 200 ] || fail "an anonymous read of the manifest returned HTTP $CODE"
+          echo "Anonymous pull of ghcr.io/$REPO@$DIGEST: 200 OK"

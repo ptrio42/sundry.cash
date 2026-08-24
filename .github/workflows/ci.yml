@@ -52,7 +52,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # arm64 is built under emulation and costs several times the native leg, so
+      # a pull request gets amd64 only and a push to main pays for both. That puts
+      # an arm64 break — a dependency with no prebuild for it, a base image bump —
+      # in front of us on main, rather than at release time or on a self-hoster's
+      # Raspberry Pi. release.yml is what actually publishes; this job only proves
+      # the images still build.
+      - uses: docker/setup-qemu-action@v3
+        if: github.event_name == 'push'
+      - uses: docker/setup-buildx-action@v3
+
       - name: Build backend image
-        run: docker build -f backend/Dockerfile -t sundry-backend backend
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/Dockerfile
+          platforms: ${{ github.event_name == 'push' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          # A multi-platform result cannot be loaded into the local image store, so
+          # there is nothing to tag. The build itself is the assertion.
+          outputs: type=cacheonly
+          cache-from: type=gha,scope=ci-backend
+          cache-to: type=gha,mode=max,scope=ci-backend
+
       - name: Build frontend image
-        run: docker build -f frontend/Dockerfile -t sundry-frontend frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          platforms: ${{ github.event_name == 'push' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          outputs: type=cacheonly
+          cache-from: type=gha,scope=ci-frontend
+          cache-to: type=gha,mode=max,scope=ci-frontend
