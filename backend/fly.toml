@@ -31,7 +31,10 @@ primary_region = "fra"
 [env]
   NODE_ENV = "production"
   PORT = "5000"
-  DB_PATH = "/app/data/expenses.db"
+  # demo.db, not the default expenses.db: the seed refuses to write to the
+  # default path on purpose, so that pointing a seeder at somebody's real
+  # ledger takes a deliberate act rather than an inherited variable.
+  DB_PATH = "/app/data/demo.db"
   DEMO_MODE = "true"
   # Tesseract on a 256 MB shared CPU, exposed to strangers with no password,
   # is a free compute service for whoever finds it.
