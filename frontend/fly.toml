@@ -22,7 +22,15 @@ primary_region = "fra"
   [build.args]
     # Overrides the Dockerfile default of `backend:5000`, which is the Compose
     # service name and means nothing here.
-    API_UPSTREAM = "sundry-demo-api.flycast:5000"
+    #
+    # Port 80, NOT the API's own 5000. A Flycast address is served by the Fly
+    # proxy, which listens on the http_service ports and forwards to
+    # internal_port itself. Connecting straight to 5000 reaches the proxy on a
+    # port it does not serve and is reset — nginx reports "recv() failed (104:
+    # Connection reset by peer) while reading response header from upstream",
+    # which reads like a dead backend rather than a wrong port. Verified from
+    # inside the web Machine: :5000 resets, :80 returns the health JSON.
+    API_UPSTREAM = "sundry-demo-api.flycast:80"
 
 [http_service]
   internal_port = 80

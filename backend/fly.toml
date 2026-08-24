@@ -3,8 +3,10 @@
 #   fly deploy -c backend/fly.toml
 #
 # This Machine is PRIVATE. It gets no public IP; the only way in is the
-# frontend app proxying to `sundry-demo-api.flycast:5000` over the Fly
-# private network. Flycast rather than `.internal` is load-bearing: only
+# frontend app proxying to `sundry-demo-api.flycast:80` over the Fly
+# private network — port 80, because that is where the Fly proxy listens and
+# it forwards to internal_port below. Flycast rather than `.internal` is
+# load-bearing: only
 # traffic through the Fly proxy can start a stopped Machine, and both
 # Machines stopping when idle is what keeps the demo inside Fly's
 # sub-$5 invoice threshold.
